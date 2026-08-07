@@ -1,0 +1,238 @@
+"""Google Gemini LLM provider implementation.
+
+Communicates with Google Gemini API using google-genai. Completely isolated provider implementation.
+"""
+
+import asyncio
+import logging
+import os
+import time
+from collections.abc import AsyncGenerator, Sequence
+from typing import Any
+
+from google import genai
+from google.genai import types
+
+from app.core.exceptions import (
+    ConfigurationError,
+    ExternalServiceError,
+    InternalServerError,
+    ValidationError,
+)
+from app.llm.base import BaseLLMProvider
+from app.llm.models import HealthStatus, LLMRequest, LLMResponse, TokenUsage
+from app.llm.settings import LLMSettings, llm_settings
+
+logger = logging.getLogger(__name__)
+
+# Constants
+PROVIDER_NAME: str = "gemini"
+MS_PER_SECOND: float = 1000.0
+
+
+class GeminiProvider(BaseLLMProvider):
+    """Google Gemini API LLM provider implementation.
+
+    Attributes:
+        _settings (LLMSettings): Provider configuration settings instance.
+        _client (genai.Client): Synchronous genai client instance.
+    """
+
+    def __init__(
+        self,
+        settings: LLMSettings | None = None,
+    ) -> None:
+        """Initialize GeminiProvider using llm_settings or custom overrides.
+
+        Args:
+            settings: Optional custom LLMSettings override.
+        """
+        self._settings = settings or llm_settings
+
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            logger.warning("GEMINI_API_KEY is not set.")
+            self._client = None
+        else:
+            self._client = genai.Client(api_key=api_key)
+
+        # We will map "gemini-flash" to "gemini-1.5-flash" if the user wants flash.
+        self._model = self._settings.model if "gemini" in self._settings.model else "gemini-3.5-flash-lite"
+
+        logger.info(
+            "Gemini provider initialized [provider=%s, model=%s]",
+            self.provider_name,
+            self.model_name,
+        )
+
+    # Provider Properties
+    @property
+    def provider_name(self) -> str:
+        """Return provider name string."""
+        return PROVIDER_NAME
+
+    @property
+    def model_name(self) -> str:
+        """Return configured model name string."""
+        return self._model
+
+    @property
+    def supported_models(self) -> Sequence[str]:
+        """Return sequence of supported models."""
+        return (self._model,)
+
+    @property
+    def supports_streaming(self) -> bool:
+        """Return True indicating streaming support."""
+        return True
+
+    @property
+    def supports_tools(self) -> bool:
+        """Return False indicating tool support (not implemented here)."""
+        return False
+
+    @property
+    def supports_vision(self) -> bool:
+        """Return False indicating vision support (not implemented here)."""
+        return False
+
+    def _convert_messages(self, request: LLMRequest) -> list[types.Content]:
+        contents = []
+        for msg in request.messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            role = role if role in ["user", "model"] else ("model" if role == "assistant" else "user")
+            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=content)]))
+        return contents
+
+    async def generate(self, request: LLMRequest) -> LLMResponse:
+        """Generate a complete response from Gemini."""
+        if not self._client:
+            raise InternalServerError("Gemini API key is not configured.", error_code="PROVIDER_CONFIG_ERROR")
+
+        start_time = time.perf_counter()
+        
+        system_instruction = None
+        user_messages = []
+        for msg in request.messages:
+            if msg.get("role") == "system":
+                system_instruction = msg.get("content")
+            else:
+                user_messages.append(msg)
+                
+        contents = self._convert_messages(LLMRequest(messages=user_messages, temperature=request.temperature, max_tokens=request.max_tokens))
+        
+        config = types.GenerateContentConfig(
+            temperature=request.temperature or self._settings.temperature,
+            max_output_tokens=request.max_tokens or self._settings.max_tokens,
+            system_instruction=system_instruction
+        )
+        
+        # Async wrapper for sync client call
+        loop = asyncio.get_event_loop()
+        try:
+            response = await loop.run_in_executor(
+                None, 
+                lambda: self._client.models.generate_content(
+                    model=self._model, 
+                    contents=contents, 
+                    config=config
+                )
+            )
+            
+            duration_ms = (time.perf_counter() - start_time) * MS_PER_SECOND
+            
+            usage = TokenUsage(
+                prompt_tokens=response.usage_metadata.prompt_token_count if response.usage_metadata else 0,
+                completion_tokens=response.usage_metadata.candidates_token_count if response.usage_metadata else 0,
+                total_tokens=response.usage_metadata.total_token_count if response.usage_metadata else 0
+            )
+
+            return LLMResponse(
+                content=response.text,
+                model=self._model,
+                provider=self.provider_name,
+                usage=usage,
+                latency_ms=duration_ms,
+            )
+
+        except Exception as e:
+            logger.error("Gemini generation failed: %s", str(e))
+            raise ExternalServiceError(f"Gemini API error: {str(e)}") from e
+
+    async def stream_generate(self, request: LLMRequest) -> AsyncGenerator[str, None]:
+        """Stream a response from Gemini."""
+        if not self._client:
+            raise InternalServerError("Gemini API key is not configured.", error_code="PROVIDER_CONFIG_ERROR")
+
+        system_instruction = None
+        user_messages = []
+        for msg in request.messages:
+            if msg.get("role") == "system":
+                system_instruction = msg.get("content")
+            else:
+                user_messages.append(msg)
+                
+        contents = self._convert_messages(LLMRequest(messages=user_messages, temperature=request.temperature, max_tokens=request.max_tokens))
+        
+        config = types.GenerateContentConfig(
+            temperature=request.temperature or self._settings.temperature,
+            max_output_tokens=request.max_tokens or self._settings.max_tokens,
+            system_instruction=system_instruction
+        )
+        
+        loop = asyncio.get_event_loop()
+        try:
+            # We use a thread to yield items from the sync stream generator
+            import queue
+            import threading
+            
+            q = queue.Queue()
+            
+            def _stream_runner():
+                try:
+                    response_stream = self._client.models.generate_content_stream(
+                        model=self._model,
+                        contents=contents,
+                        config=config
+                    )
+                    for chunk in response_stream:
+                        q.put(chunk.text)
+                    q.put(None)
+                except Exception as e:
+                    q.put(e)
+            
+            thread = threading.Thread(target=_stream_runner)
+            thread.start()
+            
+            while True:
+                # wait async for queue item
+                item = await loop.run_in_executor(None, q.get)
+                if item is None:
+                    break
+                if isinstance(item, Exception):
+                    raise item
+                yield item
+
+        except Exception as e:
+            logger.error("Gemini streaming failed: %s", str(e))
+            raise ExternalServiceError(f"Gemini API streaming error: {str(e)}") from e
+
+    async def health_check(self) -> HealthStatus:
+        """Check provider health."""
+        if not self._client:
+            return HealthStatus(
+                status="unhealthy",
+                provider=self.provider_name,
+                details={"error": "API key not configured"},
+            )
+        try:
+            # simple ping
+            await self.generate(LLMRequest(messages=[{"role": "user", "content": "hi"}], max_tokens=5))
+            return HealthStatus(status="healthy", provider=self.provider_name, details={"model": self._model})
+        except Exception as e:
+            return HealthStatus(
+                status="unhealthy",
+                provider=self.provider_name,
+                details={"error": str(e)},
+            )

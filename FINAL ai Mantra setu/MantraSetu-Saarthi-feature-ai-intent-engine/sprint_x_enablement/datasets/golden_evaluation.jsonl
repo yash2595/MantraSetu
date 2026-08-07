@@ -1,0 +1,2 @@
+{"id": "G-NAV-001", "intent": "puja_booking", "expected_route": "/booking", "ground_truth": "VALID", "safety_flag": false}
+{"id": "G-VOICE-001", "intent": "pandit_search", "expected_route": "/pandit", "ground_truth": "VALID", "safety_flag": false}

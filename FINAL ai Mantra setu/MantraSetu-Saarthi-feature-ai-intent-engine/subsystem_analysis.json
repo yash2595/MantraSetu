@@ -1,0 +1,222 @@
+{
+  "agent": {
+    "file_count": 7,
+    "total_loc": 964
+  },
+  "agents": {
+    "file_count": 11,
+    "total_loc": 1179
+  },
+  "ai": {
+    "file_count": 15,
+    "total_loc": 1378
+  },
+  "ai_governance": {
+    "file_count": 10,
+    "total_loc": 682
+  },
+  "ai_quality": {
+    "file_count": 22,
+    "total_loc": 1538
+  },
+  "aiops": {
+    "file_count": 10,
+    "total_loc": 597
+  },
+  "api": {
+    "file_count": 33,
+    "total_loc": 1904
+  },
+  "archive": {
+    "file_count": 1,
+    "total_loc": 288
+  },
+  "autonomous_agents": {
+    "file_count": 9,
+    "total_loc": 588
+  },
+  "browser": {
+    "file_count": 18,
+    "total_loc": 2743
+  },
+  "business": {
+    "file_count": 10,
+    "total_loc": 795
+  },
+  "config": {
+    "file_count": 0,
+    "total_loc": 0
+  },
+  "conversation": {
+    "file_count": 19,
+    "total_loc": 3523
+  },
+  "conversation_intelligence": {
+    "file_count": 9,
+    "total_loc": 590
+  },
+  "copilot": {
+    "file_count": 9,
+    "total_loc": 545
+  },
+  "core": {
+    "file_count": 24,
+    "total_loc": 3212
+  },
+  "dependencies": {
+    "file_count": 3,
+    "total_loc": 353
+  },
+  "deployment": {
+    "file_count": 2,
+    "total_loc": 90
+  },
+  "execution": {
+    "file_count": 4,
+    "total_loc": 244
+  },
+  "forms": {
+    "file_count": 11,
+    "total_loc": 1179
+  },
+  "infrastructure": {
+    "file_count": 23,
+    "total_loc": 1870
+  },
+  "integrations": {
+    "file_count": 30,
+    "total_loc": 3412
+  },
+  "interfaces": {
+    "file_count": 2,
+    "total_loc": 230
+  },
+  "knowledge": {
+    "file_count": 11,
+    "total_loc": 1022
+  },
+  "learning": {
+    "file_count": 10,
+    "total_loc": 651
+  },
+  "llm": {
+    "file_count": 11,
+    "total_loc": 1224
+  },
+  "memory": {
+    "file_count": 10,
+    "total_loc": 884
+  },
+  "models": {
+    "file_count": 3,
+    "total_loc": 20
+  },
+  "multimodal": {
+    "file_count": 9,
+    "total_loc": 1243
+  },
+  "navigation": {
+    "file_count": 52,
+    "total_loc": 10408
+  },
+  "observability": {
+    "file_count": 12,
+    "total_loc": 1111
+  },
+  "orchestrator": {
+    "file_count": 68,
+    "total_loc": 7798
+  },
+  "planner": {
+    "file_count": 2,
+    "total_loc": 8
+  },
+  "plugins": {
+    "file_count": 15,
+    "total_loc": 1460
+  },
+  "prompt_runtime": {
+    "file_count": 9,
+    "total_loc": 626
+  },
+  "prompts": {
+    "file_count": 5,
+    "total_loc": 238
+  },
+  "providers": {
+    "file_count": 9,
+    "total_loc": 751
+  },
+  "rag": {
+    "file_count": 8,
+    "total_loc": 1333
+  },
+  "reasoning": {
+    "file_count": 10,
+    "total_loc": 640
+  },
+  "release": {
+    "file_count": 21,
+    "total_loc": 1781
+  },
+  "saas": {
+    "file_count": 10,
+    "total_loc": 1086
+  },
+  "schemas": {
+    "file_count": 11,
+    "total_loc": 665
+  },
+  "security": {
+    "file_count": 11,
+    "total_loc": 1188
+  },
+  "services": {
+    "file_count": 95,
+    "total_loc": 9182
+  },
+  "session": {
+    "file_count": 6,
+    "total_loc": 809
+  },
+  "skills": {
+    "file_count": 9,
+    "total_loc": 1445
+  },
+  "speech": {
+    "file_count": 8,
+    "total_loc": 681
+  },
+  "system": {
+    "file_count": 14,
+    "total_loc": 990
+  },
+  "tools": {
+    "file_count": 15,
+    "total_loc": 1801
+  },
+  "tts": {
+    "file_count": 8,
+    "total_loc": 586
+  },
+  "utils": {
+    "file_count": 2,
+    "total_loc": 6
+  },
+  "validation": {
+    "file_count": 9,
+    "total_loc": 645
+  },
+  "voice": {
+    "file_count": 32,
+    "total_loc": 2208
+  },
+  "workflow_studio": {
+    "file_count": 9,
+    "total_loc": 1059
+  },
+  "workflows": {
+    "file_count": 2,
+    "total_loc": 109
+  }
+}

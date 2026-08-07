@@ -1,0 +1,10 @@
+providers:
+  primary: "gpt-4o"
+  fallback: "claude-3.5-sonnet"
+rag:
+  top_k: 5
+  similarity_threshold: 0.85
+features:
+  enable_voice_nav: true
+  enable_agentic_workflow: true
+  enable_browser_automation: false

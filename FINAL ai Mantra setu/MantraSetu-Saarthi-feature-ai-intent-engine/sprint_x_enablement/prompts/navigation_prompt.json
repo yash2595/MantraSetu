@@ -1,0 +1,7 @@
+{
+  "purpose": "Primary Navigation for MantraSetu Platform",
+  "variables": ["user_intent", "current_context", "available_routes"],
+  "expected_behaviour": "Output the exact route mapping to the user intent.",
+  "failure_conditions": "Returns invalid JSON or a non-existent route.",
+  "evaluation_notes": "Must maintain >99% Exact Match in golden dataset."
+}

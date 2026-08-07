@@ -1,0 +1,61 @@
+{
+  "counts": {
+    "total": 848,
+    "runtime_critical": 429,
+    "runtime_optional": 323,
+    "test_only": 72,
+    "legacy": 1,
+    "duplicate": 0,
+    "prototype": 7,
+    "dead_code": 16,
+    "safe_to_delete": 16
+  },
+  "safe_to_delete_files": [
+    "app\\ai\\intent\\intent_types.py",
+    "app\\api\\dependencies.py",
+    "app\\services\\browser\\automation_engine_service.py",
+    "app\\services\\browser\\browser_executor_service.py",
+    "app\\services\\browser\\command_resolver_service.py",
+    "app\\services\\browser\\session_manager_service.py",
+    "app\\services\\browser\\target_resolver_service.py",
+    "app\\services\\browser_intelligence\\dom_intelligence_service.py",
+    "app\\services\\browser_intelligence\\navigation_graph_service.py",
+    "app\\services\\browser_intelligence\\page_context_service.py",
+    "app\\services\\browser_intelligence\\task_context_service.py",
+    "app\\services\\execution\\execution_pipeline_service.py",
+    "app\\services\\execution\\execution_runner_service.py",
+    "app\\services\\execution\\workflow_planner_service.py",
+    "app\\services\\tools\\tool_registry_service.py",
+    "scripts\\run_production_health_check.py"
+  ],
+  "dead_code_files": [
+    "app\\ai\\intent\\intent_types.py",
+    "app\\api\\dependencies.py",
+    "app\\services\\browser\\automation_engine_service.py",
+    "app\\services\\browser\\browser_executor_service.py",
+    "app\\services\\browser\\command_resolver_service.py",
+    "app\\services\\browser\\session_manager_service.py",
+    "app\\services\\browser\\target_resolver_service.py",
+    "app\\services\\browser_intelligence\\dom_intelligence_service.py",
+    "app\\services\\browser_intelligence\\navigation_graph_service.py",
+    "app\\services\\browser_intelligence\\page_context_service.py",
+    "app\\services\\browser_intelligence\\task_context_service.py",
+    "app\\services\\execution\\execution_pipeline_service.py",
+    "app\\services\\execution\\execution_runner_service.py",
+    "app\\services\\execution\\workflow_planner_service.py",
+    "app\\services\\tools\\tool_registry_service.py",
+    "scripts\\run_production_health_check.py"
+  ],
+  "legacy_files": [
+    "app\\archive\\voice_service.py"
+  ],
+  "prototype_files": [
+    "app\\ai\\intent\\__init__.py",
+    "app\\ai\\intent\\intent_detector.py",
+    "app\\ai\\intent\\intent_schema.py",
+    "app\\ai\\intent\\intent_utils.py",
+    "app\\ai\\intent\\multi_intent.py",
+    "app\\planner\\__init__.py",
+    "app\\utils\\__init__.py"
+  ]
+}

@@ -1,0 +1,55 @@
+# Python byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environments
+.venv/
+.venv-*/
+venv/
+env/
+ENV/
+
+# Environment and Secret Files
+.env
+.env.*
+!.env.example
+
+# IDE and Editor Settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs and Databases
+*.log
+*.sqlite
+*.sqlite3
+
+# Testing and Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Local Project Archives, Data, and Downloads
+Files.zip
+*.zip
+*.tar.gz
+*.rar
+data/
+downloads/
+temp/
+tmp/
