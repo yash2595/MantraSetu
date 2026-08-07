@@ -205,7 +205,8 @@ class AIOrchestrator:
                 "action": action, 
                 "target": mapped_target, 
                 "intent": intent_result.get("intent"),
-                "query": intent_result.get("query")
+                "query": intent_result.get("query"),
+                "fields": intent_result.get("fields")
             }
             if mapped_target:
                 self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)

@@ -78,19 +78,19 @@ export const SaarthiController: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* ── BOTTOM-RIGHT MINIMIZED PLACEHOLDER (Docked Floating Companion) ── */}
+      {/* ── BOTTOM-LEFT MINIMIZED PLACEHOLDER (Docked Floating Companion) ── */}
       {isMinimized && (
         <motion.div
           initial={{ scale: 0.5, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed bottom-6 right-6 z-50 flex items-end justify-end pointer-events-auto"
+          className="fixed bottom-6 left-6 z-50 flex items-end justify-start pointer-events-auto"
           data-testid="saarthi-minimized-floating"
         >
           {/* Spoken Dialogue Text Bubble (Floating above avatar) */}
           <AnimatePresence>
             {showSpeechBubble && dialogueText && (
-              <div className="absolute bottom-full right-4 mb-4 origin-bottom-right" style={{ minWidth: '280px' }}>
+              <div className="absolute bottom-full left-4 mb-4 origin-bottom-left" style={{ minWidth: '280px' }}>
                 <SaarthiSpeechBubble text={dialogueText} />
               </div>
             )}

@@ -162,13 +162,30 @@ export function useSaarthiVoice() {
     }
 
     if (step.action === 'type' && step.target && step.text) {
-      const targetEl = document.querySelector(step.target) as HTMLInputElement;
+      const targetEl = document.querySelector(step.target) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+      console.log(`[FORM-FILL-EXEC] Action: TYPE. Target: "${step.target}". ElementFound: ${!!targetEl}. ValueToSet: "${step.text}"`);
       if (targetEl) {
-         targetEl.value = step.text;
-         const tracker = (targetEl as any)._valueTracker;
-         if (tracker) tracker.setValue('');
-         targetEl.dispatchEvent(new Event('input', { bubbles: true }));
-         targetEl.dispatchEvent(new Event('change', { bubbles: true }));
+         console.log('[FORM-FILL-EXEC] Dispatching input event with value:', step.text);
+         
+         // In React 18, input value setters are defined on the instance proto
+         let nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+         if (targetEl.tagName.toLowerCase() === 'textarea') {
+             nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+         } else if (targetEl.tagName.toLowerCase() === 'select') {
+             nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')?.set;
+         }
+
+         if (nativeInputValueSetter) {
+             nativeInputValueSetter.call(targetEl, step.text);
+             console.log('[FORM-FILL-EXEC] Used nativeInputValueSetter');
+         } else {
+             targetEl.value = step.text;
+             console.log('[FORM-FILL-EXEC] Used direct assignment');
+         }
+         
+         const inputEventSuccess = targetEl.dispatchEvent(new Event('input', { bubbles: true }));
+         const changeEventSuccess = targetEl.dispatchEvent(new Event('change', { bubbles: true }));
+         console.log(`[FORM-FILL-EXEC] Dispatched events. inputSuccess=${inputEventSuccess}, changeSuccess=${changeEventSuccess}`);
       }
       setTimeout(processNextStep, step.delay);
       return;
@@ -218,8 +235,9 @@ export function useSaarthiVoice() {
             if (is_final) {
               setSaarthiState('idle'); // Wait for AI_RESPONSE
               // Auto-minimize on first command
+              console.log('[WIDGET] Shrink condition check (TRANSCRIPT): is_final=true, _hasMinimizedOnce=', (window as any)._hasMinimizedOnce);
               if (!(window as any)._hasMinimizedOnce) {
-                  console.log('[Voice] First command received, auto-minimizing widget to corner.');
+                  console.log('[WIDGET] Triggering shrink-to-corner animation now (via TRANSCRIPT)');
                   forceMinimize();
                   (window as any)._hasMinimizedOnce = true;
               }
@@ -276,27 +294,21 @@ export function useSaarthiVoice() {
               
               const getTargetSelectorForPath = (path: string) => {
                 if (path === '/') return '[data-testid="link-home-logo"]';
-                if (path.includes('puja')) return '[data-testid="link-nav-service-book-puja"]';
-                if (path.includes('kundali')) return '[data-testid="link-nav-tool-kundali"]';
-                if (path.includes('muhurat')) return '[data-testid="link-nav-tool-muhurat-finder"]';
+                if (path.includes('puja')) return '[data-testid="button-nav-services"]';
+                if (path.includes('kundali')) return '[data-testid="button-nav-spiritual-tools"]';
+                if (path.includes('muhurat')) return '[data-testid="button-nav-spiritual-tools"]';
                 if (path.includes('login')) return '[data-testid="button-login"]';
                 if (path.includes('signup') || path.includes('sign-up')) return '[data-testid="button-signup"]';
                 if (path.includes('dash')) return 'a[href="/dashboard"]';
                 return `a[href="${path}"]`;
               };
 
-              const getMenuTriggerForPath = (path: string) => {
-                if (path.includes('puja')) return '[data-testid="button-nav-services"]';
-                if (path.includes('kundali') || path.includes('muhurat')) return '[data-testid="button-nav-spiritual-tools"]';
-                return null;
-              };
-
               const seq = [];
-              const menuTrigger = getMenuTriggerForPath(cleanTarget);
               const finalTarget = getTargetSelectorForPath(cleanTarget);
 
               if (query && cleanTarget.includes('puja')) {
-                // GENERIC QUERY FLOW (e.g., Any specific puja)
+                // GENERIC QUERY FLOW (e.g., Any specific puja) - GOLDEN PATH
+                console.log('[NAV-DEBUG] Preparing to type search query into filter box:', query);
                 if (window.location.pathname === '/puja') {
                   seq.push(
                     { action: 'move', target: '[data-testid="input-search-puja"]', delay: 800 },
@@ -307,12 +319,10 @@ export function useSaarthiVoice() {
                     { action: 'click', target: '[data-testid^="button-book-now-"]', delay: 0 }
                   );
                 } else {
-                  if (menuTrigger) {
-                    seq.push({ action: 'move', target: menuTrigger, delay: 800 });
-                    seq.push({ action: 'click', target: menuTrigger, delay: 400 });
-                  }
-                  seq.push({ action: 'move', target: finalTarget, delay: 800 });
-                  seq.push({ action: 'click', target: finalTarget, delay: 800 });
+                  seq.push({ action: 'move', target: '[data-testid="button-nav-services"]', delay: 800 });
+                  seq.push({ action: 'click', target: '[data-testid="button-nav-services"]', delay: 400 });
+                  seq.push({ action: 'move', target: '[data-testid="link-nav-service-book-puja"]', delay: 800 });
+                  seq.push({ action: 'click', target: '[data-testid="link-nav-service-book-puja"]', delay: 800 });
                   seq.push({ action: 'wait_for_selector', target: '[data-testid="input-search-puja"]', delay: 400 });
                   seq.push({ action: 'move', target: '[data-testid="input-search-puja"]', delay: 800 });
                   seq.push({ action: 'click', target: '[data-testid="input-search-puja"]', delay: 200 });
@@ -323,18 +333,85 @@ export function useSaarthiVoice() {
                 }
               } else {
                 // GENERIC PAGE-LEVEL NAV FLOW
-                if (menuTrigger) {
-                  seq.push({ action: 'move', target: menuTrigger, delay: 800 });
-                  seq.push({ action: 'click', target: menuTrigger, delay: 400 });
-                }
                 seq.push({ action: 'move', target: finalTarget, delay: 800 });
-                seq.push({ action: 'click', target: finalTarget, delay: 400 });
-                // Fallback direct navigate to handle non-anchor clicks
-                seq.push({ action: 'navigate', path: cleanTarget, delay: 0 });
+                // We just point at the top level link and navigate directly
+                seq.push({ action: 'navigate', path: cleanTarget, delay: 400 });
+                
+                // Fix for Pandit role switching
+                if (cleanTarget.includes('role=pandit')) {
+                  seq.push({ action: 'wait_for_selector', target: '[data-testid="tab-usertype-pandit"]', delay: 400 });
+                  seq.push({ action: 'click', target: '[data-testid="tab-usertype-pandit"]', delay: 200 });
+                  console.log('[NAV-DEBUG] Clicked Pandit tab explicitly after navigating');
+                }
               }
 
               runSequence(seq);
               // Fallback handled by generic page level flow
+            } else if (action === 'FILL_FORM' && (msg.payload.fields || (target && query))) {
+              console.log('[FORM-FILL] Raw AI_RESPONSE for FILL_FORM:', msg.payload);
+              console.log('[FORM-FILL] Received fields array:', JSON.stringify(msg.payload.fields));
+              
+              const fieldsToFill = msg.payload.fields || [{ target, query }];
+              console.log('[FORM-FILL] Number of fields to process:', fieldsToFill.length);
+              console.log('[FORM-FILL] Fields to fill:', fieldsToFill);
+
+              const seq: any[] = [];
+              let hasNavigatedToPandit = false;
+
+              for (const field of fieldsToFill) {
+                const fTarget = field.target;
+                const fQuery = field.query;
+                
+                let isPanditField = fTarget.startsWith('pandit-');
+                
+                // Smart tab detection: If we are on signup page and pandit tab is active, treat all generic fields as pandit fields
+                if (!isPanditField && window.location.pathname.includes('signup') && document.querySelector('[data-testid="tab-usertype-pandit"][aria-pressed="true"]')) {
+                   isPanditField = true;
+                }
+
+                let selector = '';
+                if (fTarget.includes('name')) selector = isPanditField ? '[data-testid="input-pandit-name"]' : 'input[name="name"], [data-testid="input-name"], #devotee-name';
+                else if (fTarget.includes('phone') || fTarget.includes('mobile')) selector = isPanditField ? '[data-testid="input-pandit-phone"]' : 'input[name="phone"], input[type="tel"], [data-testid="input-phone"], #devotee-phone';
+                else if (fTarget.includes('city') || fTarget.includes('location')) selector = isPanditField ? '[data-testid="input-pandit-city"]' : 'input[name="city"], [data-testid="input-city"], select#booking-city, #booking-city';
+                else if (fTarget.includes('state')) selector = isPanditField ? '[data-testid="input-pandit-state"]' : 'input[name="state"], [data-testid="input-state"]';
+                else if (fTarget.includes('email')) selector = isPanditField ? '[data-testid="input-pandit-email"]' : 'input[name="email"], input[type="email"], [data-testid="input-email"]';
+                else if (fTarget.includes('date')) selector = 'input[name="date"], input[type="date"], [data-testid="input-date"], #booking-date';
+                else if (fTarget.includes('time')) selector = 'input[name="time"], input[type="time"], [data-testid="input-time"], select#booking-time, #booking-time';
+                else selector = `input[name="${fTarget}"], #${fTarget}`;
+                
+                console.log(`[FORM-FILL] Processing field ${fTarget} -> selector: ${selector}`);
+
+                if (isPanditField && !hasNavigatedToPandit) {
+                  hasNavigatedToPandit = true;
+                  if (window.location.pathname !== '/signup') {
+                     seq.push({ action: 'navigate', path: '/signup?role=pandit', delay: 400 });
+                  } else {
+                     seq.push({ action: 'click', target: '[data-testid="tab-usertype-pandit"]', delay: 200 });
+                  }
+                  seq.push({ action: 'wait_for_selector', target: selector, delay: 200 });
+                }
+
+                if (isPanditField) {
+                  seq.push({ action: 'move', target: selector, delay: 400 });
+                  seq.push({ action: 'type', target: selector, text: fQuery, delay: 800 });
+                } else {
+                  const element = document.querySelector(selector);
+                  console.log(`[FORM-FILL] Attempting to queue fill: field="${fTarget}", value="${fQuery}", selector="${selector}", foundElement=${!!element}`);
+                  if (element || hasNavigatedToPandit) {
+                    seq.push({ action: 'move', target: selector, delay: 800 });
+                    seq.push({ action: 'type', target: selector, text: fQuery, delay: 800 });
+                  } else {
+                    console.warn(`[FORM-FILL] Could not find element for target: ${fTarget}`);
+                  }
+                }
+              }
+
+              if (seq.length > 0) {
+                sequenceQueueRef.current = seq;
+                if (!isExecutingSequenceRef.current) {
+                  processNextStepRef.current();
+                }
+              }
             }
             
             setDialogueText(contentStr);
@@ -645,6 +722,14 @@ export function useSaarthiVoice() {
                 console.log(`[Voice] VAD: Silence detected. Triggering AUDIO_END. Volume was: ${average.toFixed(2)}`);
                 isSpeaking = false;
                 setSaarthiState('idle'); // This will trigger the cleanup and AUDIO_END via the hook dependency change
+                
+                // Auto-minimize on first real voice command completion
+                console.log('[WIDGET] Shrink condition check (VAD): isSpeaking=false, _hasMinimizedOnce=', (window as any)._hasMinimizedOnce);
+                if (!(window as any)._hasMinimizedOnce) {
+                  console.log('[WIDGET] Triggering shrink-to-corner animation now (via VAD)');
+                  forceMinimize();
+                  (window as any)._hasMinimizedOnce = true;
+                }
               }
             }
           }, 100);

@@ -120,13 +120,14 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                     transport_metrics.record_dropped_frame()
 
                 # ── Bug 7 fix: Send greeting AI_RESPONSE on connect ──
+                greeting_text = "Namaste! MantraSetu mein aapka swagat hai. Aaj main aapki kya seva kar sakta hoon?"
                 greeting_reply = WebSocketEnvelope(
                     request_id=frame.request_id,
                     session_id=active_session_id,
                     conversation_id=frame.conversation_id,
                     type=ProtocolMessageType.AI_RESPONSE,
                     payload={
-                        "content": "Namaste! MantraSetu mein aapka swagat hai. Aaj main aapki kya seva kar sakta hoon?",
+                        "content": greeting_text,
                         "intent": "GREETING",
                         "action": None,
                         "target": None,
@@ -137,6 +138,39 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                     logger.info("[WS-ROUTER] Greeting AI_RESPONSE sent on connect for session %s", active_session_id)
                 except asyncio.QueueFull:
                     transport_metrics.record_dropped_frame()
+
+                # Generate TTS for greeting
+                from app.orchestrator.orchestrator_models import OrchestratorResponse, ResponseType
+                dummy_resp = OrchestratorResponse(
+                    response_id=f"resp_{uuid4().hex[:8]}",
+                    request_id=frame.request_id or f"req_{uuid4().hex[:8]}",
+                    text=greeting_text,
+                    response_type=ResponseType.CHAT
+                )
+                
+                async def _send_greeting_tts():
+                    try:
+                        async for chunk in tts_pipeline.process_response(dummy_resp):
+                            audio_reply = WebSocketEnvelope(
+                                request_id=frame.request_id,
+                                session_id=active_session_id,
+                                conversation_id=frame.conversation_id,
+                                type=ProtocolMessageType.AUDIO_CHUNK,
+                                payload={
+                                    "sequence_number": chunk.sequence_number,
+                                    "is_final": chunk.is_final,
+                                    "data_length": len(chunk.data),
+                                    "data": __import__('base64').b64encode(chunk.data).decode('utf-8')
+                                },
+                            )
+                            try:
+                                outbound_queue.put_nowait(audio_reply)
+                            except asyncio.QueueFull:
+                                pass
+                    except Exception as e:
+                        logger.error(f"[WS-ROUTER] Failed to generate TTS for greeting: {e}")
+                
+                asyncio.create_task(_send_greeting_tts())
 
             elif frame.type == ProtocolMessageType.AUDIO_FRAME:
                 if not active_session_id:
@@ -171,9 +205,10 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                         _action = _nav.get("action") if _nav else None
                         _intent = _nav.get("intent") if _nav else (resp.response_type.value if hasattr(resp, "response_type") else "chat")
                         _query = _nav.get("query") if _nav else None
+                        _fields = _nav.get("fields") if _nav else None
                         logger.info(
-                            "[WS-ROUTER] AI_RESPONSE payload: target=%s  action=%s  intent=%s  query=%s  text=%r",
-                            _target, _action, _intent, _query, resp.text[:80] if resp.text else "",
+                            "[WS-ROUTER] AI_RESPONSE payload: target=%s  action=%s  intent=%s  query=%s  fields=%s  text=%r",
+                            _target, _action, _intent, _query, _fields, resp.text[:80] if resp.text else "",
                         )
 
                         ai_reply = WebSocketEnvelope(
@@ -187,6 +222,7 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                                 "action": _action,
                                 "target": _target,
                                 "query": _query,
+                                "fields": _fields,
                             },
                         )
                         try:
@@ -255,6 +291,7 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                         "action": resp.navigation_directive.get("action") if resp.navigation_directive else None,
                         "target": resp.navigation_directive.get("target") if resp.navigation_directive else None,
                         "query": resp.navigation_directive.get("query") if resp.navigation_directive else None,
+                        "fields": resp.navigation_directive.get("fields") if resp.navigation_directive else None,
                     },
                 )
                 try:

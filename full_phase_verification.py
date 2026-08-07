@@ -247,9 +247,10 @@ async def run_verifications():
             resp = json.loads(await ws.recv())
             sess_id = resp.get("session_id")
 
+            text_req_id = str(uuid.uuid4())
             await ws.send(json.dumps({
                 "type": "TEXT",
-                "request_id": str(uuid.uuid4()),
+                "request_id": text_req_id,
                 "session_id": sess_id,
                 "conversation_id": conv_id,
                 "payload": {"text": cmd}
@@ -257,15 +258,19 @@ async def run_verifications():
 
             nav_success = False
             details = ""
-            for _ in range(5):
-                raw = await asyncio.wait_for(ws.recv(), timeout=10.0)
-                msg = json.loads(raw)
-                if msg.get("type") == "AI_RESPONSE":
-                    content = str(msg.get("payload", {}).get("content", "")).lower()
-                    intent = str(msg.get("payload", {}).get("intent", "")).lower()
-                    details = f"Intent: {intent}, Content: {content[:60]}..."
-                    if any(k.lower() in content for k in keywords) or "navigate" in intent:
-                        nav_success = True
+            while True:
+                try:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=10.0)
+                    msg = json.loads(raw)
+                    if msg.get("type") == "AI_RESPONSE" and msg.get("request_id") == text_req_id:
+                        content = str(msg.get("payload", {}).get("content", "")).lower()
+                        intent = str(msg.get("payload", {}).get("intent", "")).lower()
+                        details = f"Intent: {intent}, Content: {content[:60]}..."
+                        if any(k.lower() in content for k in keywords) or "navigate" in intent:
+                            nav_success = True
+                        break
+                except asyncio.TimeoutError:
+                    details = "Timeout waiting for AI_RESPONSE"
                     break
 
             report(7, f"Navigation Command: '{cmd}'", nav_success, details)

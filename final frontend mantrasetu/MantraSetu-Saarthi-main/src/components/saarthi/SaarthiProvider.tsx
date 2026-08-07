@@ -87,6 +87,7 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
 
   // ── FORCE MINIMIZE (Instant, for AI Interactions) ─────────
   const forceMinimize = () => {
+    console.log('[WIDGET] forceMinimize executing. setting isMinimized to true');
     console.trace('[Provider] forceMinimize invoked');
     setShowChoicePopup(false);
     setShowSpeechBubble(true); // Keep speech bubble visible!

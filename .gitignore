@@ -1,8 +1,10 @@
-﻿mongodb.msi
+mongodb.msi
 mongodb.zip
 mongodb_extracted/
 __pycache__/
 node_modules/
 .env
 .venv/
-venv/
+data/
+*.wav
+
