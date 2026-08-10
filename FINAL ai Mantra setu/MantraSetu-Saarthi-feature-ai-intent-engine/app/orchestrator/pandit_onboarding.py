@@ -153,62 +153,109 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
     """Pre-process spoken transcripts for emails and phone numbers before LLM extraction."""
     text = user_message.strip()
     
-    if field == "pandit-email":
-        # Spoken @ symbols in English & Hindi Devanagari
+    if field in ["pandit-email", "email"]:
+        # Remove common email filler prefixes
+        text = re.sub(r'^(mera\s+)?(email\s+address|email\s+id|email)\s+(hai\s+)?', '', text, flags=re.IGNORECASE).strip()
+
+        # 1. Transliterate Devanagari Hindi phonetic letters to English ASCII
+        devanagari_phrases = [
+            (r'(एट द रेट|ऍट द रेट|एट rate|एट-द-रेट|ऐट)', '@'),
+            (r'(जी\s*एम\s*ए\s*[एआई]\s*एल\s*सी\s*ओ\s*एम|जीएमएएएलसीओएम)', 'gmail.com'),
+            (r'(जी\s*एम\s*ए\s*[एआई]\s*एल|जीएमएएएल|जीमेल|जी\s*मेल)', 'gmail'),
+            (r'(सी\s*ओ\s*एम|सीओएम|कॉम)', 'com'),
+            (r'(डॉट|डाट|बिंदु)', '.'),
+        ]
+        for pattern, repl in devanagari_phrases:
+            text = re.sub(pattern, repl, text, flags=re.IGNORECASE)
+
+        devanagari_letters = [
+            ("ए", "a"), ("बी", "b"), ("सी", "c"), ("डी", "d"), ("ई", "e"), ("एफ", "f"),
+            ("जी", "g"), ("एच", "h"), ("आई", "i"), ("जे", "j"), ("के", "k"), ("एल", "l"),
+            ("एम", "m"), ("एन", "n"), ("ओ", "o"), ("पी", "p"), ("क्यू", "q"), ("आर", "r"),
+            ("एस", "s"), ("टी", "t"), ("यू", "u"), ("वी", "v"), ("डब्लू", "w"), ("डब्ल्यू", "w"),
+            ("एक्स", "x"), ("वाय", "y"), ("जेड", "z"),
+            ("ग", "g"), ("ह", "h"), ("व", "v"), ("र", "r"), ("स", "s"), ("म", "m"), ("न", "n"),
+            ("ल", "l"), ("ब", "b"), ("त", "t"), ("प", "p"), ("द", "d"), ("क", "k"), ("ट", "t")
+        ]
+        for dev_let, eng_let in devanagari_letters:
+            text = text.replace(dev_let, eng_let)
+            
+        # 2. Spoken @ symbols in English & Hindi Devanagari
         text = re.sub(r'\b(at the rate of|at the rate|at rate of|at rate|at-the-rate)\b', '@', text, flags=re.IGNORECASE)
-        text = re.sub(r'(एट द रेट|ऍट द रेट|एट rate|एट-द-रेट)', '@', text)
+        text = re.sub(r'(एट द रेट|ऍट द रेट|एट rate|एट-द-रेट|ऐट)', '@', text)
         text = re.sub(r'(?<=\w)\s+at\s+(?=\w+)', '@', text, flags=re.IGNORECASE)
         
-        # Spoken . symbols in English & Hindi Devanagari
-        text = re.sub(r'\b(dot)\b', '.', text, flags=re.IGNORECASE)
+        # 3. Spoken . symbols in English & Hindi Devanagari
+        text = re.sub(r'\b(dot|point)\b', '.', text, flags=re.IGNORECASE)
         text = re.sub(r'(डॉट|डाट|बिंदु)', '.', text)
         
-        # Spoken dash & underscore
+        # 4. Spoken dash & underscore
         text = re.sub(r'\b(dash|hyphen|डैश)\b', '-', text, flags=re.IGNORECASE)
         text = re.sub(r'\b(underscore|अंडरस्कोर)\b', '_', text, flags=re.IGNORECASE)
         
-        # Collapse spaces around @ and . without merging adjacent full words
-        if '@' in text or '.' in text:
-            text = re.sub(r'\s*@\s*', '@', text)
-            text = re.sub(r'\s*\.\s*', '.', text)
-            # Only collapse single-character spaced letters e.g. "r a m e s h @" -> "ramesh@"
-            text = re.sub(r'(?<=\b[a-zA-Z0-9])\s+(?=[a-zA-Z0-9]\s|@)', '', text)
+        # 5. Fix common domain mishearings & spaced letters
+        text = re.sub(r'\b(g mail|g-mail|jimmail|जीमेल|जी मेल|g m a i l|g m a a l)\b', 'gmail', text, flags=re.IGNORECASE)
+        text = re.sub(r'\b(yaho|याहू|y a h o o)\b', 'yahoo', text, flags=re.IGNORECASE)
+        text = re.sub(r'\b(c o m|कॉम)\b', 'com', text, flags=re.IGNORECASE)
+        text = re.sub(r'\b(i n|इन)\b', 'in', text, flags=re.IGNORECASE)
+        
+        # 6. Auto-insert missing '@' if a known domain is present without '@'
+        if '@' not in text:
+            text = re.sub(r'(?<=\w)\s+(?=(gmail|yahoo|outlook|hotmail|icloud)\.(com|in|co\.in|org|net))\b', '@', text, flags=re.IGNORECASE)
+
+        # 7. Collapse ALL whitespace inside email strings e.g. "a g h a v 63984 @ g m a i l . c o m" -> "aghav63984@gmail.com"
+        text = re.sub(r'\s+', '', text)
+        
+        # 8. Extract clean email address if matched
+        email_match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', text)
+        if email_match:
+            text = email_match.group(0)
             
-    elif field == "pandit-phone":
-        # Convert Devanagari digits to ASCII
+    elif field in ["pandit-phone", "phone"]:
+        # 1. Convert Devanagari digits to ASCII
         devanagari_digits = str.maketrans("०१२३४५६७८९", "0123456789")
         text = text.translate(devanagari_digits)
         
-        # Map spoken Hindi words to digits
+        # 2. Map spoken Hindi words (Devanagari) to digits
         hindi_digit_map = {
             "शून्य": "0", "जीरो": "0", "एक": "1", "दो": "2", "तीन": "3", "चार": "4",
             "पांच": "5", "पाँच": "5", "छह": "6", "छः": "6", "सात": "7", "आठ": "8", "नौ": "9"
         }
         for word, digit in hindi_digit_map.items():
             text = text.replace(word, digit)
+
+        # 3. Map spoken Hindi words in Roman script & English words to digits
+        roman_hindi_digit_map = [
+            (r'\b(shunya|zero|jiro)\b', '0'),
+            (r'\b(ek|ekk|one)\b', '1'),
+            (r'\b(do|doo|two)\b', '2'),
+            (r'\b(teen|tin|three)\b', '3'),
+            (r'\b(char|chaar|four)\b', '4'),
+            (r'\b(panch|paanch|five)\b', '5'),
+            (r'\b(chhe|che|chh|six)\b', '6'),
+            (r'\b(saat|sat|seven)\b', '7'),
+            (r'\b(aath|ath|eight)\b', '8'),
+            (r'\b(nau|now|nine)\b', '9')
+        ]
+        for pattern, digit in roman_hindi_digit_map:
+            text = re.sub(pattern, digit, text, flags=re.IGNORECASE)
             
-        # Map spoken English digit words
-        eng_digit_map = {
-            "zero": "0", "one": "1", "two": "2", "three": "3", "four": "4",
-            "five": "5", "six": "6", "seven": "7", "eight": "8", "nine": "9"
-        }
-        for word, digit in eng_digit_map.items():
-            text = re.sub(rf'\b{word}\b', digit, text, flags=re.IGNORECASE)
-            
-        # Extract digits only
+        # 4. Extract digits only and strip spaces
         digits_only = re.sub(r'\D', '', text)
         
-        # Strip country codes +91, 91, or leading 0 if 11 or 12 digits
+        # 5. Strip country codes +91, 91, or leading 0 if 11 or 12 digits
         if len(digits_only) == 11 and digits_only.startswith('0'):
             digits_only = digits_only[1:]
         elif len(digits_only) == 12 and digits_only.startswith('91'):
             digits_only = digits_only[2:]
             
-        # Find 10-digit Indian mobile number starting with 5-9
+        # 6. Find 10-digit Indian mobile number starting with 5-9
         phone_match = re.search(r'[56789]\d{9}', digits_only)
         if phone_match:
             text = phone_match.group(0)
         elif len(digits_only) == 10:
+            text = digits_only
+        else:
             text = digits_only
             
     return text
@@ -234,7 +281,7 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
     field_desc = field_descs.get(field, field)
 
     # Deterministic Fast-Path for Phone and Email (0ms Latency & 100% Deterministic Reliability)
-    if field == "pandit-phone":
+    if field in ["pandit-phone", "phone"]:
         digits_only = re.sub(r'\D', '', user_message_normalized)
         if len(digits_only) == 11 and digits_only.startswith('0'):
             digits_only = digits_only[1:]
@@ -250,7 +297,7 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
             logger.info("[PANDIT-ONBOARDING] Deterministic regex hit for pandit-phone: %s", digits_only)
             return digits_only
             
-    if field == "pandit-email":
+    if field in ["pandit-email", "email"]:
         email_match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', user_message_normalized)
         if email_match:
             extracted_email = email_match.group(0)
@@ -474,17 +521,29 @@ async def process_onboarding_step(
     
     if val == "INVALID" or not val.strip():
         logger.info("[PANDIT-ONBOARDING] STEP FAILED | Extraction returned INVALID for field: %s. Re-asking same field.", current_field)
-        fallback_prompts = {
-            "pandit-name": "Maaf kijiye, main samajh nahi paya. Kripya apna poora naam dobara bataiye.",
-            "pandit-phone": f"Maaf kijiye {fn_ji}, main samajh nahi paya. Kripya apna mobile number dobara bataiye.",
-            "pandit-email": f"Maaf kijiye {sn_ji}, main samajh nahi paya. Kripya apna email address dobara bataiye.",
-            "pandit-city": f"Maaf kijiye {pji}, main samajh nahi paya. Kripya apna sheher dobara bataiye.",
-            "pandit-state": f"Maaf kijiye {fn_ji}, main samajh nahi paya. Kripya apna state ya rajya dobara bataiye.",
-            "pandit-lang": f"Maaf kijiye {sn_ji}, samajh nahi paya. Kripya bataiye kya Hindi aur Sanskrit sahi hai ya koi aur bhasha add karni hai?",
-            "pandit-exp": f"Maaf kijiye {pji}, samajh nahi paya. Aapka experience kitna hai? Options hain: 1-5 years, 5-10 years, 10-20 years, ya 20+ years.",
-            "pandit-spec": f"Maaf kijiye {fn_ji}, samajh nahi paya. Aapki primary specialization kaunsi hai? Options hain: Vedic Pujas & Havan, Jyotish & Kundali, Sanskar Ceremonies, ya Katha & Pravachan."
-        }
-        question = fallback_prompts.get(current_field, f"Maaf kijiye {fn_ji}, samajh nahi paya. Dobara bataiye.")
+        
+        if current_field == "pandit-phone":
+            digits_part = re.sub(r'\D', '', normalize_spoken_input(raw_msg, "pandit-phone"))
+            if digits_part:
+                question = f"Maine suna: '{digits_part}', lekin mobile number 10 digits ka hona chahiye. Kripya apna 10-digit mobile number dobara bataiye."
+            else:
+                question = f"Maaf kijiye {fn_ji}, main mobile number samajh nahi paya. Kripya apna 10-digit mobile number dobara bataiye."
+        elif current_field == "pandit-email":
+            email_part = normalize_spoken_input(raw_msg, "pandit-email")
+            if email_part and email_part != raw_msg:
+                question = f"Maine suna: '{email_part}', kripya apna poora email address (jaise name@gmail.com) dobara bataiye."
+            else:
+                question = f"Maaf kijiye {sn_ji}, main email address samajh nahi paya. Kripya apna email address (jaise ramesh@gmail.com) dobara bataiye."
+        else:
+            fallback_prompts = {
+                "pandit-name": "Maaf kijiye, main samajh nahi paya. Kripya apna poora naam dobara bataiye.",
+                "pandit-city": f"Maaf kijiye {pji}, main samajh nahi paya. Kripya apna sheher dobara bataiye.",
+                "pandit-state": f"Maaf kijiye {fn_ji}, main samajh nahi paya. Kripya apna state ya rajya dobara bataiye.",
+                "pandit-lang": f"Maaf kijiye {sn_ji}, samajh nahi paya. Kripya bataiye kya Hindi aur Sanskrit sahi hai ya koi aur bhasha add karni hai?",
+                "pandit-exp": f"Maaf kijiye {pji}, samajh nahi paya. Aapka experience kitna hai? Options hain: 1-5 years, 5-10 years, 10-20 years, ya 20+ years.",
+                "pandit-spec": f"Maaf kijiye {fn_ji}, samajh nahi paya. Aapki primary specialization kaunsi hai? Options hain: Vedic Pujas & Havan, Jyotish & Kundali, Sanskar Ceremonies, ya Katha & Pravachan."
+            }
+            question = fallback_prompts.get(current_field, f"Maaf kijiye {fn_ji}, samajh nahi paya. Dobara bataiye.")
         
         nav_directive = {"action": None, "target": None, "query": None, "intent": "PANDIT_ONBOARDING", "fields": None}
         return orchestrator._response_builder.build_response(
