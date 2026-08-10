@@ -136,7 +136,7 @@ class AIOrchestrator:
             request_id=request.request_id,
             mode=request.mode,
             current_page=request.current_page,
-            user_parameters=request.user_parameters,
+            user_parameters={**request.user_parameters, "raw_user_message": request.user_message},
             priority=request.priority,
             timeout_seconds=request.timeout_seconds,
             created_at=request.created_at,
