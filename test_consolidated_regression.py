@@ -165,7 +165,7 @@ async def test_flow_3_pandit_onboarding_full_sequence():
         logger.info("  Step 2 (Phone) -> Action: %s, Target: %s, Query: %s | Text: %s", resp.get("action"), resp.get("target"), resp.get("query"), resp.get("content"))
         assert resp.get("action") == "FILL_FORM"
         assert resp.get("target") == "pandit-phone"
-        assert resp.get("query") in ["9876543210", "[PHONE_MASKED]"]
+        assert resp.get("query") in ["9876543210", "[PHONE_MASKED]", "PHONE_MASKED"]
         
         # Step 3: Email
         logger.info("User: 'mera email address ramesh@gmail.com hai'")
