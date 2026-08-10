@@ -204,13 +204,13 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
             text = re.sub(r'(?<=\w)\s+(?=(gmail|yahoo|outlook|hotmail|icloud)\.(com|in|co\.in|org|net))\b', '@', text, flags=re.IGNORECASE)
 
         # 7. Check for clean email match first before collapsing spaces
-        email_match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', text)
+        email_match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.(com|in|co\.in|org|net|edu|gov|io|tech|me|info)\b', text, flags=re.IGNORECASE)
         if email_match:
             return email_match.group(0)
 
         # 8. Fallback: Collapse ALL whitespace inside email strings e.g. "a g h a v 63984 @ g m a i l . c o m" -> "aghav63984@gmail.com"
         text_no_space = re.sub(r'\s+', '', text)
-        email_match = re.search(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.(com|in|co\.in|org|net)', text_no_space)
+        email_match = re.search(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.(com|in|co\.in|org|net|edu|gov|io|tech|me|info)\b', text_no_space, flags=re.IGNORECASE)
         if email_match:
             return email_match.group(0)
             
