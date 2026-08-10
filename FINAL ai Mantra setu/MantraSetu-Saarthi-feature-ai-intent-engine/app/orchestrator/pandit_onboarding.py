@@ -304,6 +304,45 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
             logger.info("[PANDIT-ONBOARDING] Deterministic regex hit for pandit-email: %s", extracted_email)
             return extracted_email
 
+    # Deterministic Fast-Path for Specialization (pandit-spec)
+    if field in ["pandit-spec", "specialization"]:
+        msg_lower = user_message_normalized.lower()
+        if any(w in msg_lower for w in ["jyotish", "kundali", "kundli", "astrology", "horoscope", "grah", "rashifal", "milan"]):
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-spec: Jyotish & Kundali")
+            return "Jyotish & Kundali"
+        elif any(w in msg_lower for w in ["sanskar", "samskara", "shadi", "vivah", "namakaran", "janeu", "mundan", "ceremony"]):
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-spec: Sanskar Ceremonies")
+            return "Sanskar Ceremonies"
+        elif any(w in msg_lower for w in ["katha", "pravachan", "bhagwat", "ramayan", "satyanarayan", "kirtan", "gita"]):
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-spec: Katha & Pravachan")
+            return "Katha & Pravachan"
+        elif any(w in msg_lower for w in ["puja", "pujas", "pooja", "poojas", "havan", "hawan", "vedic", "karmakand", "karma kand", "anushthan", "anusthan", "purohit", "yagya", "yajna", "homam"]):
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-spec: Vedic Pujas & Havan")
+            return "Vedic Pujas & Havan"
+
+    # Deterministic Fast-Path for Experience (pandit-exp)
+    if field in ["pandit-exp", "experience"]:
+        msg_lower = user_message_normalized.lower()
+        if any(w in msg_lower for w in ["20+", "20 plus", "25", "30", "40", "50", "tees", "pachees", "bees se zyada", "20 saal se zyada"]):
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-exp: 20+ years")
+            return "20+ years"
+        elif any(w in msg_lower for w in ["10-20", "10 to 20", "1020", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "das saal", "10 saal", "solah", "pandrah", "bees"]):
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-exp: 10-20 years")
+            return "10-20 years"
+        elif any(w in msg_lower for w in ["5-10", "5 to 10", "510", "6", "7", "8", "9", "chhe", "saat", "aath", "nau", "5 saal", "6 saal", "7 saal", "8 saal", "9 saal"]):
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-exp: 5-10 years")
+            return "5-10 years"
+        elif any(w in msg_lower for w in ["1-5", "1 to 5", "15", "1", "2", "3", "4", "5", "ek", "do", "teen", "char", "panch", "1 saal", "2 saal", "3 saal", "4 saal"]):
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-exp: 1-5 years")
+            return "1-5 years"
+
+    # Deterministic Fast-Path for Languages (pandit-lang)
+    if field in ["pandit-lang", "language", "languages"]:
+        msg_lower = user_message_normalized.lower()
+        if any(w in msg_lower for w in ["sahi", "theek", "thik", "okay", "yes", "agreed", "continue", "haan", "default"]):
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-lang: Hindi, Sanskrit")
+            return "Hindi, Sanskrit"
+
     system_prompt = f"""You are an expert data extraction assistant.
 The user is providing an answer for the field '{field}' ({field_desc}) in a Pandit registration form.
 Your task is to extract ONLY the clean, structured value for this field in Roman/English script.
