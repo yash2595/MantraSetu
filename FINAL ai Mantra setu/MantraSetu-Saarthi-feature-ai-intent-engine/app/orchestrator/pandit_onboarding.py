@@ -203,13 +203,18 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
         if '@' not in text:
             text = re.sub(r'(?<=\w)\s+(?=(gmail|yahoo|outlook|hotmail|icloud)\.(com|in|co\.in|org|net))\b', '@', text, flags=re.IGNORECASE)
 
-        # 7. Collapse ALL whitespace inside email strings e.g. "a g h a v 63984 @ g m a i l . c o m" -> "aghav63984@gmail.com"
-        text = re.sub(r'\s+', '', text)
-        
-        # 8. Extract clean email address if matched
+        # 7. Check for clean email match first before collapsing spaces
         email_match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', text)
         if email_match:
-            text = email_match.group(0)
+            return email_match.group(0)
+
+        # 8. Fallback: Collapse ALL whitespace inside email strings e.g. "a g h a v 63984 @ g m a i l . c o m" -> "aghav63984@gmail.com"
+        text_no_space = re.sub(r'\s+', '', text)
+        email_match = re.search(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.(com|in|co\.in|org|net)', text_no_space)
+        if email_match:
+            return email_match.group(0)
+            
+        text = text_no_space
             
     elif field in ["pandit-phone", "phone"]:
         # 1. Convert Devanagari digits to ASCII
