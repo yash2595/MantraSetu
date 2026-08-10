@@ -131,7 +131,7 @@ export default function MuhuratFinder() {
         </section>
 
         {/* ── Finder ── */}
-        <section className="section muhurat-section" aria-labelledby="finder-heading" data-testid="section-muhurat-finder">
+        <section id="muhurat-finder-section" className="section muhurat-section" aria-labelledby="finder-heading" data-testid="section-muhurat-finder">
           <div className="container-wide">
             <div className="section-heading">
               <span className="section-kicker">Muhurat Finder</span>

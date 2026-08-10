@@ -5,8 +5,10 @@ import { GoogleLogin } from '@react-oauth/google';
 import { SiteHeader, SiteFooter, Modal, type ModalType } from '@/components/shared';
 import { authService } from '@/services/auth.service';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSaarthi } from '@/components/saarthi/SaarthiContext';
 
 export default function SignUp() {
+  const { announceMessage } = useSaarthi();
   const [modal, setModal] = useState<ModalType>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -16,11 +18,15 @@ export default function SignUp() {
   const [userType, setUserType] = useState<'devotee' | 'pandit'>('devotee');
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('role') === 'pandit' || params.get('type') === 'pandit') {
+    const searchStr = location.search || window.location.search;
+    const params = new URLSearchParams(searchStr);
+    const roleParam = params.get('role') || params.get('type');
+    if (roleParam === 'pandit') {
       setUserType('pandit');
+    } else if (roleParam === 'devotee') {
+      setUserType('devotee');
     }
-  }, []);
+  }, [location.search, location.pathname, location.key]);
 
   // Devotee fields
   const [name, setName] = useState('');
@@ -168,6 +174,10 @@ export default function SignUp() {
 
         await authService.applyPandit(formData);
         setFormSent(true);
+
+        const firstName = panditName.trim().split(' ')[0] || 'Panditji';
+        const successMsg = `Badhai ho ${firstName} ji! Aapka MantraSetu par Pandit ke roop mein registration safaltapoorvak complete ho gaya hai. Ab aap verified Panditji ke roop mein bhakton ki seva kar sakte hain!`;
+        announceMessage(successMsg, true);
       } else {
         const response = await authService.signup({
           user_type: 'devotee',
@@ -187,6 +197,11 @@ export default function SignUp() {
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Registration failed. Please try again.';
       setErrors({ api: errorMessage });
+
+      if (userType === 'pandit') {
+        const errorMsg = 'Lagta hai kuch jaankari mein dikkat hai, kripya form check kariye.';
+        announceMessage(errorMsg, false);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -227,7 +242,7 @@ export default function SignUp() {
                 </div>
               </div>
             ) : (
-              <form className="modal-form" onSubmit={handleSubmit} noValidate data-testid="form-signup">
+              <form id={userType === 'pandit' ? 'pandit-onboarding-form' : 'signup-form'} className="modal-form" onSubmit={handleSubmit} noValidate data-testid="form-signup">
                 {errors.api && (
                   <div className="field-error" role="alert" style={{ padding: '0.65rem 0.85rem', background: '#fdf2f2', border: '1px solid #f8b4b4', borderRadius: '0.45rem', color: '#9b1c1c', fontSize: '0.78rem', marginBottom: '0.5rem' }}>
                     <ShieldAlert size={16} style={{ flexShrink: 0 }} /> {errors.api}
@@ -434,6 +449,7 @@ export default function SignUp() {
                               key={lang}
                               type="button"
                               onClick={() => toggleLanguage(lang)}
+                              data-testid={`toggle-lang-${lang.toLowerCase()}`}
                               style={{
                                 padding: '0.3rem 0.65rem',
                                 borderRadius: '0.35rem',

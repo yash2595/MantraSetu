@@ -4,6 +4,7 @@ export type SaarthiState =
   | 'hidden'
   | 'enter'
   | 'greeting'
+  | 'namaste'
   | 'idle'
   | 'listening'
   | 'thinking'
@@ -37,6 +38,7 @@ export interface SaarthiContextType {
   setSaarthiState: (state: SaarthiState) => void;
   setDialogueText: (text: string) => void;
   toggleMinimized: () => void;
+  announceMessage: (text: string, isSuccess?: boolean) => void;
 }
 
 export const SaarthiContext = createContext<SaarthiContextType | undefined>(undefined);

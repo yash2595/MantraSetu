@@ -259,7 +259,7 @@ export default function Puja() {
         </section>
 
         {/* ── Filter & Search Section ── */}
-        <section className="section" aria-labelledby="catalog-heading" data-testid="section-puja-catalog">
+        <section id="puja-catalog-section" className="section" aria-labelledby="catalog-heading" data-testid="section-puja-catalog">
           <div className="container-wide">
             <div className="section-heading centered">
               <span className="section-kicker">Sacred Ceremonies</span>

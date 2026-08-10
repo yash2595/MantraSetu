@@ -83,14 +83,14 @@ class WhisperAdapter(ISpeechRecognizer):
                 metadata={"model": self._model, "status": "success"},
             )
         except Exception as e:
-            logger.error(f"SpeechRecognition failed: {e}", exc_info=True)
+            logger.info(f"SpeechRecognition could not transcribe audio (silence/indistinct noise): {e}")
             return TranscriptResult(
-                text="STT_UNAVAILABLE",
-                confidence=1.0,
+                text="",
+                confidence=0.0,
                 language=session.language,
                 provider=self.provider_name,
                 duration_seconds=round(buffer.size / (session.sample_rate * 2), 2) if session.sample_rate else 0.0,
-                metadata={"model": self._model, "status": "provider_not_configured"},
+                metadata={"model": self._model, "status": "no_speech_detected"},
             )
 
     async def cancel_session(self, session: VoiceSession) -> None:

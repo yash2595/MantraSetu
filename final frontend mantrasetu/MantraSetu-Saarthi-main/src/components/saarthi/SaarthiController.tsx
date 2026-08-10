@@ -90,7 +90,7 @@ export const SaarthiController: React.FC = () => {
           {/* Spoken Dialogue Text Bubble (Floating above avatar) */}
           <AnimatePresence>
             {showSpeechBubble && dialogueText && (
-              <div className="absolute bottom-full left-4 mb-4 origin-bottom-left" style={{ minWidth: '280px' }}>
+              <div className="absolute bottom-full left-4 mb-4 origin-bottom-left w-[300px] sm:w-[340px] max-w-[calc(100vw-3rem)]">
                 <SaarthiSpeechBubble text={dialogueText} />
               </div>
             )}

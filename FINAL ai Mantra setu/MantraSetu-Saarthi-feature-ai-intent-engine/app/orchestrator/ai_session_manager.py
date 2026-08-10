@@ -26,6 +26,7 @@ class AISessionRecord:
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     last_active_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     active_requests: set[str] = field(default_factory=set)
+    onboarding_state: dict[str, Any] | None = None
 
 
 class AISessionManager:

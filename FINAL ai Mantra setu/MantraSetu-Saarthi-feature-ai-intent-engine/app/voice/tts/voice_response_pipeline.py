@@ -14,6 +14,47 @@ from app.voice.tts.schemas import AudioChunk, VoiceSynthesisRequest
 logger = logging.getLogger(__name__)
 
 
+import re
+
+# Comprehensive Unicode emoji regex pattern covering emoticons, symbols, pictographs, dingbats, and variation selectors
+EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"  # emoticons
+    "\U0001F300-\U0001F5FF"  # symbols & pictographs
+    "\U0001F680-\U0001F6FF"  # transport & map symbols
+    "\U0001F1E0-\U0001F1FF"  # flags
+    "\U0001F900-\U0001F9FF"  # Supplemental Symbols and Pictographs
+    "\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
+    "\U00002600-\U000026FF"  # Miscellaneous Symbols
+    "\U00002700-\U000027BF"  # Dingbats
+    "\U0000FE00-\U0000FE0F"  # Variation Selectors
+    "]+",
+    flags=re.UNICODE,
+)
+
+
+def clean_text_for_tts(text: str) -> str:
+    """Sanitize text specifically for TTS audio generation.
+
+    Strips emojis, markdown symbols, and extra whitespace so TTS engines
+    do not read emojis out loud (e.g. pronouncing 'folded hands' for 🙏).
+    The visual text displayed in UI bubbles remains untouched.
+    """
+    if not text:
+        return "Namaste"
+
+    # 1. Strip Markdown formatting characters
+    cleaned = re.sub(r'[*_#`~>]', '', text)
+
+    # 2. Strip all emoji characters
+    cleaned = EMOJI_PATTERN.sub('', cleaned)
+
+    # 3. Normalize whitespace
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+
+    return cleaned if cleaned else "Namaste"
+
+
 class VoiceResponsePipeline:
     """Stream coordinator converting normalized InteractionResponse into streamed AudioChunk frames."""
 
@@ -36,7 +77,8 @@ class VoiceResponsePipeline:
     ) -> AsyncGenerator[AudioChunk, None]:
         """Convert OrchestratorResponse content into streaming AudioChunk sequence."""
         
-        text_content = response.text.strip() if response.text else "Namaste"
+        raw_text = response.text if response.text else "Namaste"
+        text_content = clean_text_for_tts(raw_text)
 
         resolved_voice = voice or "meera"
         resolved_language = language or "hi"

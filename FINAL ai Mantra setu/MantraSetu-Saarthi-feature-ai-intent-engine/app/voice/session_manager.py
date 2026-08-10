@@ -28,9 +28,18 @@ class VoiceSessionManager:
         language: str = "hi",
         sample_rate: int = 16000,
         audio_encoding: Any = "pcm16",
+        session_id: str | None = None,
     ) -> VoiceSession:
-        """Create and register a new active VoiceSession."""
+        """Create and register a new active VoiceSession, or reuse an existing one if session_id matches."""
         async with self._lock:
+            if session_id and session_id in self._sessions:
+                session = self._sessions[session_id]
+                session.connection_id = connection_id
+                self._connection_index[connection_id] = session_id
+                session.touch()
+                logger.info("VoiceSession reconnected/reused", extra={"session_id": session_id, "connection_id": connection_id})
+                return session
+
             session = VoiceSession(
                 connection_id=connection_id,
                 conversation_id=conversation_id,
@@ -38,6 +47,8 @@ class VoiceSessionManager:
                 sample_rate=sample_rate,
                 audio_encoding=audio_encoding,
             )
+            if session_id:
+                session.session_id = session_id
             self._sessions[session.session_id] = session
             self._connection_index[connection_id] = session.session_id
             logger.info("VoiceSession created", extra={"session_id": session.session_id, "connection_id": connection_id})

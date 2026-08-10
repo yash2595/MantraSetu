@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import random
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -69,9 +70,15 @@ class FastPathIntentRouter:
             # 1. Greetings
             if msg_clean in self._GREETINGS:
                 self._fast_path_hits_count += 1
+                greeting_options = [
+                    "Namaste! MantraSetu mein aapka swagat hai. Aaj main aapki kya seva kar sakta hoon?",
+                    "Om Namah Shivaya! MantraSetu par aapka swagat hai. Aaj main aapki kaise sahayata karoon?",
+                    "Har Har Mahadev! MantraSetu mein aapka swagat hai. Main aapki kya seva kar sakta hoon?",
+                    "Jai Shri Ram! MantraSetu mein aapka swagat hai. Aaj main aapki kaise madad kar sakta hoon?"
+                ]
                 return FastPathResolution(
                     is_fast_path=True,
-                    response_text="Namaste! MantraSetu mein aapka swagat hai. Aaj main aapki kya seva kar sakta hoon?",
+                    response_text=random.choice(greeting_options),
                     intent_name="GREETING",
                     confidence=1.0,
                 )
@@ -88,86 +95,145 @@ class FastPathIntentRouter:
 
             # 3. Transcript Normalization and Rule-Based Intents
             # Maps common English, Hindi, and Hinglish inputs directly to actionable intents
+            puja_resps = [
+                "Ji, main aapko Puja Booking page par le ja raha hoon.",
+                "Bahut achha! Main aapke liye Puja Booking page open kar raha hoon.",
+                "Zaroor! Aaiye main aapko Puja Booking page par le chalta hoon."
+            ]
+            pandit_resps = [
+                "Ji, main Pandit Booking page khol raha hoon.",
+                "Bahut badhiya! Main Pandit Booking page open kar raha hoon.",
+                "Bilkul! Aaiye Pandit Booking page par chalte hain."
+            ]
+            kundali_resps = [
+                "Ji, main Kundali Creation page khol raha hoon.",
+                "Aapki Kundali ke liye main Kundali page par le ja raha hoon.",
+                "Bahut sundar! Main Kundali Creation page open kar raha hoon."
+            ]
+            muhurat_resps = [
+                "Ji, main Muhurat Finder khol raha hoon.",
+                "Shubh Muhurat dekhne ke liye main aapko Muhurat page par le chalta hoon.",
+                "Uttam! Main Muhurat Finder page open kar raha hoon."
+            ]
+            login_resps = [
+                "Ji, main Login page khol raha hoon.",
+                "Bilkul! Main Login page open kar raha hoon.",
+                "Aaiye Login page par chalte hain."
+            ]
+            signup_resps = [
+                "Ji, main Signup page khol raha hoon.",
+                "Naya account banane ke liye main Signup page open kar raha hoon.",
+                "Bahut badhiya! Main aapke liye Signup page khol raha hoon."
+            ]
+            pandit_signup_resps = [
+                "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, apna poora naam bataiye.",
+                "Har Har Mahadev! Welcome Panditji! Aapke onboarding ke liye main Pandit registration page khol raha hoon. Sabse pehle apna poora naam share kariye.",
+                "Jai Shri Ram! Panditji, aapka swagat hai! Main Pandit registration page open kar raha hoon. Kripya apna poora naam bataiye."
+            ]
+            home_resps = [
+                "Ji, main Home page par wapas le ja raha hoon.",
+                "Aapko Home page par le chalta hoon.",
+                "Main Home page open kar raha hoon."
+            ]
+
             rule_based_mappings = {
                 # ── BOOK_PUJA ──
-                "book puja": ("BOOK_PUJA", "/puja", "Ji, main aapko Puja Booking page par le ja raha hoon."),
-                "puja book karo": ("BOOK_PUJA", "/puja", "Ji, main aapko Puja Booking page par le ja raha hoon."),
-                "puja book karni hai": ("BOOK_PUJA", "/puja", "Ji, main aapko Puja Booking page par le ja raha hoon."),
-                "pooja karwani hai": ("BOOK_PUJA", "/puja", "Ji, main aapko Puja Booking page par le ja raha hoon."),
-                "mandir ki puja": ("BOOK_PUJA", "/puja", "Ji, main aapko Puja Booking page par le ja raha hoon."),
-                "mandir": ("BOOK_PUJA", "/puja", "Ji, main aapko Puja Booking page par le ja raha hoon."),
-                "durga puja": ("BOOK_PUJA", "/puja", "Ji, main aapko Puja Booking page par le ja raha hoon."),
-                "puja kara do": ("BOOK_PUJA", "/puja", "Ji, main aapko Puja Booking page par le ja raha hoon."),
-                "book a puja": ("BOOK_PUJA", "/puja", "Ji, main aapko Puja Booking page par le ja raha hoon."),
-                "puja karwao": ("BOOK_PUJA", "/puja", "Ji, main aapko Puja Booking page par le ja raha hoon."),
+                "book puja": ("BOOK_PUJA", "/puja", puja_resps),
+                "puja book karo": ("BOOK_PUJA", "/puja", puja_resps),
+                "puja book karni hai": ("BOOK_PUJA", "/puja", puja_resps),
+                "pooja karwani hai": ("BOOK_PUJA", "/puja", puja_resps),
+                "mandir ki puja": ("BOOK_PUJA", "/puja", puja_resps),
+                "mandir": ("BOOK_PUJA", "/puja", puja_resps),
+                "durga puja": ("BOOK_PUJA", "/puja", puja_resps),
+                "puja kara do": ("BOOK_PUJA", "/puja", puja_resps),
+                "book a puja": ("BOOK_PUJA", "/puja", puja_resps),
+                "puja karwao": ("BOOK_PUJA", "/puja", puja_resps),
                 # ── BOOK_PANDIT ──
-                "book pandit": ("BOOK_PANDIT", "/puja", "Ji, main Pandit Booking page khol raha hoon."),
-                "pandit chahiye": ("BOOK_PANDIT", "/puja", "Ji, main Pandit Booking page khol raha hoon."),
-                "pandit book karo": ("BOOK_PANDIT", "/puja", "Ji, main Pandit Booking page khol raha hoon."),
-                "pandit book karna hai": ("BOOK_PANDIT", "/puja", "Ji, main Pandit Booking page khol raha hoon."),
-                "pandit bulao": ("BOOK_PANDIT", "/puja", "Ji, main Pandit Booking page khol raha hoon."),
-                "hindu priest": ("BOOK_PANDIT", "/puja", "Ji, main Pandit Booking page khol raha hoon."),
-                "pandit arrange karo": ("BOOK_PANDIT", "/puja", "Ji, main Pandit Booking page khol raha hoon."),
-                "i want to book a hindu priest": ("BOOK_PANDIT", "/puja", "Ji, main Pandit Booking page khol raha hoon."),
+                "book pandit": ("BOOK_PANDIT", "/puja", pandit_resps),
+                "pandit chahiye": ("BOOK_PANDIT", "/puja", pandit_resps),
+                "pandit book karo": ("BOOK_PANDIT", "/puja", pandit_resps),
+                "pandit book karna hai": ("BOOK_PANDIT", "/puja", pandit_resps),
+                "pandit bulao": ("BOOK_PANDIT", "/puja", pandit_resps),
+                "hindu priest": ("BOOK_PANDIT", "/puja", pandit_resps),
+                "pandit arrange karo": ("BOOK_PANDIT", "/puja", pandit_resps),
+                "i want to book a hindu priest": ("BOOK_PANDIT", "/puja", pandit_resps),
                 # ── OPEN_KUNDALI ──
-                "open kundali": ("OPEN_KUNDALI", "/kundali-creation", "Ji, main Kundali Creation page khol raha hoon."),
-                "kundli dikhao": ("OPEN_KUNDALI", "/kundali-creation", "Ji, main Kundali Creation page khol raha hoon."),
-                "kundali kholo": ("OPEN_KUNDALI", "/kundali-creation", "Ji, main Kundali Creation page khol raha hoon."),
-                "janam kundli": ("OPEN_KUNDALI", "/kundali-creation", "Ji, main Kundali Creation page khol raha hoon."),
-                "kundli banana hai": ("OPEN_KUNDALI", "/kundali-creation", "Ji, main Kundali Creation page khol raha hoon."),
-                "birth chart": ("OPEN_KUNDALI", "/kundali-creation", "Ji, main Kundali Creation page khol raha hoon."),
-                "kundali": ("OPEN_KUNDALI", "/kundali-creation", "Ji, main Kundali Creation page khol raha hoon."),
-                "kundli": ("OPEN_KUNDALI", "/kundali-creation", "Ji, main Kundali Creation page khol raha hoon."),
+                "open kundali": ("OPEN_KUNDALI", "/kundali-creation", kundali_resps),
+                "kundli dikhao": ("OPEN_KUNDALI", "/kundali-creation", kundali_resps),
+                "kundali kholo": ("OPEN_KUNDALI", "/kundali-creation", kundali_resps),
+                "janam kundli": ("OPEN_KUNDALI", "/kundali-creation", kundali_resps),
+                "kundli banana hai": ("OPEN_KUNDALI", "/kundali-creation", kundali_resps),
+                "birth chart": ("OPEN_KUNDALI", "/kundali-creation", kundali_resps),
+                "kundali": ("OPEN_KUNDALI", "/kundali-creation", kundali_resps),
+                "kundli": ("OPEN_KUNDALI", "/kundali-creation", kundali_resps),
                 # ── SHOW_MUHURAT ──
-                "show muhurat": ("SHOW_MUHURAT", "/muhurat-finder", "Ji, main Muhurat Finder khol raha hoon."),
-                "muhurat": ("SHOW_MUHURAT", "/muhurat-finder", "Ji, main Muhurat Finder khol raha hoon."),
-                "muhurat dikhao": ("SHOW_MUHURAT", "/muhurat-finder", "Ji, main Muhurat Finder khol raha hoon."),
-                "muhurat batao": ("SHOW_MUHURAT", "/muhurat-finder", "Ji, main Muhurat Finder khol raha hoon."),
-                "shubh muhurat": ("SHOW_MUHURAT", "/muhurat-finder", "Ji, main Muhurat Finder khol raha hoon."),
-                "show me the movie": ("SHOW_MUHURAT", "/muhurat-finder", "Ji, main Muhurat Finder khol raha hoon."),  # STT hallucination
+                "show muhurat": ("SHOW_MUHURAT", "/muhurat-finder", muhurat_resps),
+                "muhurat": ("SHOW_MUHURAT", "/muhurat-finder", muhurat_resps),
+                "muhurat dikhao": ("SHOW_MUHURAT", "/muhurat-finder", muhurat_resps),
+                "muhurat batao": ("SHOW_MUHURAT", "/muhurat-finder", muhurat_resps),
+                "shubh muhurat": ("SHOW_MUHURAT", "/muhurat-finder", muhurat_resps),
+                "show me the movie": ("SHOW_MUHURAT", "/muhurat-finder", muhurat_resps),
                 # ── OPEN_LOGIN ──
-                "open login": ("OPEN_LOGIN", "/login", "Ji, main Login page khol raha hoon."),
-                "login": ("OPEN_LOGIN", "/login", "Ji, main Login page khol raha hoon."),
-                "login kholo": ("OPEN_LOGIN", "/login", "Ji, main Login page khol raha hoon."),
-                "sign in": ("OPEN_LOGIN", "/login", "Ji, main Login page khol raha hoon."),
-                "log in": ("OPEN_LOGIN", "/login", "Ji, main Login page khol raha hoon."),
-                "open login page open login page": ("OPEN_LOGIN", "/login", "Ji, main Login page khol raha hoon."),  # STT repetition
+                "open login": ("OPEN_LOGIN", "/login", login_resps),
+                "login": ("OPEN_LOGIN", "/login", login_resps),
+                "login kholo": ("OPEN_LOGIN", "/login", login_resps),
+                "sign in": ("OPEN_LOGIN", "/login", login_resps),
+                "log in": ("OPEN_LOGIN", "/login", login_resps),
+                "open login page open login page": ("OPEN_LOGIN", "/login", login_resps),
                 # ── OPEN_SIGNUP ──
-                "open signup": ("OPEN_SIGNUP", "/signup", "Ji, main Signup page khol raha hoon."),
-                "signup": ("OPEN_SIGNUP", "/signup", "Ji, main Signup page khol raha hoon."),
-                "signup karna hai": ("OPEN_SIGNUP", "/signup", "Ji, main Signup page khol raha hoon."),
-                "register": ("OPEN_SIGNUP", "/signup", "Ji, main Signup page khol raha hoon."),
-                "account banana hai": ("OPEN_SIGNUP", "/signup", "Ji, main Signup page khol raha hoon."),
-                "create account": ("OPEN_SIGNUP", "/signup", "Ji, main Signup page khol raha hoon."),
-                "sign up": ("OPEN_SIGNUP", "/signup", "Ji, main Signup page khol raha hoon."),
+                "register as a pandit": ("OPEN_SIGNUP", "/signup?role=pandit", pandit_signup_resps),
+                "register as pandit": ("OPEN_SIGNUP", "/signup?role=pandit", pandit_signup_resps),
+                "pandit signup": ("OPEN_SIGNUP", "/signup?role=pandit", pandit_signup_resps),
+                "pandit registration": ("OPEN_SIGNUP", "/signup?role=pandit", pandit_signup_resps),
+                "pandit onboarding": ("OPEN_SIGNUP", "/signup?role=pandit", pandit_signup_resps),
+                "open signup": ("OPEN_SIGNUP", "/signup", signup_resps),
+                "signup": ("OPEN_SIGNUP", "/signup", signup_resps),
+                "signup karna hai": ("OPEN_SIGNUP", "/signup", signup_resps),
+                "register": ("OPEN_SIGNUP", "/signup", signup_resps),
+                "account banana hai": ("OPEN_SIGNUP", "/signup", signup_resps),
+                "create account": ("OPEN_SIGNUP", "/signup", signup_resps),
+                "sign up": ("OPEN_SIGNUP", "/signup", signup_resps),
                 # ── GO_HOME ──
-                "go home": ("GO_HOME", "/", "Ji, main Home page par wapas le ja raha hoon."),
-                "home": ("GO_HOME", "/", "Ji, main Home page par wapas le ja raha hoon."),
-                "main page": ("GO_HOME", "/", "Ji, main Home page par wapas le ja raha hoon."),
-                "homepage": ("GO_HOME", "/", "Ji, main Home page par wapas le ja raha hoon."),
-                "ghar chalo": ("GO_HOME", "/", "Ji, main Home page par wapas le ja raha hoon."),
-                "home chalo": ("GO_HOME", "/", "Ji, main Home page par wapas le ja raha hoon."),
-                "go home go home": ("GO_HOME", "/", "Ji, main Home page par wapas le ja raha hoon."),  # STT repetition
+                "go home": ("GO_HOME", "/", home_resps),
+                "home": ("GO_HOME", "/", home_resps),
+                "main page": ("GO_HOME", "/", home_resps),
+                "homepage": ("GO_HOME", "/", home_resps),
+                "ghar chalo": ("GO_HOME", "/", home_resps),
+                "home chalo": ("GO_HOME", "/", home_resps),
+                "go home go home": ("GO_HOME", "/", home_resps),
                 # ── OPEN_DASHBOARD ──
                 "dashboard": ("OPEN_DASHBOARD", "/dashboard", "Ji, main Dashboard page khol raha hoon."),
                 "open dashboard": ("OPEN_DASHBOARD", "/dashboard", "Ji, main Dashboard page khol raha hoon."),
                 "show dashboard": ("OPEN_DASHBOARD", "/dashboard", "Ji, main Dashboard page khol raha hoon."),
                 "my dashboard": ("OPEN_DASHBOARD", "/dashboard", "Ji, main Dashboard page khol raha hoon."),
                 "mera dashboard": ("OPEN_DASHBOARD", "/dashboard", "Ji, main Dashboard page khol raha hoon."),
+                # ── START_TOUR ──
+                "site tour": ("START_TOUR", None, "Namaste! Kya aap ek Panditji hain ya ek devotee jo humari services dekhna chahte hain?"),
+                "site ka tour": ("START_TOUR", None, "Namaste! Kya aap ek Panditji hain ya ek devotee jo humari services dekhna chahte hain?"),
+                "tour do": ("START_TOUR", None, "Namaste! Kya aap ek Panditji hain ya ek devotee jo humari services dekhna chahte hain?"),
+                "site visit": ("START_TOUR", None, "Namaste! Kya aap ek Panditji hain ya ek devotee jo humari services dekhna chahte hain?"),
+                "visit site": ("START_TOUR", None, "Namaste! Kya aap ek Panditji hain ya ek devotee jo humari services dekhna chahte hain?"),
+                "site dikhao": ("START_TOUR", None, "Namaste! Kya aap ek Panditji hain ya ek devotee jo humari services dekhna chahte hain?"),
+                "guided tour": ("START_TOUR", None, "Namaste! Kya aap ek Panditji hain ya ek devotee jo humari services dekhna chahte hain?"),
+                "start tour": ("START_TOUR", None, "Namaste! Kya aap ek Panditji hain ya ek devotee jo humari services dekhna chahte hain?"),
                 # When STT doesn't work or the payload is empty
                 "stt_unavailable": ("CHAT", None, "Kshama karein, main theek se sun nahi paya. Kripya dobara boliye."),
             }
 
-            for rule_phrase, (intent, target, response_text) in rule_based_mappings.items():
+            for rule_phrase, (intent, target, response_text_obj) in rule_based_mappings.items():
                 if msg_clean == rule_phrase:
                     self._fast_path_hits_count += 1
+                    if isinstance(response_text_obj, (list, tuple)):
+                        selected_text = random.choice(response_text_obj)
+                    else:
+                        selected_text = response_text_obj
                     logger.info(
                         "[FAST-PATH HIT] transcript=%r  matched=%r  intent=%s  target=%s",
                         msg_clean, rule_phrase, intent, target,
                     )
                     return FastPathResolution(
                         is_fast_path=True,
-                        response_text=response_text,
+                        response_text=selected_text,
                         intent_name=intent,
                         target_route=target,
                         confidence=1.0,

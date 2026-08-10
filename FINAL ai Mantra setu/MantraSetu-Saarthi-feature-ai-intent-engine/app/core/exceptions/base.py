@@ -16,6 +16,8 @@ class ApplicationError(Exception):
         message: str,
         error_code: str | None = None,
         details: Mapping[str, object] | None = None,
+        status_code: int | None = None,
+        **kwargs: Any,
     ) -> None:
         """Initialize ApplicationError with message, error code, and details.
 
@@ -28,6 +30,7 @@ class ApplicationError(Exception):
         self.message = message
         self.error_code = error_code or self.__class__.__name__
         self.details: Mapping[str, object] = details or {}
+        self.status_code = status_code
 
     def __str__(self) -> str:
         """Return formatted error string representation.

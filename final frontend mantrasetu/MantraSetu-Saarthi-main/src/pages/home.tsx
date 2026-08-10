@@ -201,7 +201,7 @@ export default function Home() {
 
       <main>
         {/* ── Hero ── */}
-        <section className="hero" id="home" aria-labelledby="hero-title" data-testid="section-hero">
+        <section className="hero" id="hero-section" aria-labelledby="hero-title" data-testid="section-hero">
           <div className="hero-content">
             <span className="eyebrow">Where Mantras Flow, Divinity Grows</span>
             <h1 id="hero-title">Authentic Pujas.<br /><em>Verified Panditjis.</em><br />Divine Experience.</h1>

@@ -119,6 +119,36 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
     setState(newState);
   };
 
+  const announceMessage = (text: string, isSuccess: boolean = true) => {
+    console.log('[Saarthi] Announce message:', text, 'isSuccess:', isSuccess);
+    setDialogueText(text);
+    setShowSpeechBubble(true);
+    
+    if (isSuccess) {
+      setState('namaste');
+      setTimeout(() => {
+        setState('speaking');
+      }, 1500);
+    } else {
+      setState('speaking');
+    }
+
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'hi-IN';
+      utterance.rate = 0.95;
+      utterance.onend = () => {
+        setState('idle');
+      };
+      window.speechSynthesis.speak(utterance);
+    }
+
+    setTimeout(() => {
+      setState('idle');
+    }, 8000);
+  };
+
   return (
     <SaarthiContext.Provider
       value={{
@@ -137,6 +167,7 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
         setSaarthiState,
         setDialogueText,
         toggleMinimized,
+        announceMessage,
       }}
     >
       {children}

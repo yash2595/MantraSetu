@@ -39,10 +39,10 @@ export const SaarthiSpeechBubble: React.FC<SaarthiSpeechBubbleProps> = ({ text }
       initial="hidden"
       animate="enter"
       exit="exit"
-      className="relative w-full max-w-md bg-[#fffdf9] border border-[#eadbc9] rounded-2xl p-4 shadow-xl text-center"
+      className="relative w-full max-w-sm sm:max-w-md bg-[#fffdf9]/95 backdrop-blur-md border border-[#eadbc9] rounded-2xl p-3 sm:p-4 shadow-xl text-center max-h-[140px] overflow-y-auto overflow-x-hidden custom-scrollbar"
       data-testid="saarthi-speech-bubble"
     >
-      <p className="text-base sm:text-lg font-serif text-[#24272d] leading-relaxed whitespace-pre-line font-medium">
+      <p className="text-sm sm:text-base font-serif text-[#24272d] leading-snug whitespace-pre-line font-medium">
         {text}
       </p>
     </motion.div>

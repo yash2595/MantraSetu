@@ -36,6 +36,7 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
     tts_pipeline: VoiceResponsePipeline = get_tts_pipeline()
 
     active_session_id: str | None = None
+    primary_session_id: str | None = None
     outbound_queue: asyncio.Queue[WebSocketEnvelope] = asyncio.Queue(maxsize=100)
 
     logger.info("WebSocket connection accepted", extra={"client": websocket.client.host if websocket.client else "unknown"})
@@ -100,13 +101,25 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                     except asyncio.QueueFull:
                         transport_metrics.record_dropped_frame()
                     continue
-
+                
+                session_id_from_client = frame.payload.get("session_id")
                 session = await voice_gateway.start_voice_session(
                     connection_id=f"ws-conn-{uuid4().hex[:8]}",
                     conversation_id=frame.conversation_id,
                     language=frame.payload.get("language", "hi"),
+                    session_id=session_id_from_client,
                 )
                 active_session_id = session.session_id
+                primary_session_id = session.session_id
+                
+                # ── Clear any stale AI session onboarding_state on fresh connect ──
+                try:
+                    ai_session = voice_gateway._ai_orchestrator._session_manager.get_or_create_session(active_session_id)
+                    ai_session.onboarding_state = None
+                    logger.info("[WS-ROUTER] [DIAGNOSTIC] Cleared any stale onboarding_state for session %s on connect.", active_session_id)
+                except Exception as e:
+                    logger.warning("[WS-ROUTER] Could not clear onboarding_state on connect: %s", e)
+
                 reply = WebSocketEnvelope(
                     request_id=frame.request_id,
                     session_id=active_session_id,
@@ -174,11 +187,13 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
 
             elif frame.type == ProtocolMessageType.AUDIO_FRAME:
                 if not active_session_id:
-                    logger.info("[WS-ROUTER] [DIAGNOSTIC] Auto-creating new voice session for subsequent audio command")
+                    target_session_id = primary_session_id or f"vsession_{uuid4().hex[:8]}"
+                    logger.info("[WS-ROUTER] [DIAGNOSTIC] Re-using primary voice session %s for subsequent audio command", target_session_id)
                     session = await voice_gateway.start_voice_session(
                         connection_id=f"ws-conn-{uuid4().hex[:8]}",
                         conversation_id=frame.conversation_id,
                         language="hi",
+                        session_id=target_session_id,
                     )
                     active_session_id = session.session_id
                 
@@ -199,6 +214,11 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                         logger.info(f"[WS-ROUTER] [DIAGNOSTIC] Calling voice_gateway.finish_voice_session()")
                         resp, final_text = await voice_gateway.finish_voice_session(active_session_id)
                         logger.info(f"[WS-ROUTER] [DIAGNOSTIC] finish_voice_session returned with text: {final_text}")
+                        
+                        if not resp.text or not resp.text.strip():
+                            logger.info("[WS-ROUTER] [DIAGNOSTIC] Empty response text. Skipping AI_RESPONSE & TTS streaming to stay quiet.")
+                            active_session_id = None
+                            continue
                         
                         _nav = resp.navigation_directive
                         _target = _nav.get("target") if _nav else None

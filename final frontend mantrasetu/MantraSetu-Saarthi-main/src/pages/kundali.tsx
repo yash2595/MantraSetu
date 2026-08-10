@@ -124,7 +124,7 @@ export default function KundaliCreation() {
         </section>
 
         {/* ── Form ── */}
-        <section className="section" aria-labelledby="kundali-form-heading" data-testid="section-kundali-form">
+        <section id="kundali-form-section" className="section" aria-labelledby="kundali-form-heading" data-testid="section-kundali-form">
           <div className="container-wide">
             <div className="section-heading">
               <span className="section-kicker">Generate your kundali</span>

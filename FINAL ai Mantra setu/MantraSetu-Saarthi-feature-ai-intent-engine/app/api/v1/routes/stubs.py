@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Form
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -26,3 +26,25 @@ async def kundali_generate(payload: dict):
 @router.post("/contact")
 async def contact_us(payload: dict):
     return {"status": "success", "message": "Message received"}
+
+@router.post("/pandit/apply")
+async def apply_pandit(
+    name: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    phone: Optional[str] = Form(None),
+    password: Optional[str] = Form(None),
+    city: Optional[str] = Form(None),
+    state: Optional[str] = Form(None),
+    experience: Optional[str] = Form(None),
+    specialization: Optional[str] = Form(None)
+):
+    return {
+        "access_token": "stub_pandit_token_12345",
+        "token_type": "bearer",
+        "user": {
+            "id": "p_999",
+            "name": name or "Panditji",
+            "email": email or "pandit@mantrasetu.com",
+            "user_type": "pandit"
+        }
+    }

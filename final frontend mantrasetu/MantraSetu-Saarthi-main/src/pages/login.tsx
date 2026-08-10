@@ -109,7 +109,7 @@ export default function Login() {
                 <span>You have been signed in successfully. Welcome back to MantraSetu!</span>
               </div>
             ) : (
-              <form className="modal-form" onSubmit={handleSubmit} noValidate data-testid="form-login">
+              <form id="login-form" className="modal-form" onSubmit={handleSubmit} noValidate data-testid="form-login">
                 {errors.api && (
                   <div className="field-error" role="alert" style={{ padding: '0.65rem 0.85rem', background: '#fdf2f2', border: '1px solid #f8b4b4', borderRadius: '0.45rem', color: '#9b1c1c', fontSize: '0.78rem', marginBottom: '0.5rem' }}>
                     <ShieldAlert size={16} style={{ flexShrink: 0 }} /> {errors.api}

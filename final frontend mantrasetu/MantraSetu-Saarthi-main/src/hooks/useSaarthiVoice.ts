@@ -47,23 +47,60 @@ export function useSaarthiVoice() {
   const wsRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const currentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const audioQueueRef = useRef<AudioBuffer[]>([]);
   const isPlayingRef = useRef(false);
   const isFinalChunkReceived = useRef(false);
   const fallbackTimeoutRef = useRef<number | NodeJS.Timeout | null>(null);
   const sequenceQueueRef = useRef<any[]>([]);
   const isExecutingSequenceRef = useRef(false);
+  const lastTargetRef = useRef<string | null>(null);
+
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  const stopAudioPlayback = useCallback(() => {
+    console.log('[BARGE-IN] Executing stopAudioPlayback(). Halting active audio source & flushing audio queue.');
+    if (currentAudioSourceRef.current) {
+      try {
+        currentAudioSourceRef.current.stop();
+        currentAudioSourceRef.current.disconnect();
+      } catch (e) {
+        console.warn('[BARGE-IN] Error stopping audio source:', e);
+      }
+      currentAudioSourceRef.current = null;
+    }
+    audioQueueRef.current = [];
+    isPlayingRef.current = false;
+    isFinalChunkReceived.current = false;
+
+    if (fallbackTimeoutRef.current) {
+      clearTimeout(fallbackTimeoutRef.current);
+      fallbackTimeoutRef.current = null;
+    }
+
+    if (sequenceQueueRef.current.length > 0) {
+      console.log('[BARGE-IN] Flushing active UI animation sequence queue due to interruption.');
+      sequenceQueueRef.current = [];
+      isExecutingSequenceRef.current = false;
+    }
+  }, []);
 
   const processNextStep = useCallback(() => {
     if (sequenceQueueRef.current.length === 0) {
       isExecutingSequenceRef.current = false;
       const cursor = document.getElementById('saarthi-cursor');
       if (cursor) {
-          cursor.style.opacity = '0';
-          setTimeout(() => {
-             cursor.style.transform = 'scale(1)';
-             cursor.style.backgroundColor = 'rgba(238, 124, 43, 0.6)';
-          }, 300);
+          // Keep cursor visible between questions. Only hide when the entire sequence is complete
+          // (meaning the final specialization field was filled) or if Saarthi is minimized.
+          const isComplete = lastTargetRef.current?.includes('pandit-spec');
+          if (isComplete) {
+              setTimeout(() => {
+                 cursor.style.opacity = '0';
+              }, 1200);
+          }
       }
       return;
     }
@@ -71,12 +108,15 @@ export function useSaarthiVoice() {
     isExecutingSequenceRef.current = true;
     const step = sequenceQueueRef.current.shift()!;
     console.log('[NAV-DEBUG] Executing step:', step);
+    if (step.target) {
+      lastTargetRef.current = step.target;
+    }
 
     let cursor = document.getElementById('saarthi-cursor');
     if (!cursor) {
       cursor = document.createElement('div');
       cursor.id = 'saarthi-cursor';
-      cursor.style.position = 'fixed';
+      cursor.style.position = 'absolute'; // Use absolute so it scrolls with the page
       cursor.style.width = '24px';
       cursor.style.height = '24px';
       cursor.style.borderRadius = '50%';
@@ -86,8 +126,8 @@ export function useSaarthiVoice() {
       cursor.style.zIndex = '99999';
       cursor.style.pointerEvents = 'none';
       cursor.style.transition = 'all 0.8s ease-in-out';
-      cursor.style.left = '50vw';
-      cursor.style.top = '50vh';
+      cursor.style.left = `${window.innerWidth / 2 + window.scrollX - 12}px`;
+      cursor.style.top = `${window.innerHeight / 2 + window.scrollY - 12}px`;
       cursor.style.opacity = '0';
       document.body.appendChild(cursor);
     }
@@ -110,22 +150,36 @@ export function useSaarthiVoice() {
     }
 
     if (step.action === 'navigate' && step.path) {
+      // Hide cursor on page navigation to prevent floating cursor during load
+      cursor.style.opacity = '0';
       navigate(step.path);
       setTimeout(processNextStep, step.delay);
+      return;
+    }
+
+    if (step.action === 'scroll' && step.target) {
+      const targetEl = document.querySelector(step.target) as HTMLElement;
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(processNextStep, step.delay || 400);
+      } else {
+        console.warn('[NAV-DEBUG] Scroll target not found, gracefully staying at top:', step.target);
+        processNextStep();
+      }
       return;
     }
 
     if (step.action === 'move' && step.target) {
       const targetEl = document.querySelector(step.target) as HTMLElement;
       if (targetEl) {
-        // scroll into view
         targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         
-        // Wait for scroll to settle
+        // 300ms scroll buffer to ensure final coordinates are accurate
         setTimeout(() => {
           const rect = targetEl.getBoundingClientRect();
-          const targetX = rect.left + rect.width / 2;
-          const targetY = rect.top + rect.height / 2;
+          // Absolute coordinates targeting the center of the element
+          const targetX = rect.left + rect.width / 2 + window.scrollX;
+          const targetY = rect.top + rect.height / 2 + window.scrollY;
           
           cursor!.style.opacity = '1';
           cursor!.style.transform = 'scale(1)';
@@ -134,7 +188,7 @@ export function useSaarthiVoice() {
           cursor!.style.top = `${targetY - 12}px`;
           
           setTimeout(processNextStep, step.delay);
-        }, 100); // 100ms scroll buffer
+        }, 300);
       } else {
         console.warn('[NAV-DEBUG] Move target not found:', step.target);
         processNextStep();
@@ -143,11 +197,30 @@ export function useSaarthiVoice() {
     }
 
     if (step.action === 'click' && step.target) {
-      const targetEl = document.querySelector(step.target) as HTMLElement;
+      let targetEl = document.querySelector(step.target) as HTMLElement;
+      if (!targetEl && step.target.includes('submit')) {
+        targetEl = document.querySelector('[data-testid="button-submit-pandit-signup"], [data-testid="button-submit-signup"], form button[type="submit"], button[type="submit"]') as HTMLElement;
+      }
       if (targetEl) {
+        const rect = targetEl.getBoundingClientRect();
+        const targetX = rect.left + rect.width / 2 + window.scrollX;
+        const targetY = rect.top + rect.height / 2 + window.scrollY;
+        
+        cursor.style.left = `${targetX - 12}px`;
+        cursor.style.top = `${targetY - 12}px`;
         cursor.style.transform = 'scale(0.5)';
         cursor.style.backgroundColor = 'rgba(238, 124, 43, 0.9)';
+        
         targetEl.click();
+        const formEl = targetEl.closest('form');
+        if (formEl && (targetEl.getAttribute('type') === 'submit' || step.target.includes('submit'))) {
+          console.log('[FORM-SUBMIT] Triggering form.requestSubmit() explicitly');
+          if (typeof formEl.requestSubmit === 'function') {
+            formEl.requestSubmit();
+          } else {
+            formEl.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+          }
+        }
         
         setTimeout(() => {
           cursor!.style.transform = 'scale(1)';
@@ -161,11 +234,103 @@ export function useSaarthiVoice() {
       return;
     }
 
+    if (step.action === 'open_dropdown' && step.target) {
+      const targetEl = document.querySelector(step.target) as HTMLSelectElement;
+      if (targetEl && targetEl.tagName.toLowerCase() === 'select') {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+          // Open dropdown visually by setting size to options length
+          targetEl.size = targetEl.options.length || 4;
+          targetEl.focus();
+          setTimeout(processNextStep, step.delay);
+        }, 300);
+      } else {
+        console.warn('[NAV-DEBUG] open_dropdown target not found or not select:', step.target);
+        processNextStep();
+      }
+      return;
+    }
+
+    if (step.action === 'select_option' && step.target && step.text) {
+      const targetEl = document.querySelector(step.target) as HTMLSelectElement;
+      if (targetEl && targetEl.tagName.toLowerCase() === 'select') {
+        const options = Array.from(targetEl.options);
+        const matchVal = step.text.toLowerCase();
+        
+        let matchedIdx = options.findIndex(o => o.value.toLowerCase() === matchVal || o.text.toLowerCase() === matchVal);
+        if (matchedIdx === -1) {
+          // Fuzzy lookup
+          matchedIdx = options.findIndex(o => o.value.toLowerCase().includes(matchVal) || o.text.toLowerCase().includes(matchVal));
+        }
+        if (matchedIdx === -1) matchedIdx = 0;
+
+        const matchedOption = options[matchedIdx];
+        const selectRect = targetEl.getBoundingClientRect();
+        
+        let optX = selectRect.left + selectRect.width / 2 + window.scrollX;
+        let optY = selectRect.top + selectRect.height + window.scrollY;
+
+        try {
+          const optRect = matchedOption.getBoundingClientRect();
+          if (optRect && optRect.height > 0) {
+            optX = optRect.left + optRect.width / 2 + window.scrollX;
+            optY = optRect.top + optRect.height / 2 + window.scrollY;
+          } else {
+            const optionHeight = 24; // fallback item height
+            optY = selectRect.top + selectRect.height + matchedIdx * optionHeight + optionHeight / 2 + window.scrollY;
+          }
+        } catch (e) {
+          const optionHeight = 24;
+          optY = selectRect.top + selectRect.height + matchedIdx * optionHeight + optionHeight / 2 + window.scrollY;
+        }
+
+        // Move cursor to option visual center
+        cursor.style.opacity = '1';
+        cursor.style.transform = 'scale(1)';
+        cursor.style.backgroundColor = 'rgba(238, 124, 43, 0.6)';
+        cursor.style.left = `${optX - 12}px`;
+        cursor.style.top = `${optY - 12}px`;
+
+        // Hover delay to simulate choosing
+        setTimeout(() => {
+          cursor.style.transform = 'scale(0.5)';
+          cursor.style.backgroundColor = 'rgba(238, 124, 43, 0.9)';
+          
+          targetEl.selectedIndex = matchedIdx;
+          targetEl.dispatchEvent(new Event('input', { bubbles: true }));
+          targetEl.dispatchEvent(new Event('change', { bubbles: true }));
+
+          setTimeout(() => {
+            cursor.style.transform = 'scale(1)';
+            cursor.style.backgroundColor = 'rgba(238, 124, 43, 0.6)';
+            
+            // Collapse dropdown back to normal select
+            targetEl.size = 1;
+            targetEl.classList.add('saarthi-highlight');
+            
+            setTimeout(() => {
+              targetEl.classList.remove('saarthi-highlight');
+              setTimeout(processNextStep, step.delay);
+            }, 600);
+          }, 150);
+        }, 600);
+      } else {
+        console.warn('[NAV-DEBUG] select_option target not found or not select:', step.target);
+        processNextStep();
+      }
+      return;
+    }
+
     if (step.action === 'type' && step.target && step.text) {
       const targetEl = document.querySelector(step.target) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
       console.log(`[FORM-FILL-EXEC] Action: TYPE. Target: "${step.target}". ElementFound: ${!!targetEl}. ValueToSet: "${step.text}"`);
       if (targetEl) {
-         console.log('[FORM-FILL-EXEC] Dispatching input event with value:', step.text);
+         const rect = targetEl.getBoundingClientRect();
+         const targetX = rect.left + rect.width / 2 + window.scrollX;
+         const targetY = rect.top + rect.height / 2 + window.scrollY;
+         
+         cursor.style.left = `${targetX - 12}px`;
+         cursor.style.top = `${targetY - 12}px`;
          
          // In React 18, input value setters are defined on the instance proto
          let nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
@@ -175,19 +340,44 @@ export function useSaarthiVoice() {
              nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')?.set;
          }
 
-         if (nativeInputValueSetter) {
-             nativeInputValueSetter.call(targetEl, step.text);
-             console.log('[FORM-FILL-EXEC] Used nativeInputValueSetter');
-         } else {
-             targetEl.value = step.text;
-             console.log('[FORM-FILL-EXEC] Used direct assignment');
-         }
-         
-         const inputEventSuccess = targetEl.dispatchEvent(new Event('input', { bubbles: true }));
-         const changeEventSuccess = targetEl.dispatchEvent(new Event('change', { bubbles: true }));
-         console.log(`[FORM-FILL-EXEC] Dispatched events. inputSuccess=${inputEventSuccess}, changeSuccess=${changeEventSuccess}`);
+         const textToType = step.text;
+         let currentText = '';
+         let charIndex = 0;
+
+         // Apply highlight immediately when field interaction starts
+         targetEl.classList.add('saarthi-highlight');
+         console.log('[FORM-FILL-EXEC] Applied saarthi-highlight class to target:', step.target);
+
+         const typeNextChar = () => {
+           if (charIndex < textToType.length) {
+             currentText += textToType[charIndex];
+             charIndex++;
+
+             if (nativeInputValueSetter) {
+               nativeInputValueSetter.call(targetEl, currentText);
+             } else {
+               targetEl.value = currentText;
+             }
+
+             targetEl.dispatchEvent(new Event('input', { bubbles: true }));
+             targetEl.dispatchEvent(new Event('change', { bubbles: true }));
+
+             setTimeout(typeNextChar, 40); // ~30-50ms delay between characters
+           } else {
+             // Typing complete, hold highlight glow for 1000ms
+             setTimeout(() => {
+               targetEl.classList.remove('saarthi-highlight');
+               console.log('[FORM-FILL-EXEC] Removed saarthi-highlight class and proceeding');
+               setTimeout(processNextStep, step.delay);
+             }, 1000); // 1000ms glow
+           }
+         };
+
+         typeNextChar();
+      } else {
+         console.warn('[NAV-DEBUG] Type target not found:', step.target);
+         processNextStep();
       }
-      setTimeout(processNextStep, step.delay);
       return;
     }
 
@@ -211,9 +401,20 @@ export function useSaarthiVoice() {
     ws.onopen = () => {
       console.log('[Voice] WebSocket Connected');
       setIsConnected(true);
+      
+      let persistentSessionId = sessionStorage.getItem('saarthi_session_id');
+      if (!persistentSessionId) {
+        persistentSessionId = 'vsession_f' + Math.random().toString(36).substring(2, 14);
+        sessionStorage.setItem('saarthi_session_id', persistentSessionId);
+      }
+      console.log('[Voice] Sending CONNECT with session_id:', persistentSessionId);
+      
       ws.send(JSON.stringify({
         type: 'CONNECT',
-        payload: { language: 'hi' }
+        payload: {
+          language: 'hi',
+          session_id: persistentSessionId
+        }
       }));
     };
 
@@ -232,6 +433,14 @@ export function useSaarthiVoice() {
             const { text, is_final } = msg.payload as { text: string; is_final: boolean };
             console.log('[Voice] TRANSCRIPT', is_final ? 'final' : 'partial', text);
             setDialogueText(text);
+            
+            // BARGE-IN / INTERRUPTION: Flush any active tour or sequence when user speaks
+            if (sequenceQueueRef.current.length > 0) {
+              console.log('[BARGE-IN] Interrupted active sequence queue due to new user speech.');
+              sequenceQueueRef.current = [];
+              isExecutingSequenceRef.current = false;
+            }
+
             if (is_final) {
               setSaarthiState('idle'); // Wait for AI_RESPONSE
               // Auto-minimize on first command
@@ -253,7 +462,7 @@ export function useSaarthiVoice() {
 
           // ----------- AI_RESPONSE handling -----------------------------------
           if (msg.type === 'AI_RESPONSE') {
-            console.log('[Voice] AI_RESPONSE received:', JSON.stringify(msg.payload));
+            console.log('[Voice] [CONNECT-DIAGNOSTIC] RAW AI_RESPONSE Received:', JSON.stringify(msg.payload));
             let contentStr = msg.payload.content || '';
             
             let action = msg.payload.action || null;
@@ -269,6 +478,22 @@ export function useSaarthiVoice() {
               if (!query && parsed.query) query = parsed.query;
               if (parsed.response_text) contentStr = parsed.response_text;
             } catch (e) {}
+
+            // ── GREETING GUARD: Initial connect greeting MUST NEVER navigate automatically ──
+            if (intent === 'GREETING' || msg.payload.intent === 'GREETING') {
+              console.log('[Voice] [CONNECT-DIAGNOSTIC] Initial Greeting response received. Forcing action & target to null. User remains on current page.');
+              action = null;
+              target = null;
+            }
+
+            // ── COMPLETION VISUAL MOMENT: Trigger 'namaste' avatar bow on onboarding handoff ──
+            if (contentStr.toLowerCase().includes('password') && contentStr.toLowerCase().includes('documents')) {
+              console.log('[Voice] [VISUAL-MOMENT] Onboarding completion handoff detected. Triggering Namaste bow animation on avatar!');
+              setSaarthiState('namaste' as any);
+              setTimeout(() => {
+                setSaarthiState('speaking');
+              }, 1500);
+            }
 
             console.log('[Voice] --------------------------------------------------');
             console.log('[Voice] AI_RESPONSE NAVIGATION CHECK:');
@@ -293,22 +518,34 @@ export function useSaarthiVoice() {
               console.log(`[NAV-DEBUG] Routing for target: ${cleanTarget}, query: ${query}, currentPath: ${window.location.pathname}`);
               
               const getTargetSelectorForPath = (path: string) => {
-                if (path === '/') return '[data-testid="link-home-logo"]';
-                if (path.includes('puja')) return '[data-testid="button-nav-services"]';
-                if (path.includes('kundali')) return '[data-testid="button-nav-spiritual-tools"]';
-                if (path.includes('muhurat')) return '[data-testid="button-nav-spiritual-tools"]';
+                if (path === '/') return '[data-testid="link-home-logo"], [data-testid="link-nav-home"]';
+                if (path.includes('puja')) return '[data-testid="button-nav-services"], [data-testid="link-nav-service-book-puja"]';
+                if (path.includes('kundali')) return '[data-testid="button-nav-spiritual-tools"], [data-testid="link-nav-tool-kundali"]';
+                if (path.includes('muhurat')) return '[data-testid="button-nav-spiritual-tools"], [data-testid="link-nav-tool-muhurat-finder"]';
                 if (path.includes('login')) return '[data-testid="button-login"]';
                 if (path.includes('signup') || path.includes('sign-up')) return '[data-testid="button-signup"]';
                 if (path.includes('dash')) return 'a[href="/dashboard"]';
                 return `a[href="${path}"]`;
               };
 
+              const getTargetSectionForPath = (path: string) => {
+                if (path.includes('role=pandit')) return '#pandit-onboarding-form, [data-testid="form-signup"], [data-testid="card-signup"]';
+                if (path.includes('signup') || path.includes('sign-up')) return '#signup-form, [data-testid="form-signup"], [data-testid="card-signup"]';
+                if (path.includes('login')) return '#login-form, [data-testid="form-login"], [data-testid="card-login"]';
+                if (path.includes('kundali')) return '#kundali-form-section, [data-testid="section-kundali-form"]';
+                if (path.includes('muhurat')) return '#muhurat-finder-section, [data-testid="section-muhurat-finder"]';
+                if (path.includes('puja')) return '#puja-catalog-section, [data-testid="section-puja-catalog"]';
+                if (path === '/') return '#hero-section, [data-testid="section-hero"]';
+                return 'main, section, body';
+              };
+
               const seq = [];
               const finalTarget = getTargetSelectorForPath(cleanTarget);
+              const sectionTarget = getTargetSectionForPath(cleanTarget);
 
               if (query && cleanTarget.includes('puja')) {
-                // GENERIC QUERY FLOW (e.g., Any specific puja) - GOLDEN PATH
-                console.log('[NAV-DEBUG] Preparing to type search query into filter box:', query);
+                // QUERY SEARCH FLOW (Specific puja catalog search)
+                console.log('[NAV-DEBUG] Preparing query search flow:', query);
                 if (window.location.pathname === '/puja') {
                   seq.push(
                     { action: 'move', target: '[data-testid="input-search-puja"]', delay: 800 },
@@ -332,14 +569,19 @@ export function useSaarthiVoice() {
                   seq.push({ action: 'click', target: '[data-testid^="button-book-now-"]', delay: 0 });
                 }
               } else {
-                // GENERIC PAGE-LEVEL NAV FLOW
-                seq.push({ action: 'move', target: finalTarget, delay: 800 });
-                // We just point at the top level link and navigate directly
+                // UNIVERSAL WHITE-BOX CURSOR NAVIGATION FOR ALL PAGES
+                console.log(`[NAV-DEBUG] Executing Universal Nav Journey -> Target Nav: ${finalTarget}, Section: ${sectionTarget}`);
+                seq.push({ action: 'move', target: finalTarget, delay: 600 });
+                seq.push({ action: 'click', target: finalTarget, delay: 300 });
                 seq.push({ action: 'navigate', path: cleanTarget, delay: 400 });
+                seq.push({ action: 'wait_for_selector', target: sectionTarget, delay: 300 });
+                seq.push({ action: 'scroll', target: sectionTarget, delay: 400 });
+                seq.push({ action: 'move', target: sectionTarget, delay: 600 });
                 
                 // Fix for Pandit role switching
-                if (cleanTarget.includes('role=pandit')) {
-                  seq.push({ action: 'wait_for_selector', target: '[data-testid="tab-usertype-pandit"]', delay: 400 });
+                const isPanditSignupJourney = cleanTarget.includes('role=pandit') || (cleanTarget.includes('signup') && (msg.payload.content || '').toLowerCase().includes('pandit'));
+                if (isPanditSignupJourney) {
+                  seq.push({ action: 'wait_for_selector', target: '[data-testid="tab-usertype-pandit"]', delay: 300 });
                   seq.push({ action: 'click', target: '[data-testid="tab-usertype-pandit"]', delay: 200 });
                   console.log('[NAV-DEBUG] Clicked Pandit tab explicitly after navigating');
                 }
@@ -347,6 +589,46 @@ export function useSaarthiVoice() {
 
               runSequence(seq);
               // Fallback handled by generic page level flow
+            } else if (action === 'START_TOUR') {
+              console.log('[SITE-TOUR] Preparing site tour sequence for target:', target);
+              const seq: any[] = [];
+              if (target === 'pandit_tour') {
+                // PANDIT TOUR: 3 Stops
+                // Stop 1: Home page CTA
+                seq.push({ action: 'navigate', path: '/', delay: 400 });
+                seq.push({ action: 'move', target: '[data-testid="button-become-pandit-cta"], a[href="/sign-up?role=pandit"]', delay: 800 });
+                seq.push({ action: 'scroll', target: '[data-testid="button-become-pandit-cta"], a[href="/sign-up?role=pandit"]', delay: 2000 });
+                // Stop 2: Pandit Registration Form & Tab
+                seq.push({ action: 'navigate', path: '/signup?role=pandit', delay: 400 });
+                seq.push({ action: 'wait_for_selector', target: '[data-testid="tab-usertype-pandit"]', delay: 300 });
+                seq.push({ action: 'click', target: '[data-testid="tab-usertype-pandit"]', delay: 400 });
+                seq.push({ action: 'move', target: '[data-testid="input-pandit-name"]', delay: 2500 });
+                // Stop 3: Document Upload Section
+                seq.push({ action: 'scroll', target: '[data-testid="button-signup-submit"]', delay: 400 });
+                seq.push({ action: 'move', target: '[data-testid="button-signup-submit"]', delay: 2000 });
+              } else {
+                // DEVOTEE TOUR: 4 Stops
+                // Stop 1: Home Hero
+                seq.push({ action: 'navigate', path: '/', delay: 400 });
+                seq.push({ action: 'move', target: '#hero-section, [data-testid="section-hero"]', delay: 800 });
+                seq.push({ action: 'scroll', target: '#hero-section, [data-testid="section-hero"]', delay: 2000 });
+                // Stop 2: Puja Booking Catalog
+                seq.push({ action: 'navigate', path: '/puja', delay: 400 });
+                seq.push({ action: 'wait_for_selector', target: '#puja-catalog-section, [data-testid="section-puja-catalog"]', delay: 300 });
+                seq.push({ action: 'scroll', target: '#puja-catalog-section, [data-testid="section-puja-catalog"]', delay: 400 });
+                seq.push({ action: 'move', target: '[data-testid="input-search-puja"]', delay: 2500 });
+                // Stop 3: Kundali Creation
+                seq.push({ action: 'navigate', path: '/kundali-creation', delay: 400 });
+                seq.push({ action: 'wait_for_selector', target: '#kundali-form-section, [data-testid="section-kundali-form"]', delay: 300 });
+                seq.push({ action: 'scroll', target: '#kundali-form-section, [data-testid="section-kundali-form"]', delay: 400 });
+                seq.push({ action: 'move', target: '#kundali-form-section, [data-testid="section-kundali-form"]', delay: 2500 });
+                // Stop 4: Muhurat Finder
+                seq.push({ action: 'navigate', path: '/muhurat-finder', delay: 400 });
+                seq.push({ action: 'wait_for_selector', target: '#muhurat-finder-section, [data-testid="section-muhurat-finder"]', delay: 300 });
+                seq.push({ action: 'scroll', target: '#muhurat-finder-section, [data-testid="section-muhurat-finder"]', delay: 400 });
+                seq.push({ action: 'move', target: '#muhurat-finder-section, [data-testid="section-muhurat-finder"]', delay: 2000 });
+              }
+              runSequence(seq);
             } else if (action === 'FILL_FORM' && (msg.payload.fields || (target && query))) {
               console.log('[FORM-FILL] Raw AI_RESPONSE for FILL_FORM:', msg.payload);
               console.log('[FORM-FILL] Received fields array:', JSON.stringify(msg.payload.fields));
@@ -375,6 +657,9 @@ export function useSaarthiVoice() {
                 else if (fTarget.includes('city') || fTarget.includes('location')) selector = isPanditField ? '[data-testid="input-pandit-city"]' : 'input[name="city"], [data-testid="input-city"], select#booking-city, #booking-city';
                 else if (fTarget.includes('state')) selector = isPanditField ? '[data-testid="input-pandit-state"]' : 'input[name="state"], [data-testid="input-state"]';
                 else if (fTarget.includes('email')) selector = isPanditField ? '[data-testid="input-pandit-email"]' : 'input[name="email"], input[type="email"], [data-testid="input-email"]';
+                else if (fTarget.includes('lang')) selector = '[data-testid^="toggle-lang-"]';
+                else if (fTarget.includes('exp')) selector = '[data-testid="select-pandit-exp"]';
+                else if (fTarget.includes('spec')) selector = '[data-testid="select-pandit-spec"]';
                 else if (fTarget.includes('date')) selector = 'input[name="date"], input[type="date"], [data-testid="input-date"], #booking-date';
                 else if (fTarget.includes('time')) selector = 'input[name="time"], input[type="time"], [data-testid="input-time"], select#booking-time, #booking-time';
                 else selector = `input[name="${fTarget}"], #${fTarget}`;
@@ -385,15 +670,43 @@ export function useSaarthiVoice() {
                   hasNavigatedToPandit = true;
                   if (window.location.pathname !== '/signup') {
                      seq.push({ action: 'navigate', path: '/signup?role=pandit', delay: 400 });
+                     seq.push({ action: 'wait_for_selector', target: selector, delay: 200 });
                   } else {
-                     seq.push({ action: 'click', target: '[data-testid="tab-usertype-pandit"]', delay: 200 });
+                     const isPanditTabActive = !!document.querySelector('[data-testid="tab-usertype-pandit"][aria-pressed="true"]');
+                     if (!isPanditTabActive) {
+                        seq.push({ action: 'click', target: '[data-testid="tab-usertype-pandit"]', delay: 200 });
+                        seq.push({ action: 'wait_for_selector', target: selector, delay: 200 });
+                     }
                   }
-                  seq.push({ action: 'wait_for_selector', target: selector, delay: 200 });
                 }
 
                 if (isPanditField) {
-                  seq.push({ action: 'move', target: selector, delay: 400 });
-                  seq.push({ action: 'type', target: selector, text: fQuery, delay: 800 });
+                  const isSelectDropdown = fTarget.includes('exp') || fTarget.includes('spec');
+                  const isLangToggle = fTarget.includes('lang');
+                  if (isSelectDropdown) {
+                    seq.push({ action: 'move', target: selector, delay: 400 });
+                    seq.push({ action: 'open_dropdown', target: selector, delay: 500 });
+                    seq.push({ action: 'select_option', target: selector, text: fQuery, delay: 800 });
+                  } else if (isLangToggle) {
+                    const targetLangs = (fQuery || "Hindi, Sanskrit").split(',').map((l: string) => l.trim().toLowerCase());
+                    const allPossibleLangs = ['hindi', 'sanskrit', 'english', 'gujarati', 'marathi', 'bengali', 'tamil', 'telugu'];
+                    
+                    for (const lang of allPossibleLangs) {
+                      const btnSelector = `[data-testid="toggle-lang-${lang}"]`;
+                      const shouldBeActive = targetLangs.includes(lang);
+                      
+                      const btnEl = document.querySelector(btnSelector);
+                      const isActive = btnEl ? (btnEl.textContent || '').includes('✓') : (lang === 'hindi' || lang === 'sanskrit');
+                      
+                      if ((shouldBeActive && !isActive) || (!shouldBeActive && isActive)) {
+                        seq.push({ action: 'move', target: btnSelector, delay: 300 });
+                        seq.push({ action: 'click', target: btnSelector, delay: 200 });
+                      }
+                    }
+                  } else {
+                    seq.push({ action: 'move', target: selector, delay: 400 });
+                    seq.push({ action: 'type', target: selector, text: fQuery, delay: 800 });
+                  }
                 } else {
                   const element = document.querySelector(selector);
                   console.log(`[FORM-FILL] Attempting to queue fill: field="${fTarget}", value="${fQuery}", selector="${selector}", foundElement=${!!element}`);
@@ -411,6 +724,19 @@ export function useSaarthiVoice() {
                 if (!isExecutingSequenceRef.current) {
                   processNextStepRef.current();
                 }
+              }
+            } else if (action === 'SUBMIT_FORM') {
+              console.log('[FORM-SUBMIT] SUBMIT_FORM action received. Target button:', target);
+              const submitSelector = '[data-testid="button-submit-pandit-signup"], [data-testid="button-submit-signup"], form button[type="submit"], button[type="submit"]';
+              const seq: any[] = [
+                { action: 'wait_for_selector', target: submitSelector, delay: 300 },
+                { action: 'scroll', target: submitSelector, delay: 400 },
+                { action: 'move', target: submitSelector, delay: 800 },
+                { action: 'click', target: submitSelector, delay: 200 },
+              ];
+              sequenceQueueRef.current = seq;
+              if (!isExecutingSequenceRef.current) {
+                processNextStepRef.current();
               }
             }
             
@@ -591,9 +917,11 @@ export function useSaarthiVoice() {
         const source = audioContextRef.current.createBufferSource();
         source.buffer = buffer;
         source.connect(audioContextRef.current.destination);
+        currentAudioSourceRef.current = source;
         
         source.onended = () => {
           console.log('[Voice] Audio chunk playback ended');
+          currentAudioSourceRef.current = null;
           isPlayingRef.current = false;
           playNextAudio();
         };
@@ -603,6 +931,7 @@ export function useSaarthiVoice() {
             source.start(0);
         } catch (err: any) {
             console.error('[Voice] source.start(0) threw an error! FULL error object:', err);
+            currentAudioSourceRef.current = null;
             isPlayingRef.current = false;
             playNextAudio();
         }
@@ -620,11 +949,11 @@ export function useSaarthiVoice() {
     let recordedBytesSent = 0;
     let vadWarmupTime = Date.now() + 1000; // 1 second warmup where VAD doesn't trigger silence
 
-    if (state === 'listening' && isConnected) {
-      console.log('[Voice] Requesting microphone permission...');
-      navigator.mediaDevices.getUserMedia({ audio: true })
+    if ((state === 'listening' || state === 'speaking') && isConnected) {
+      console.log('[Voice] Requesting microphone permission with Echo Cancellation & Noise Suppression...');
+      navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
         .then(stream => {
-          console.log('[Voice] Microphone permission granted');
+          console.log('[Voice] Microphone permission granted (Active across listening & speaking states)');
           // Start AudioContext with 16000 sampleRate
           if (audioContextRef.current) {
              if (audioContextRef.current.sampleRate !== 16000) {
@@ -646,18 +975,17 @@ export function useSaarthiVoice() {
           const processor = audioCtx.createScriptProcessor(4096, 1, 1);
           
           let chunkCounter = 0;
+
           processor.onaudioprocess = (event) => {
             chunkCounter++;
-            if (chunkCounter % 10 === 0) {
-               console.log(`[DIAGNOSTIC] onaudioprocess fired (chunk ${chunkCounter}). AudioCtx state: ${audioCtx.state}`);
-            }
             if (wsRef.current?.readyState === WebSocket.OPEN) {
               const inputData = event.inputBuffer.getChannelData(0);
               const pcm16 = float32ToPCM16(inputData);
               const base64data = uint8ArrayToBase64(pcm16);
+
               recordedBytesSent += pcm16.byteLength;
               if (chunkCounter % 10 === 0) {
-                 console.log(`[DIAGNOSTIC] Recorded bytes this chunk: ${pcm16.byteLength}, Total sent: ${recordedBytesSent}`);
+                 console.log(`[VAD-DIAGNOSTIC] Streaming AUDIO_FRAME (chunk ${chunkCounter}). Total sent: ${recordedBytesSent} bytes.`);
               }
               wsRef.current.send(JSON.stringify({
                 type: 'AUDIO_FRAME',
@@ -667,9 +995,8 @@ export function useSaarthiVoice() {
           };
           
           sourceNode.connect(processor);
-          processor.connect(audioCtx.destination); // Required for script processor to run
+          processor.connect(audioCtx.destination);
           
-          // Store these in the ref so we can clean them up instead of MediaRecorder
           (mediaRecorderRef as any).current = {
             state: 'recording',
             stop: () => {
@@ -678,19 +1005,20 @@ export function useSaarthiVoice() {
             },
             stream: stream
           };
-          console.log('[Voice] Started ScriptProcessorNode for streaming audio');
+          console.log('[Voice] Started ScriptProcessorNode (Audio streaming active)');
 
           // VAD Setup
           vadAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
           const source = vadAudioCtx.createMediaStreamSource(stream);
           const analyser = vadAudioCtx.createAnalyser();
           analyser.fftSize = 512;
-          analyser.minDecibels = -70; // More sensitive
+          analyser.minDecibels = -70; // High sensitivity VAD
           analyser.smoothingTimeConstant = 0.1;
           source.connect(analyser);
 
           const dataArray = new Uint8Array(analyser.frequencyBinCount);
           silenceStart = Date.now();
+          let speechStreakDuringSpeaking = 0;
 
           vadInterval = window.setInterval(() => {
             analyser.getByteFrequencyData(dataArray);
@@ -702,28 +1030,37 @@ export function useSaarthiVoice() {
             
             // Console log VAD metrics every 500ms
             if (Date.now() % 500 < 100) {
-              console.log(`[Voice] VAD Tick | Volume Avg: ${average.toFixed(2)} | isSpeaking: ${isSpeaking}`);
+              console.log(`[VAD-DIAGNOSTIC] VAD Tick | State: ${stateRef.current} | Vol Avg: ${average.toFixed(2)} | isSpeaking: ${isSpeaking}`);
             }
 
             if (Date.now() < vadWarmupTime) {
-               // Ignore silence logic during warmup
                silenceStart = Date.now();
                return;
             }
 
-            if (average > 10) { // Threshold for speech (lowered to 10 for better detection)
+            // -------------------------------------------------------------------------
+            // BARGE-IN DISABLED FOR DEMO STABILITY: Mic only listens after Saarthi finishes speaking
+            // -------------------------------------------------------------------------
+            if (stateRef.current === 'speaking') {
+              silenceStart = Date.now();
+              return;
+            }
+
+            // -------------------------------------------------------------------------
+            // NORMAL LISTENING VAD LOGIC (during 'listening' state)
+            // -------------------------------------------------------------------------
+            if (average > 6.0) { // Speech start threshold (6.0 for responsive detection)
               if (!isSpeaking) {
-                console.log(`[Voice] VAD: Speech started (Volume: ${average.toFixed(2)} > 10)`);
+                console.log(`[VAD-DIAGNOSTIC] 🎯 Speech CONFIRMED started! (Vol: ${average.toFixed(2)} > 6.0)`);
                 isSpeaking = true;
               }
               silenceStart = Date.now();
             } else {
-              if (isSpeaking && (Date.now() - silenceStart > 1800)) { // 1.8 seconds of silence
-                console.log(`[Voice] VAD: Silence detected. Triggering AUDIO_END. Volume was: ${average.toFixed(2)}`);
+              if (isSpeaking && (Date.now() - silenceStart > 1200)) { // 1.2 seconds of silence after speech
+                console.log(`[VAD-DIAGNOSTIC] 🤫 Silence detected after 1.2s. Triggering state transition to idle. Last Vol: ${average.toFixed(2)}`);
                 isSpeaking = false;
-                setSaarthiState('idle'); // This will trigger the cleanup and AUDIO_END via the hook dependency change
+                setSaarthiState('idle');
                 
-                // Auto-minimize on first real voice command completion
                 console.log('[WIDGET] Shrink condition check (VAD): isSpeaking=false, _hasMinimizedOnce=', (window as any)._hasMinimizedOnce);
                 if (!(window as any)._hasMinimizedOnce) {
                   console.log('[WIDGET] Triggering shrink-to-corner animation now (via VAD)');
@@ -748,22 +1085,20 @@ export function useSaarthiVoice() {
         vadAudioCtx.close();
       }
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        console.log(`[Voice] Stopping MediaRecorder (cleanup). Total recorded bytes sent: ${recordedBytesSent}`);
+        console.log(`[VAD-DIAGNOSTIC] Stopping MediaRecorder (cleanup). Total recorded bytes sent: ${recordedBytesSent}`);
         
-        // Prevent ghost cleanups by correctly mutating our mocked state
         mediaRecorderRef.current.state = 'inactive';
-        
         mediaRecorderRef.current.stop();
         mediaRecorderRef.current.stream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
         
         if (recordedBytesSent > 0) {
-            console.log(`[Voice] Sending AUDIO_END frame with total byte size: ${recordedBytesSent}`);
+            console.log(`[VAD-DIAGNOSTIC] ✅ Sending AUDIO_END frame with total byte size: ${recordedBytesSent} bytes.`);
             wsRef.current?.send(JSON.stringify({
               type: 'AUDIO_END',
               payload: {}
             }));
         } else {
-            console.log('[Voice] Skipping AUDIO_END frame because 0 bytes were recorded during this session.');
+            console.log('[VAD-DIAGNOSTIC] Skipping AUDIO_END frame because 0 bytes were recorded.');
         }
       }
     };

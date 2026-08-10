@@ -66,6 +66,7 @@ class VoiceGateway:
         language: str = "hi",
         sample_rate: int = 16000,
         audio_encoding: Any = "pcm16",
+        session_id: str | None = None,
     ) -> VoiceSession:
         """Initialize and register a new live voice streaming session."""
         session = await self._session_manager.create_session(
@@ -74,6 +75,7 @@ class VoiceGateway:
             language=language,
             sample_rate=sample_rate,
             audio_encoding=audio_encoding,
+            session_id=session_id,
         )
         
         # Fetch dynamic puja list from main backend
@@ -152,11 +154,32 @@ class VoiceGateway:
         else:
             final_text = stt_result.text
 
+        final_text = (final_text or "").strip()
+        logger.info(
+            "[STT-DIAGNOSTIC] Session %s | Raw STT Transcript: %r | Confidence: %.2f | Provider: %s",
+            session.session_id, final_text, stt_result.confidence, stt_result.provider
+        )
+
+        if not final_text:
+            logger.info("[STT-DIAGNOSTIC] Session %s | Empty transcript detected (silence/background noise). Suppressing AI response.", session.session_id)
+            self._buffers.pop(session_id, None)
+            self._aggregators.pop(session_id, None)
+            await self._session_manager.close_session(session_id, status=VoiceSessionStatus.COMPLETED)
+            
+            from app.orchestrator.orchestrator_models import OrchestratorResponse, ResponseType
+            empty_response = OrchestratorResponse(
+                response_id=f"resp_empty_{session_id[:8]}",
+                request_id=session_id,
+                text="",
+                response_type=ResponseType.CHAT
+            )
+            return empty_response, ""
+
         # Create normalized OrchestratorRequest for AIOrchestrator (Module 1)
         interaction_request = OrchestratorRequest(
             conversation_id=session.conversation_id or "default_conv",
             session_id=session.session_id,
-            user_message=final_text or "Namaste",
+            user_message=final_text,
             user_parameters={
                 "transport": "voice_websocket",
                 "connection_id": session.connection_id,
@@ -180,10 +203,10 @@ class VoiceGateway:
         # Delegate execution to frozen Module 1 AIOrchestrator
         response = await self._ai_orchestrator.process(interaction_request)
 
-        # Cleanup session resources
+        # Keep session alive for multi-turn voice interaction
+        session.status = VoiceSessionStatus.CONNECTED
         self._buffers.pop(session_id, None)
         self._aggregators.pop(session_id, None)
-        await self._session_manager.close_session(session_id, status=VoiceSessionStatus.COMPLETED)
 
         return response, final_text
 

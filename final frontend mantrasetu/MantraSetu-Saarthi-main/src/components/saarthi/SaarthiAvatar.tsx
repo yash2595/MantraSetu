@@ -40,6 +40,16 @@ export const saarthiAvatarVariants: Variants = {
       ease: [0.65, 0, 0.35, 1], // easeInOutCubic
     },
   },
+  namaste: {
+    opacity: 1,
+    scale: [1, 0.92, 1.08, 1],
+    rotate: [0, 8, -4, 0],
+    y: [0, 6, -2, 0],
+    transition: {
+      duration: 1.5,
+      ease: [0.65, 0, 0.35, 1],
+    },
+  },
   idle: {
     opacity: 1,
     scale: [1, 1.03, 1],
@@ -114,7 +124,8 @@ export const SaarthiAvatar: React.FC<SaarthiAvatarProps> = ({
       case 'thinking':
         return '0 0 35px rgba(155, 89, 182, 0.8), 0 0 70px rgba(255, 196, 119, 0.4)';
       case 'greeting':
-        return '0 0 50px rgba(238, 124, 43, 0.9), 0 0 100px rgba(255, 235, 204, 0.6)';
+      case 'namaste':
+        return '0 0 55px rgba(238, 124, 43, 0.95), 0 0 110px rgba(255, 215, 0, 0.7)';
       default:
         return '0 0 28px rgba(238, 124, 43, 0.45), 0 0 60px rgba(217, 102, 32, 0.2)';
     }
