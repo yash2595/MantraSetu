@@ -74,10 +74,171 @@ def get_contextual_reaction(current_field: str, val: str, address_info: dict) ->
 
     return f"Bahut sundar {fn_ji}!"
 
+def format_phone_for_speech(phone: str) -> str:
+    """Format 10-digit phone number as space-separated digit groups (e.g. '999 888 7776') for TTS and spoken text."""
+    if not phone or phone == "Not provided":
+        return phone
+    digits = re.sub(r'\D', '', str(phone))
+    if len(digits) == 10:
+        return f"{digits[:3]} {digits[3:6]} {digits[6:]}"
+    elif len(digits) > 0:
+        return " ".join(digits)
+    return phone
+
+INDIAN_CITIES_DATASET: dict[str, list[str]] = {
+    # Unambiguous cities (mapping to exactly 1 state)
+    "varanasi": ["Uttar Pradesh"],
+    "kashi": ["Uttar Pradesh"],
+    "haridwar": ["Uttarakhand"],
+    "rishikesh": ["Uttarakhand"],
+    "ujjain": ["Madhya Pradesh"],
+    "mathura": ["Uttar Pradesh"],
+    "ayodhya": ["Uttar Pradesh"],
+    "vrindavan": ["Uttar Pradesh"],
+    "puri": ["Odisha"],
+    "rameshwaram": ["Tamil Nadu"],
+    "kedarnath": ["Uttarakhand"],
+    "badrinath": ["Uttarakhand"],
+    "gaya": ["Bihar"],
+    "tirupati": ["Andhra Pradesh"],
+    "nashik": ["Maharashtra"],
+    "dwarka": ["Gujarat"],
+    "prayagraj": ["Uttar Pradesh"],
+    "allahabad": ["Uttar Pradesh"],
+    "delhi": ["Delhi"],
+    "new delhi": ["Delhi"],
+    "mumbai": ["Maharashtra"],
+    "pune": ["Maharashtra"],
+    "kolkata": ["West Bengal"],
+    "chennai": ["Tamil Nadu"],
+    "bengaluru": ["Karnataka"],
+    "bangalore": ["Karnataka"],
+    "hyderabad": ["Telangana"],
+    "ahmedabad": ["Gujarat"],
+    "jaipur": ["Rajasthan"],
+    "hapur": ["Uttar Pradesh"],
+    "lucknow": ["Uttar Pradesh"],
+    "kanpur": ["Uttar Pradesh"],
+    "patna": ["Bihar"],
+    "bhopal": ["Madhya Pradesh"],
+    "indore": ["Madhya Pradesh"],
+    "nagpur": ["Maharashtra"],
+    "surat": ["Gujarat"],
+    "vadodara": ["Gujarat"],
+    "agra": ["Uttar Pradesh"],
+    "meerut": ["Uttar Pradesh"],
+    "noida": ["Uttar Pradesh"],
+    "ghaziabad": ["Uttar Pradesh"],
+    "gurugram": ["Haryana"],
+    "gurgaon": ["Haryana"],
+    "faridabad": ["Haryana"],
+    "chandigarh": ["Punjab"],
+    "ludhiana": ["Punjab"],
+    "amritsar": ["Punjab"],
+    "dehradun": ["Uttarakhand"],
+    "shimla": ["Himachal Pradesh"],
+    "ranchi": ["Jharkhand"],
+    "jamshedpur": ["Jharkhand"],
+    "bhubaneswar": ["Odisha"],
+    "guwahati": ["Assam"],
+    "thiruvananthapuram": ["Kerala"],
+    "kochi": ["Kerala"],
+    "coimbatore": ["Tamil Nadu"],
+    "madurai": ["Tamil Nadu"],
+    "mysuru": ["Karnataka"],
+    "mysore": ["Karnataka"],
+    "srinagar": ["Jammu and Kashmir"],
+    "jammu": ["Jammu and Kashmir"],
+    "jodhpur": ["Rajasthan"],
+    "udaipur": ["Rajasthan"],
+    "kota": ["Rajasthan"],
+    "gwalior": ["Madhya Pradesh"],
+    "jabalpur": ["Madhya Pradesh"],
+    "raipur": ["Chhattisgarh"],
+    "cuttack": ["Odisha"],
+    "siliguri": ["West Bengal"],
+    "asansol": ["West Bengal"],
+    "dhanbad": ["Jharkhand"],
+    "bokaro": ["Jharkhand"],
+    "shillong": ["Meghalaya"],
+    "imphal": ["Manipur"],
+    "agartala": ["Tripura"],
+    "aizawl": ["Mizoram"],
+    "kohima": ["Nagaland"],
+    "gangtok": ["Sikkim"],
+    "itanagar": ["Arunachal Pradesh"],
+    "panaji": ["Goa"],
+    "margao": ["Goa"],
+    "mangalore": ["Karnataka"],
+    "mangaluru": ["Karnataka"],
+    "hubli": ["Karnataka"],
+    "dharwad": ["Karnataka"],
+    "belgaum": ["Karnataka"],
+    "belagavi": ["Karnataka"],
+    "thrissur": ["Kerala"],
+    "kollam": ["Kerala"],
+    "kozhikode": ["Kerala"],
+    "calicut": ["Kerala"],
+    "tiruchirappalli": ["Tamil Nadu"],
+    "trichy": ["Tamil Nadu"],
+    "salem": ["Tamil Nadu"],
+    "tirunelveli": ["Tamil Nadu"],
+    "vellore": ["Tamil Nadu"],
+    "vijayawada": ["Andhra Pradesh"],
+    "visakhapatnam": ["Andhra Pradesh"],
+    "vizag": ["Andhra Pradesh"],
+    "guntur": ["Andhra Pradesh"],
+    "warangal": ["Telangana"],
+    "nizamabad": ["Telangana"],
+    "karimnagar": ["Telangana"],
+    "bareilly": ["Uttar Pradesh"],
+    "aligarh": ["Uttar Pradesh"],
+    "moradabad": ["Uttar Pradesh"],
+    "saharanpur": ["Uttar Pradesh"],
+    "gorakhpur": ["Uttar Pradesh"],
+    "jhansi": ["Uttar Pradesh"],
+    "mathura vrindavan": ["Uttar Pradesh"],
+    "muzaffarnagar": ["Uttar Pradesh"],
+    "rohtak": ["Haryana"],
+    "panipat": ["Haryana"],
+    "karnal": ["Haryana"],
+    "hisar": ["Haryana"],
+    "sonipat": ["Haryana"],
+
+    # Genuinely ambiguous cities (same name in multiple states)
+    "bilaspur": ["Chhattisgarh", "Himachal Pradesh", "Uttar Pradesh", "Haryana"],
+    "aurangabad": ["Maharashtra", "Bihar"],
+    "pratapgarh": ["Uttar Pradesh", "Rajasthan"],
+    "hamirpur": ["Himachal Pradesh", "Uttar Pradesh"],
+    "balrampur": ["Uttar Pradesh", "Chhattisgarh"],
+}
+
+def get_state_for_city(city_name: str) -> tuple[str, Any]:
+    """Look up city in INDIAN_CITIES_DATASET.
+    Returns:
+      ("SINGLE", "State Name") if unambiguous
+      ("AMBIGUOUS", ["State1", "State2", ...]) if city exists in multiple states
+      ("UNKNOWN", None) if city is not found in dataset
+    """
+    if not city_name:
+        return ("UNKNOWN", None)
+    c_lower = city_name.strip().lower()
+    
+    if c_lower in INDIAN_CITIES_DATASET:
+        states = INDIAN_CITIES_DATASET[c_lower]
+        return ("SINGLE", states[0]) if len(states) == 1 else ("AMBIGUOUS", states)
+            
+    for k, states in INDIAN_CITIES_DATASET.items():
+        if k in c_lower or c_lower in k:
+            return ("SINGLE", states[0]) if len(states) == 1 else ("AMBIGUOUS", states)
+                
+    return ("UNKNOWN", None)
+
 def generate_summary_text(first_name: str, collected_data: dict, address_info: dict = None) -> str:
     """Generate the end-of-flow voice confirmation summary text."""
     name_val = collected_data.get("pandit-name", "Panditji")
-    phone_val = collected_data.get("pandit-phone", "Not provided")
+    phone_raw = collected_data.get("pandit-phone", "Not provided")
+    phone_val = format_phone_for_speech(phone_raw)
     email_val = collected_data.get("pandit-email", "Not provided")
     city_val = collected_data.get("pandit-city", "Not provided")
     state_val = collected_data.get("pandit-state", "Not provided")
@@ -389,6 +550,114 @@ Return ONLY the extracted clean value (or 'INVALID'). Do NOT include any explana
         logger.error("[PANDIT-ONBOARDING] LLM extraction failed", exc_info=True)
         return "INVALID"
 
+# ── CENTRALIZED FIELD VALIDATION REGISTRY ──
+field_hinglish_names = {
+    "pandit-name": "naam",
+    "pandit-phone": "mobile number",
+    "pandit-email": "email address",
+    "pandit-city": "sheher",
+    "pandit-state": "state",
+    "pandit-exp": "experience",
+    "pandit-spec": "specialization",
+    "pandit-lang": "languages",
+    "pandit-password": "password"
+}
+
+class FieldValidationResult:
+    def __init__(self, is_valid: bool, cleaned_value: Any = None, error_message: str | None = None):
+        self.is_valid = is_valid
+        self.cleaned_value = cleaned_value
+        self.error_message = error_message
+
+FIELD_VALIDATION_REGISTRY: dict[str, Callable[[str, dict], FieldValidationResult]] = {}
+
+def register_field_validator(field_name: str, validator_fn: Callable[[str, dict], FieldValidationResult]):
+    FIELD_VALIDATION_REGISTRY[field_name] = validator_fn
+
+# 1. Phone Validator Entry
+def _validate_phone(val: str, params: dict) -> FieldValidationResult:
+    digits = re.sub(r'\D', '', val)
+    if len(digits) == 11 and digits.startswith('0'):
+        digits = digits[1:]
+    elif len(digits) == 12 and digits.startswith('91'):
+        digits = digits[2:]
+    if len(digits) == 10 and re.match(r'^[56789]', digits):
+        return FieldValidationResult(True, cleaned_value=digits)
+    formatted = format_phone_for_speech(digits) if digits else ""
+    if digits:
+        err = f"Maine suna: '{formatted}', lekin mobile number 10 digits ka hona chahiye. Kripya apna 10-digit mobile number dobara bataiye."
+    else:
+        err = "Maaf kijiye, main mobile number samajh nahi paya. Kripya apna 10-digit mobile number dobara bataiye."
+    return FieldValidationResult(False, error_message=err)
+
+register_field_validator("pandit-phone", _validate_phone)
+
+# 2. Email Validator Entry
+def _validate_email(val: str, params: dict) -> FieldValidationResult:
+    match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', val)
+    if match:
+        return FieldValidationResult(True, cleaned_value=match.group(0))
+    if val and val != "INVALID" and "@" in val:
+        err = f"Maine suna: '{val}', lekin email address mein '@' aur domain (jaise name@gmail.com) hona zaroori hai. Kripya valid email address dobara bataiye."
+    else:
+        err = "Maaf kijiye, main email address samajh nahi paya. Kripya apna email address (jaise ramesh@gmail.com) dobara bataiye."
+    return FieldValidationResult(False, error_message=err)
+
+register_field_validator("pandit-email", _validate_email)
+
+# 3. Password Pair Validator Entry
+def _validate_password_pair(val: str, params: dict) -> FieldValidationResult:
+    pwd = params.get("pandit-password") or params.get("password") or val
+    cpwd = params.get("pandit-confirm") or params.get("confirm_password") or params.get("confirm")
+    if pwd and len(pwd) < 8:
+        return FieldValidationResult(False, error_message="Password kam se kam 8 characters ka hona chahiye. Kripya 8 ya usse zyada characters ka password set karein.")
+    if pwd and cpwd and pwd != cpwd:
+        return FieldValidationResult(False, error_message="Aapka password aur confirm password match nahi kar rahe. Kripya dono ek jaisa dobara bataiye.")
+    if pwd and len(pwd) >= 8:
+        return FieldValidationResult(True, cleaned_value="******")
+    return FieldValidationResult(False, error_message="Kripya 8 characters se zyada ka password aur confirm password set karein.")
+
+register_field_validator("pandit-password", _validate_password_pair)
+
+# 4. Standard Non-Empty Field Validators
+def _make_non_empty_validator(hinglish_label: str) -> Callable[[str, dict], FieldValidationResult]:
+    def validator(val: str, params: dict) -> FieldValidationResult:
+        if val and val != "INVALID" and val.strip():
+            return FieldValidationResult(True, cleaned_value=val.strip())
+        return FieldValidationResult(False, error_message=f"Maaf kijiye, main {hinglish_label} samajh nahi paya. Dobara bataiye.")
+    return validator
+
+register_field_validator("pandit-name", _make_non_empty_validator("poora naam"))
+register_field_validator("pandit-city", _make_non_empty_validator("sheher"))
+register_field_validator("pandit-state", _make_non_empty_validator("state ya rajya"))
+register_field_validator("pandit-exp", _make_non_empty_validator("experience"))
+register_field_validator("pandit-spec", _make_non_empty_validator("specialization"))
+register_field_validator("pandit-lang", _make_non_empty_validator("bhasha"))
+
+# ── UNIFIED GENERIC FIELD VALIDATOR HANDLER ──
+def validate_and_process_field(field_name: str, raw_val: str, user_params: dict, retry_map: dict) -> tuple[bool, Any, str | None]:
+    validator = FIELD_VALIDATION_REGISTRY.get(field_name)
+    if not validator:
+        if raw_val and raw_val != "INVALID":
+            return True, raw_val, None
+        return False, None, f"Maaf kijiye, main samajh nahi paya. Dobara bataiye."
+
+    res = validator(raw_val, user_params)
+    if not res.is_valid:
+        current_retries = retry_map.get(field_name, 0) + 1
+        retry_map[field_name] = current_retries
+        logger.info("[CENTRAL-VALIDATOR] Validation FAILED for field: %s (attempt %d/3). Error: %s", field_name, current_retries, res.error_message)
+
+        if current_retries >= 3:
+            hinglish_name = field_hinglish_names.get(field_name, "jankari")
+            fallback_msg = f"Lagta hai {hinglish_name} ko samajhne mein dikkat ho rahi hai. Kripya screen par highlight ki gayi field par click karke ise manually fill kar dijiye, taaki hum aage badh sakein."
+            return False, None, fallback_msg
+
+        return False, None, res.error_message
+
+    retry_map[field_name] = 0
+    return True, res.cleaned_value, None
+
 async def process_onboarding_step(
     request: OrchestratorRequest,
     session: Any,
@@ -402,6 +671,7 @@ async def process_onboarding_step(
 
     ai_service = orchestrator._llm_intent_detector._ai
     status = state.get("status", "collecting")
+    fields = state.get("fields", ["pandit-name", "pandit-phone", "pandit-email", "pandit-city", "pandit-state", "pandit-exp", "pandit-spec", "pandit-lang"])
     full_name = state["collected_data"].get("pandit-name", "Panditji")
     address_info = get_address_forms(full_name)
     first_name = address_info["first_name"]
@@ -464,6 +734,36 @@ async def process_onboarding_step(
     if status == "awaiting_final_submission":
         logger.info("[PANDIT-ONBOARDING] AWAITING FINAL SUBMISSION turn | user_msg: %r", request.user_message)
         msg_lower = request.user_message.lower()
+
+        # ── PASSWORD & CONFIRM PASSWORD VALIDATION ──
+        user_params = request.user_parameters if isinstance(request.user_parameters, dict) else {}
+        pwd = user_params.get("pandit-password") or user_params.get("password")
+        cpwd = user_params.get("pandit-confirm") or user_params.get("confirm_password")
+
+        if pwd or cpwd:
+            if pwd and len(pwd) < 8:
+                logger.info("[PANDIT-ONBOARDING] Password length validation failed (< 8 chars).")
+                text = "Password kam se kam 8 characters ka hona chahiye. Kripya 8 ya usse zyada characters ka password set karein."
+                nav_directive = {"action": None, "target": None, "query": None, "active_field": "pandit-password", "intent": "PANDIT_ONBOARDING", "fields": None}
+                return orchestrator._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override=text,
+                    response_type=ResponseType.CHAT,
+                    navigation_directive=nav_directive,
+                    metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
+                )
+            if pwd and cpwd and pwd != cpwd:
+                logger.info("[PANDIT-ONBOARDING] Password mismatch detected: %r vs %r", pwd, cpwd)
+                text = "Aapka password aur confirm password match nahi kar rahe. Kripya dono ek jaisa dobara bataiye."
+                nav_directive = {"action": None, "target": None, "query": None, "active_field": "pandit-password", "intent": "PANDIT_ONBOARDING", "fields": None}
+                return orchestrator._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override=text,
+                    response_type=ResponseType.CHAT,
+                    navigation_directive=nav_directive,
+                    metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
+                )
+
         submit_triggers = [
             "kar diya", "bana diya", "upload kar diya", "ho gaya", "submit", "done", 
             "complete", "taiyaar", "ready", "hogaya", "kardia", "kardiya",
@@ -502,6 +802,59 @@ async def process_onboarding_step(
             )
 
     # -------------------------------------------------------------------------
+    # CASE 1C: Awaiting City-State Ambiguous Clarification
+    # -------------------------------------------------------------------------
+    if status == "awaiting_city_state_clarification":
+        logger.info("[PANDIT-ONBOARDING] AWAITING CITY STATE CLARIFICATION turn | user_msg: %r", request.user_message)
+        ambiguous_city = state.get("ambiguous_city", "city")
+        possible_states = state.get("possible_states", ["Uttar Pradesh"])
+        primary_state = possible_states[0]
+        
+        user_msg_lower = request.user_message.lower().strip()
+        matched_state = primary_state
+        
+        # Check if user explicitly mentioned another state in possible_states or affirmed
+        for st in possible_states:
+            if st.lower() in user_msg_lower:
+                matched_state = st
+                break
+                
+        state["collected_data"]["pandit-state"] = matched_state
+        state["status"] = "collecting"
+        state["ambiguous_city"] = None
+        state["possible_states"] = None
+        
+        # Advance index past pandit-state if needed
+        if state["current_field_index"] < len(fields) and fields[state["current_field_index"]] == "pandit-state":
+            state["current_field_index"] += 1
+            
+        next_idx = state["current_field_index"]
+        next_field = fields[next_idx] if next_idx < len(fields) else "pandit-exp"
+        
+        reaction = f"Bahut badhiya {fn_ji}!"
+        question = f"{reaction} Aapka kitne saal ka experience hai? Options hain: 1-5 years, 5-10 years, 10-20 years, ya 20+ years."
+        
+        nav_directive = {
+            "action": "FILL_FORM",
+            "target": "pandit-state",
+            "query": matched_state,
+            "active_field": next_field,
+            "intent": "PANDIT_ONBOARDING",
+            "fields": [
+                {"target": "pandit-city", "query": ambiguous_city},
+                {"target": "pandit-state", "query": matched_state}
+            ]
+        }
+        orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+        return orchestrator._response_builder.build_response(
+            request_id=request.request_id,
+            text_override=question,
+            response_type=ResponseType.NAVIGATION_DIRECTIVE,
+            navigation_directive=nav_directive,
+            metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
+        )
+
+    # -------------------------------------------------------------------------
     # CASE 2: Correcting a Specific Field Value
     # -------------------------------------------------------------------------
     if status == "correcting_field":
@@ -513,7 +866,7 @@ async def process_onboarding_step(
             logger.info("[PANDIT-ONBOARDING] Field correction failed for %s. Re-asking.", target_field)
             hinglish_name = field_hinglish_names.get(target_field, "jankari")
             question = f"Maaf kijiye {fn_ji}, main samajh nahi paya. Kripya apna naya {hinglish_name} dobara bataiye."
-            nav_directive = {"action": None, "target": None, "query": None, "intent": "PANDIT_ONBOARDING", "fields": None}
+            nav_directive = {"action": None, "target": None, "query": None, "active_field": target_field, "intent": "PANDIT_ONBOARDING", "fields": None}
             return orchestrator._response_builder.build_response(
                 request_id=request.request_id,
                 text_override=question,
@@ -540,6 +893,7 @@ async def process_onboarding_step(
             "action": "FILL_FORM",
             "target": target_field,
             "query": val,
+            "active_field": None,
             "intent": "PANDIT_ONBOARDING",
             "fields": None
         }
@@ -559,45 +913,29 @@ async def process_onboarding_step(
     fields = state["fields"]
     idx = state["current_field_index"]
     current_field = fields[idx]
+    retry_map = state.setdefault("field_retry_count", {})
     
     raw_msg = request.user_parameters.get("raw_user_message", request.user_message) if isinstance(request.user_parameters, dict) else request.user_message
     val = await extract_field_value(raw_msg, current_field, ai_service)
     
-    if val == "INVALID" or not val.strip():
-        logger.info("[PANDIT-ONBOARDING] STEP FAILED | Extraction returned INVALID for field: %s. Re-asking same field.", current_field)
-        
-        if current_field == "pandit-phone":
-            digits_part = re.sub(r'\D', '', normalize_spoken_input(raw_msg, "pandit-phone"))
-            if digits_part:
-                question = f"Maine suna: '{digits_part}', lekin mobile number 10 digits ka hona chahiye. Kripya apna 10-digit mobile number dobara bataiye."
-            else:
-                question = f"Maaf kijiye {fn_ji}, main mobile number samajh nahi paya. Kripya apna 10-digit mobile number dobara bataiye."
-        elif current_field == "pandit-email":
-            email_part = normalize_spoken_input(raw_msg, "pandit-email")
-            if email_part and email_part != raw_msg:
-                question = f"Maine suna: '{email_part}', kripya apna poora email address (jaise name@gmail.com) dobara bataiye."
-            else:
-                question = f"Maaf kijiye {sn_ji}, main email address samajh nahi paya. Kripya apna email address (jaise ramesh@gmail.com) dobara bataiye."
-        else:
-            fallback_prompts = {
-                "pandit-name": "Maaf kijiye, main samajh nahi paya. Kripya apna poora naam dobara bataiye.",
-                "pandit-city": f"Maaf kijiye {pji}, main samajh nahi paya. Kripya apna sheher dobara bataiye.",
-                "pandit-state": f"Maaf kijiye {fn_ji}, main samajh nahi paya. Kripya apna state ya rajya dobara bataiye.",
-                "pandit-lang": f"Maaf kijiye {sn_ji}, samajh nahi paya. Kripya bataiye kya Hindi aur Sanskrit sahi hai ya koi aur bhasha add karni hai?",
-                "pandit-exp": f"Maaf kijiye {pji}, samajh nahi paya. Aapka experience kitna hai? Options hain: 1-5 years, 5-10 years, 10-20 years, ya 20+ years.",
-                "pandit-spec": f"Maaf kijiye {fn_ji}, samajh nahi paya. Aapki primary specialization kaunsi hai? Options hain: Vedic Pujas & Havan, Jyotish & Kundali, Sanskar Ceremonies, ya Katha & Pravachan."
-            }
-            question = fallback_prompts.get(current_field, f"Maaf kijiye {fn_ji}, samajh nahi paya. Dobara bataiye.")
-        
-        nav_directive = {"action": None, "target": None, "query": None, "intent": "PANDIT_ONBOARDING", "fields": None}
+    is_valid, cleaned_val, err_msg = validate_and_process_field(
+        current_field,
+        val,
+        request.user_parameters if isinstance(request.user_parameters, dict) else {},
+        retry_map
+    )
+
+    if not is_valid:
+        nav_directive = {"action": None, "target": None, "query": None, "active_field": current_field, "intent": "PANDIT_ONBOARDING", "fields": None}
         return orchestrator._response_builder.build_response(
             request_id=request.request_id,
-            text_override=question,
+            text_override=err_msg,
             response_type=ResponseType.CHAT,
             navigation_directive=nav_directive,
             metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
         )
-        
+
+    val = cleaned_val
     state["collected_data"][current_field] = val
     if current_field == "pandit-name":
         full_name = val
@@ -607,11 +945,103 @@ async def process_onboarding_step(
         sn_ji = address_info["surname_ji"]
         pji = address_info["panditji"]
 
+    # ── SPECIAL HANDLING FOR CITY -> STATE AUTO DERIVATION / CLARIFICATION ──
+    if current_field == "pandit-city":
+        match_type, state_res = get_state_for_city(val)
+        logger.info("[PANDIT-ONBOARDING] City-State lookup for %r -> match_type: %s, res: %r", val, match_type, state_res)
+        
+        if match_type == "SINGLE":
+            # Auto-fill state! Do NOT ask separate state question!
+            state["collected_data"]["pandit-state"] = state_res
+            # Advance past pandit-city AND pandit-state to next field (pandit-exp)
+            state["current_field_index"] += 2
+            next_idx = state["current_field_index"]
+            next_field = fields[next_idx] if next_idx < len(fields) else "pandit-exp"
+            
+            reaction = get_contextual_reaction(current_field, val, address_info)
+            question_variations = {
+                "pandit-exp": [
+                    f"{reaction} Aapka kitne saal ka experience hai? Options hain: 1-5 years, 5-10 years, 10-20 years, ya 20+ years.",
+                    f"{reaction} Aapko puja aur karmakand mein kitna experience ya anubhav hai? Options: 1-5 years, 5-10 years, 10-20 years, ya 20+ years."
+                ]
+            }
+            opts = question_variations.get(next_field, [f"{reaction} Ab apna {next_field} bataiye."])
+            question = random.choice(opts)
+            
+            nav_directive = {
+                "action": "FILL_FORM",
+                "target": current_field,
+                "query": val,
+                "active_field": next_field,
+                "intent": "PANDIT_ONBOARDING",
+                "fields": [
+                    {"target": "pandit-city", "query": val},
+                    {"target": "pandit-state", "query": state_res}
+                ]
+            }
+            orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+            return orchestrator._response_builder.build_response(
+                request_id=request.request_id,
+                text_override=question,
+                response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                navigation_directive=nav_directive,
+                metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
+            )
+        elif match_type == "AMBIGUOUS":
+            # Targeted clarification question for ambiguous city
+            state["status"] = "awaiting_city_state_clarification"
+            state["ambiguous_city"] = val
+            state["possible_states"] = state_res
+            primary_state = state_res[0]
+            
+            question = f"{val} naam ke kai jagah hain, kya aap {primary_state} wale {val} ki baat kar rahe hain?"
+            nav_directive = {
+                "action": "FILL_FORM",
+                "target": "pandit-city",
+                "query": val,
+                "active_field": "pandit-city",
+                "intent": "PANDIT_ONBOARDING",
+                "fields": None
+            }
+            orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+            return orchestrator._response_builder.build_response(
+                request_id=request.request_id,
+                text_override=question,
+                response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                navigation_directive=nav_directive,
+                metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
+            )
+        else:
+            # UNKNOWN city -> Safe fallback: ask state question manually
+            logger.info("[PANDIT-ONBOARDING] City %r not in dataset. Falling back to asking state.", val)
+            state["current_field_index"] += 1
+            next_idx = state["current_field_index"]
+            next_field = fields[next_idx] # "pandit-state"
+            reaction = get_contextual_reaction(current_field, val, address_info)
+            question = f"{reaction} Kripya apna state ya rajya bataiye."
+            nav_directive = {
+                "action": "FILL_FORM",
+                "target": current_field,
+                "query": val,
+                "active_field": next_field,
+                "intent": "PANDIT_ONBOARDING",
+                "fields": None
+            }
+            orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+            return orchestrator._response_builder.build_response(
+                request_id=request.request_id,
+                text_override=question,
+                response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                navigation_directive=nav_directive,
+                metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
+            )
+
     state["current_field_index"] += 1
     next_idx = state["current_field_index"]
     
     if next_idx < len(fields):
         next_field = fields[next_idx]
+        session.update_location(page="/signup?role=pandit", field=next_field)
         reaction = get_contextual_reaction(current_field, val, address_info)
         
         question_variations = {
@@ -650,15 +1080,17 @@ async def process_onboarding_step(
         opts = question_variations.get(next_field, [f"{reaction} Ab apna {next_field} bataiye."])
         question = random.choice(opts)
     else:
-        # All 8 fields collected! Set status to awaiting_confirmation & render summary!
+        # All fields collected! Set status to awaiting_confirmation & render summary!
+        next_field = None
         state["status"] = "awaiting_confirmation"
         question = generate_summary_text(first_name, state["collected_data"], address_info)
-        logger.info("[PANDIT-ONBOARDING] ALL 8 FIELDS COLLECTED | Transitioning to awaiting_confirmation state.")
+        logger.info("[PANDIT-ONBOARDING] ALL FIELDS COLLECTED | Transitioning to awaiting_confirmation state.")
         
     nav_directive = {
         "action": "FILL_FORM",
         "target": current_field,
         "query": val,
+        "active_field": next_field,
         "intent": "PANDIT_ONBOARDING",
         "fields": None
     }

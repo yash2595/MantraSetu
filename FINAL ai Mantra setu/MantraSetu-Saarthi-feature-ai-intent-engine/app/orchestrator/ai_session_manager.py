@@ -27,6 +27,15 @@ class AISessionRecord:
     last_active_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     active_requests: set[str] = field(default_factory=set)
     onboarding_state: dict[str, Any] | None = None
+    current_page: str = "/"
+    current_field: str | None = None
+
+    def update_location(self, page: str | None = None, field: str | None = None) -> None:
+        """Update session location and field tracking state."""
+        if page is not None:
+            self.current_page = page
+        if field is not None:
+            self.current_field = field
 
 
 class AISessionManager:

@@ -126,6 +126,7 @@ class VoiceGateway:
     async def finish_voice_session(
         self,
         session_id: str,
+        current_page: str | None = None,
     ) -> tuple[Any, str]:
         """Finalize voice stream, generate final transcript, and invoke AIOrchestrator.process()."""
         session = await self._session_manager.get_session(session_id)
@@ -180,6 +181,7 @@ class VoiceGateway:
             conversation_id=session.conversation_id or "default_conv",
             session_id=session.session_id,
             user_message=final_text,
+            current_page=current_page,  # Pass real page from frontend; orchestrator calls session.update_location()
             user_parameters={
                 "transport": "voice_websocket",
                 "connection_id": session.connection_id,
@@ -192,7 +194,8 @@ class VoiceGateway:
         )
 
         logger.info(
-            "VoiceGateway forwarding final transcript to AIOrchestrator",
+            "VoiceGateway forwarding final transcript to AIOrchestrator [page=%r]",
+            current_page,
             extra={
                 "session_id": session.session_id,
                 "connection_id": session.connection_id,

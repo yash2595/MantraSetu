@@ -51,6 +51,118 @@ logger = logging.getLogger(__name__)
 _COMPONENT_NAME = "AIOrchestrator"
 _COMPONENT_VERSION = "4.1"
 
+def normalize_hindi_script(text: str) -> str:
+    """Normalize Devanagari Hindi text to Hinglish Latin for resilient phrase matching."""
+    if not text:
+        return ""
+    res = text.strip().lower()
+    devanagari_map = {
+        "पेज": "page", "स्टेप": "step", "स्टैप": "step",
+        "कौनसे": "kaunse", "कौनसा": "kaunsa", "कौन सा": "kaunsa", "कौन से": "kaunse", "किस": "kis",
+        "कहाँ": "kahan", "कहां": "kahan", "कहा": "kaha",
+        "हूँ": "hoon", "हूं": "hoon", "हु": "hu",
+        "मैं": "main", "मै": "mai",
+        "क्या": "kya", "भर": "bhar", "रहा": "raha", "रही": "rahi", "रहे": "rahe",
+        "रिफ्रेश": "refresh", "रिफ़्रेश": "refresh", "रीफ्रेश": "refresh",
+        "करिए": "karo", "करो": "karo", "कर दो": "kar do",
+        "रुको": "ruko", "रुकिए": "ruko", "कैंसिल": "cancel",
+        "हाँ": "haan", "हां": "haan", "नहीं": "nahi", "ना": "na"
+    }
+    for dev, lat in devanagari_map.items():
+        res = res.replace(dev, lat)
+    return res
+
+def is_location_query(msg: str) -> bool:
+    """Check if message is asking location or step awareness query (supports Latin & Devanagari scripts)."""
+    if not msg:
+        return False
+    msg_lower = msg.strip().lower()
+    norm_msg = normalize_hindi_script(msg_lower)
+    
+    # Both Latin/Hinglish and Devanagari script phrase lists covered explicitly
+    location_phrases = [
+        # Latin / Hinglish variants
+        "kaunse page", "kis page", "kaunsa page", "ye kaunsa page",
+        "kya bhar raha", "kya bhar rahi", "kya bhar rahe", "kya bhar rha",
+        "main kahan", "main kaha", "mai kahan", "kahan hoon", "kaha hoon", "kahan hu", "kaha hu",
+        "kaunsa step", "ye kaunsa step", "what step", "where am i", "current page", "kon sa step",
+        # Devanagari script variants
+        "कौनसे पेज", "किस पेज", "कौन सा पेज", "ये कौन सा page", "कौन सा page", "पेज पर हूँ", "पेज पर हूं", 
+        "मैं कहां", "मैं कहाँ", "कहाँ हूँ", "कहां हूं", "कहाँ पर हूँ",
+        "क्या भर रहा", "क्या भर रही", "क्या भर रहे", "कौन सा स्टेप", "कौन से स्टेप"
+    ]
+    return any(phrase in msg_lower or phrase in norm_msg for phrase in location_phrases)
+
+
+def build_location_response(session: Any) -> str:
+    page = getattr(session, "current_page", "/")
+    field = getattr(session, "current_field", None)
+    onboarding_state = getattr(session, "onboarding_state", None)
+    logger.info("[DIAGNOSTIC-BUILD-LOCATION] session_id=%s, current_page=%r, current_field=%r, onboarding_state=%r", getattr(session, "session_id", "N/A"), page, field, onboarding_state)
+
+    # Comprehensive route -> human-readable name map (all app pages)
+    page_names = {
+        "/signup?role=pandit": "Panditji Registration page",
+        "/signup": "Signup page",
+        "/sign-up": "Signup page",
+        "/login": "Login page",
+        "/puja": "Puja Booking page",
+        "/kundali-creation": "Kundali Creation page",
+        "/kundali": "Kundali Creation page",
+        "/muhurat-finder": "Muhurat Finder page",
+        "/muhurat": "Muhurat Finder page",
+        "/dashboard": "Dashboard page",
+        "/profile": "Profile page",
+        "/pandit": "Pandit Listing page",
+        "/about": "About Us page",
+        "/contact": "Contact Us page",
+        "/": "Home page",
+    }
+
+    # Exact match first; then prefix match for sub-routes (e.g. /puja/123 -> Puja Booking page)
+    page_path = (page or "/").split("?")[0].rstrip("/") or "/"
+    page_desc = page_names.get(page)  # try with query string first (e.g. /signup?role=pandit)
+    if not page_desc:
+        page_desc = page_names.get(page_path)  # exact path without query
+    if not page_desc:
+        # Prefix match — longest matching prefix wins
+        best_key = ""
+        for key in page_names:
+            key_path = key.split("?")[0]
+            if page_path.startswith(key_path) and len(key_path) > len(best_key):
+                best_key = key_path
+        page_desc = page_names.get(best_key, "MantraSetu page") if best_key else "MantraSetu page"
+
+    if onboarding_state and onboarding_state.get("active"):
+        fields = onboarding_state.get("fields", [])
+        idx = onboarding_state.get("current_field_index", 0)
+        status = onboarding_state.get("status", "collecting")
+
+        if status == "awaiting_confirmation":
+            return "Aap abhi Panditji Registration Summary step par hain, jahan aap apni di gayi jaankari confirm kar rahe hain."
+        elif status == "awaiting_final_submission":
+            return "Aap abhi Panditji Signup page par hain, jahan aap apna password set karna aur documents upload kar rahe hain."
+        
+        current_field = fields[idx] if idx < len(fields) else (field or "pandit-name")
+        field_descriptions = {
+            "pandit-name": "Step 1: Poora Naam (Full Name)",
+            "pandit-phone": "Step 2: Mobile Number",
+            "pandit-email": "Step 3: Email Address",
+            "pandit-city": "Step 4: Sheher (City)",
+            "pandit-state": "Step 5: State ya Rajya",
+            "pandit-exp": "Step 6: Years of Experience (Anubhav)",
+            "pandit-spec": "Step 7: Primary Specialization",
+            "pandit-lang": "Step 8: Spoken Languages"
+        }
+        step_desc = field_descriptions.get(current_field, f"Step {idx+1}")
+        return f"Aap abhi Panditji Registration page par hain, aur {step_desc} bhar rahe hain."
+
+    if field:
+        return f"Aap abhi {page_desc} par hain, aur {field} field par hain."
+    
+    return f"Aap abhi MantraSetu ke {page_desc} par hain."
+
+
 # Route Dictionary for normalization
 _ROUTE_MAP = {
     "/kundali": "/kundali-creation",
@@ -145,12 +257,88 @@ class AIOrchestrator:
         # Get or create session record
         session = self._session_manager.get_or_create_session(sanitized_req.session_id, sanitized_req.conversation_id)
 
+        # Update session location if provided in request
+        if sanitized_req.current_page:
+            session.update_location(page=sanitized_req.current_page)
+
+        # Check if user is asking location / step awareness query
+        if is_location_query(sanitized_req.user_message):
+            location_text = build_location_response(session)
+            elapsed_ms = (time.perf_counter() - t_start) * 1000.0
+            self._telemetry_manager.record_request(is_success=True, latency_ms=elapsed_ms)
+            self._lifecycle_manager.complete_request_lifecycle(request.request_id)
+            self._scheduler.complete_request(request.request_id)
+
+            onboarding_state = getattr(session, "onboarding_state", None)
+            active_field = None
+            if onboarding_state and onboarding_state.get("active"):
+                idx = onboarding_state.get("current_field_index", 0)
+                fields = onboarding_state.get("fields", [])
+                if idx < len(fields):
+                    active_field = fields[idx]
+
+            nav_directive = {"action": None, "target": None, "query": None, "active_field": active_field, "intent": "LOCATION_QUERY", "fields": None}
+            return self._response_builder.build_response(
+                request_id=request.request_id,
+                text_override=location_text,
+                response_type=ResponseType.CHAT,
+                navigation_directive=nav_directive,
+                metadata=ResponseMetadata(fast_path=True, latency_ms=round(elapsed_ms, 2)),
+            )
+
+        # ── VOICE REFRESH COMMAND CONFIRMATION STEP ──
+        refresh_phrases = [
+            "page refresh", "refresh page", "refresh karo", "refresh kar do", "refresh kardo", 
+            "reload page", "page reload", "रिफ्रेश", "पेज रिफ्रेश", "रिफ्रेश करो", "रिफ़्रेश", "रिफ्रेश करिए"
+        ]
+        msg_lower = sanitized_req.user_message.strip().lower()
+        norm_msg = normalize_hindi_script(msg_lower)
+        
+        pending_refresh = getattr(session, "pending_refresh_confirmation", False)
+        if pending_refresh:
+            session.pending_refresh_confirmation = False
+            yes_triggers = ["haan", "yes", "kar do", "kardo", "refresh", "sach mein", "sure", "हां", "हाँ", "कर दो", "रिफ्रेश"]
+            if any(t in msg_lower or t in norm_msg for t in yes_triggers):
+                elapsed_ms = (time.perf_counter() - t_start) * 1000.0
+                nav_directive = {"action": "REFRESH_PAGE", "target": None, "intent": "REFRESH_PAGE"}
+                self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+                return self._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override="Theek hai, main page refresh kar raha hoon.",
+                    response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                    navigation_directive=nav_directive,
+                    metadata=ResponseMetadata(fast_path=True, latency_ms=round(elapsed_ms, 2)),
+                )
+            else:
+                elapsed_ms = (time.perf_counter() - t_start) * 1000.0
+                text = "Theek hai Panditji, hum refresh nahi kar rahe. Wahi se continue karte hain."
+                nav_directive = {"action": None, "target": None, "query": None, "active_field": getattr(session, "current_field", None), "intent": "CANCEL_REFRESH"}
+                return self._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override=text,
+                    response_type=ResponseType.CHAT,
+                    navigation_directive=nav_directive,
+                    metadata=ResponseMetadata(fast_path=True, latency_ms=round(elapsed_ms, 2)),
+                )
+
+        if any(p in msg_lower or p in norm_msg for p in refresh_phrases):
+            session.pending_refresh_confirmation = True
+            elapsed_ms = (time.perf_counter() - t_start) * 1000.0
+            text = "Refresh karne se aapka current flow pause ho sakta hai. Kya aap sach mein page refresh karna chahte hain? Kripya 'Haan' ya 'Nahi' bataiye."
+            nav_directive = {"action": None, "target": None, "query": None, "active_field": None, "intent": "REFRESH_CONFIRMATION"}
+            return self._response_builder.build_response(
+                request_id=request.request_id,
+                text_override=text,
+                response_type=ResponseType.CHAT,
+                navigation_directive=nav_directive,
+                metadata=ResponseMetadata(fast_path=True, latency_ms=round(elapsed_ms, 2)),
+            )
+
         # Check if we are currently in an active onboarding session
         onboarding_state = getattr(session, "onboarding_state", None)
         if onboarding_state and onboarding_state.get("active"):
-            msg_lower = sanitized_req.user_message.strip().lower()
-            breakout_phrases = ["cancel", "ruko", "stop", "exit", "chhod do", "cancel kardo", "mujhe kuch aur karna hai", "abort"]
-            if any(p in msg_lower for p in breakout_phrases):
+            breakout_phrases = ["cancel", "ruko", "stop", "exit", "chhod do", "cancel kardo", "mujhe kuch aur karna hai", "abort", "कैंसल", "रुकिए", "रुको", "छोड़ दो"]
+            if any(p in msg_lower or p in norm_msg for p in breakout_phrases):
                 session.onboarding_state = None
                 elapsed_ms = (time.perf_counter() - t_start) * 1000.0
                 self._telemetry_manager.record_request(is_success=True, latency_ms=elapsed_ms)
@@ -382,6 +570,7 @@ class AIOrchestrator:
                 nav_directive = {
                     "action": "NAVIGATE",
                     "target": "/signup?role=pandit",
+                    "active_field": "pandit-name",
                     "intent": "OPEN_SIGNUP"
                 }
                 self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
@@ -559,6 +748,7 @@ class AIOrchestrator:
             nav_directive = {
                 "action": "NAVIGATE",
                 "target": "/signup?role=pandit",
+                "active_field": "pandit-name",
                 "intent": "OPEN_SIGNUP"
             }
             self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)

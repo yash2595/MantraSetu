@@ -70,6 +70,9 @@ async def create_connected_session():
     greeting_payload = await wait_for_ai_response(ws)
     return ws, session_id, conv_id, greeting_payload
 
+import pytest
+
+@pytest.mark.anyio
 async def test_flow_1_golden_path_navigation():
     logger.info("\n=======================================================")
     logger.info("--- FLOW 1: Golden Path Navigation & Ceremonial Greetings ---")
@@ -114,6 +117,7 @@ async def test_flow_1_golden_path_navigation():
 
     logger.info(">>> FLOW 1 PASSED: Golden Path Navigation & Ceremonial Greeting verified! <<<")
 
+@pytest.mark.anyio
 async def test_flow_2_ambiguous_clarification():
     logger.info("\n=======================================================")
     logger.info("--- FLOW 2: Ambiguous Clarification ---")
@@ -132,9 +136,10 @@ async def test_flow_2_ambiguous_clarification():
     finally:
         await ws.close()
 
+@pytest.mark.anyio
 async def test_flow_3_pandit_onboarding_full_sequence():
     logger.info("\n=======================================================")
-    logger.info("--- FLOW 3: Full Pandit Onboarding (8-Step Sequence) ---")
+    logger.info("--- FLOW 3: Full Pandit Onboarding (Auto City-State + Ambiguous Clarification) ---")
     logger.info("=======================================================")
     ws, session_id, conv_id, _ = await create_connected_session()
     try:
@@ -176,68 +181,67 @@ async def test_flow_3_pandit_onboarding_full_sequence():
         assert resp.get("target") == "pandit-email"
         assert resp.get("query") == "ramesh@gmail.com"
         
-        # Step 4: City
+        # Step 4: City (Unambiguous city: Varanasi -> Auto-fills Uttar Pradesh, asks Experience directly)
         logger.info("User: 'main Varanasi sheher se hoon'")
         await send_text_message(ws, session_id, conv_id, "main Varanasi sheher se hoon")
         resp = await wait_for_ai_response(ws)
-        logger.info("  Step 4 (City) -> Action: %s, Target: %s, Query: %s | Text: %s", resp.get("action"), resp.get("target"), resp.get("query"), resp.get("content"))
+        logger.info("  Step 4 (City Auto-fill) -> Action: %s, Target: %s, Query: %s | Text: %s", resp.get("action"), resp.get("target"), resp.get("query"), resp.get("content"))
         assert resp.get("action") == "FILL_FORM"
         assert resp.get("target") == "pandit-city"
         assert resp.get("query") == "Varanasi"
+        assert "experience" in resp.get("content").lower()
         
-        # Step 5: State
-        logger.info("User: 'Uttar Pradesh'")
-        await send_text_message(ws, session_id, conv_id, "Uttar Pradesh")
-        resp = await wait_for_ai_response(ws)
-        logger.info("  Step 5 (State) -> Action: %s, Target: %s, Query: %s | Text: %s", resp.get("action"), resp.get("target"), resp.get("query"), resp.get("content"))
-        assert resp.get("action") == "FILL_FORM"
-        assert resp.get("target") == "pandit-state"
-        assert resp.get("query") == "Uttar Pradesh"
-        
-        # Step 6: Experience
+        # Step 4B: Mid-flow Location Query ("main kaunse page par hoon")
+        logger.info("User: 'main kaunse page par hoon'")
+        await send_text_message(ws, session_id, conv_id, "main kaunse page par hoon")
+        resp_loc = await wait_for_ai_response(ws)
+        logger.info("  Step 4B (Location Query) -> Text: %s", resp_loc.get("content"))
+        assert "panditji registration" in resp_loc.get("content").lower() or "step" in resp_loc.get("content").lower()
+
+        # Step 5: Experience
         logger.info("User: '10 saal ka experience hai'")
         await send_text_message(ws, session_id, conv_id, "10 saal ka experience hai")
         resp = await wait_for_ai_response(ws)
-        logger.info("  Step 6 (Experience) -> Action: %s, Target: %s, Query: %s | Text: %s", resp.get("action"), resp.get("target"), resp.get("query"), resp.get("content"))
+        logger.info("  Step 5 (Experience) -> Action: %s, Target: %s, Query: %s | Text: %s", resp.get("action"), resp.get("target"), resp.get("query"), resp.get("content"))
         assert resp.get("action") == "FILL_FORM"
         assert resp.get("target") == "pandit-exp"
         assert resp.get("query") in ["10-20 years", "5-10 years"]
         
-        # Step 7: Specialization
+        # Step 6: Specialization
         logger.info("User: 'Vedic Pujas'")
         await send_text_message(ws, session_id, conv_id, "Vedic Pujas")
         resp = await wait_for_ai_response(ws)
-        logger.info("  Step 7 (Specialization) -> Action: %s, Target: %s, Query: %s | Text: %s", resp.get("action"), resp.get("target"), resp.get("query"), resp.get("content"))
+        logger.info("  Step 6 (Specialization) -> Action: %s, Target: %s, Query: %s | Text: %s", resp.get("action"), resp.get("target"), resp.get("query"), resp.get("content"))
         assert resp.get("action") == "FILL_FORM"
         assert resp.get("target") == "pandit-spec"
         assert resp.get("query") == "Vedic Pujas & Havan"
         
-        # Step 8: Language -> Confirmation Summary
+        # Step 7: Language -> Confirmation Summary
         logger.info("User: 'sahi hai'")
         await send_text_message(ws, session_id, conv_id, "sahi hai")
         resp = await wait_for_ai_response(ws)
-        logger.info("  Step 8 (Language) -> Action: %s, Target: %s, Query: %s | Text: %s", resp.get("action"), resp.get("target"), resp.get("query"), resp.get("content"))
+        logger.info("  Step 7 (Language) -> Action: %s, Target: %s, Query: %s | Text: %s", resp.get("action"), resp.get("target"), resp.get("query"), resp.get("content"))
         assert resp.get("action") == "FILL_FORM"
         assert resp.get("target") == "pandit-lang"
-        assert "Hindi" in resp.get("query")
+        assert "987 654 3210" in resp.get("content") # Phone formatted as spaced digit groups (Issue 1)
         assert "confirm" in resp.get("content").lower() or "sahi hai" in resp.get("content").lower()
         
-        # Step 9: Affirmative Confirmation -> Security Handoff & Awaiting Final Submission
+        # Step 8: Affirmative Confirmation -> Security Handoff & Awaiting Final Submission
         logger.info("User: 'haan sab sahi hai'")
         await send_text_message(ws, session_id, conv_id, "haan sab sahi hai")
         resp = await wait_for_ai_response(ws)
-        logger.info("  Step 9 (Confirmation) -> Text: %s", resp.get("content"))
+        logger.info("  Step 8 (Confirmation) -> Text: %s", resp.get("content"))
         assert "password" in resp.get("content").lower() or "documents" in resp.get("content").lower()
         
-        # Step 10: Voice-triggered submission ("maine kar diya hai")
+        # Step 9: Voice-triggered submission ("maine kar diya hai")
         logger.info("User: 'maine kar diya hai'")
         await send_text_message(ws, session_id, conv_id, "maine kar diya hai")
         resp_sub = await wait_for_ai_response(ws)
-        logger.info("  Step 10 (Voice Submission) -> Action: %s, Target: %s, Text: %s", resp_sub.get("action"), resp_sub.get("target"), resp_sub.get("content"))
+        logger.info("  Step 9 (Voice Submission) -> Action: %s, Target: %s, Text: %s", resp_sub.get("action"), resp_sub.get("target"), resp_sub.get("content"))
         assert resp_sub.get("action") == "SUBMIT_FORM"
         assert resp_sub.get("target") == "[data-testid='button-submit-pandit-signup']"
 
-        logger.info(">>> FLOW 3 PASSED: Full Pandit Onboarding sequence (all 8 steps + summary confirmation + voice submission trigger) completed successfully! <<<")
+        logger.info(">>> FLOW 3 PASSED: Full Pandit Onboarding sequence with auto city-state & phone formatting completed successfully! <<<")
     finally:
         await ws.close()
 

@@ -38,6 +38,8 @@ def clean_text_for_tts(text: str) -> str:
 
     Strips emojis, markdown symbols, and extra whitespace so TTS engines
     do not read emojis out loud (e.g. pronouncing 'folded hands' for 🙏).
+    Formats continuous 10-digit phone numbers into spaced digit groups (e.g. 999 888 7776)
+    so TTS engines speak individual digits instead of multi-billion numbers.
     The visual text displayed in UI bubbles remains untouched.
     """
     if not text:
@@ -49,10 +51,14 @@ def clean_text_for_tts(text: str) -> str:
     # 2. Strip all emoji characters
     cleaned = EMOJI_PATTERN.sub('', cleaned)
 
-    # 3. Normalize whitespace
+    # 3. Format continuous 10-digit mobile numbers into spaced digit groups for TTS
+    cleaned = re.sub(r'\b([56789]\d{2})(\d{3})(\d{4})\b', r'\1 \2 \3', cleaned)
+
+    # 4. Normalize whitespace
     cleaned = re.sub(r'\s+', ' ', cleaned).strip()
 
     return cleaned if cleaned else "Namaste"
+
 
 
 class VoiceResponsePipeline:

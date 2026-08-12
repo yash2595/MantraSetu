@@ -112,11 +112,14 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                 active_session_id = session.session_id
                 primary_session_id = session.session_id
                 
-                # ── Clear any stale AI session onboarding_state on fresh connect ──
+                # ── Store initial current_page from connect payload into AI session ──
+                connect_page = frame.payload.get("current_page", "/")
                 try:
                     ai_session = voice_gateway._ai_orchestrator._session_manager.get_or_create_session(active_session_id)
                     ai_session.onboarding_state = None
-                    logger.info("[WS-ROUTER] [DIAGNOSTIC] Cleared any stale onboarding_state for session %s on connect.", active_session_id)
+                    if connect_page:
+                        ai_session.update_location(page=connect_page)
+                    logger.info("[WS-ROUTER] [DIAGNOSTIC] Cleared any stale onboarding_state for session %s on connect. initial_page=%r", active_session_id, connect_page)
                 except Exception as e:
                     logger.warning("[WS-ROUTER] Could not clear onboarding_state on connect: %s", e)
 
@@ -209,10 +212,11 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
 
             elif frame.type == ProtocolMessageType.AUDIO_END:
                 if active_session_id:
-                    logger.info(f"[WS-ROUTER] [DIAGNOSTIC] Received AUDIO_END for session {active_session_id}, finishing voice session")
+                    current_page_from_frame = frame.payload.get("current_page", None)
+                    logger.info(f"[WS-ROUTER] [DIAGNOSTIC] Received AUDIO_END for session {active_session_id}, current_page={current_page_from_frame!r}, finishing voice session")
                     try:
                         logger.info(f"[WS-ROUTER] [DIAGNOSTIC] Calling voice_gateway.finish_voice_session()")
-                        resp, final_text = await voice_gateway.finish_voice_session(active_session_id)
+                        resp, final_text = await voice_gateway.finish_voice_session(active_session_id, current_page=current_page_from_frame)
                         logger.info(f"[WS-ROUTER] [DIAGNOSTIC] finish_voice_session returned with text: {final_text}")
                         
                         if not resp.text or not resp.text.strip():
@@ -294,6 +298,7 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                         conversation_id=frame.conversation_id or "default_conv",
                         session_id=active_session_id,
                         user_message=frame.payload.get("text", ""),
+                        current_page=frame.payload.get("current_page", None),
                         user_parameters={"pujas": pujas}
                     )
                 )

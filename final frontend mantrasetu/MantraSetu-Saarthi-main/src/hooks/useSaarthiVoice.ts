@@ -1,6 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSaarthi } from '../components/saarthi/SaarthiContext';
 import { useNavigate } from 'react-router-dom';
+import { getPersistableData } from '../utils/formSecurity';
+
+/** Shared sanitization helper to guarantee no passwords/credentials enter localStorage */
+export function persistVoiceState(data: Record<string, any>) {
+  try {
+    const safeData = getPersistableData(data);
+    localStorage.setItem('ms_saarthi_form_state', JSON.stringify(safeData));
+  } catch (e) {}
+}
 
 // ---------- Helper utilities -------------------------------------------------
 /** Convert Float32Array audio samples to 16‑bit PCM (little‑endian) */
@@ -344,7 +353,10 @@ export function useSaarthiVoice() {
          let currentText = '';
          let charIndex = 0;
 
-         // Apply highlight immediately when field interaction starts
+         // Clear previous highlights before typing new field value
+         document.querySelectorAll('.saarthi-highlight').forEach((el) => {
+           el.classList.remove('saarthi-highlight');
+         });
          targetEl.classList.add('saarthi-highlight');
          console.log('[FORM-FILL-EXEC] Applied saarthi-highlight class to target:', step.target);
 
@@ -364,12 +376,9 @@ export function useSaarthiVoice() {
 
              setTimeout(typeNextChar, 40); // ~30-50ms delay between characters
            } else {
-             // Typing complete, hold highlight glow for 1000ms
-             setTimeout(() => {
-               targetEl.classList.remove('saarthi-highlight');
-               console.log('[FORM-FILL-EXEC] Removed saarthi-highlight class and proceeding');
-               setTimeout(processNextStep, step.delay);
-             }, 1000); // 1000ms glow
+             // Typing complete, remove highlight from filled field
+             targetEl.classList.remove('saarthi-highlight');
+             setTimeout(processNextStep, step.delay);
            }
          };
 
@@ -407,13 +416,14 @@ export function useSaarthiVoice() {
         persistentSessionId = 'vsession_f' + Math.random().toString(36).substring(2, 14);
         sessionStorage.setItem('saarthi_session_id', persistentSessionId);
       }
-      console.log('[Voice] Sending CONNECT with session_id:', persistentSessionId);
+      console.log('[Voice] Sending CONNECT with session_id:', persistentSessionId, 'current_page:', window.location.pathname);
       
       ws.send(JSON.stringify({
         type: 'CONNECT',
         payload: {
           language: 'hi',
-          session_id: persistentSessionId
+          session_id: persistentSessionId,
+          current_page: window.location.pathname
         }
       }));
     };
@@ -465,10 +475,11 @@ export function useSaarthiVoice() {
             console.log('[Voice] [CONNECT-DIAGNOSTIC] RAW AI_RESPONSE Received:', JSON.stringify(msg.payload));
             let contentStr = msg.payload.content || '';
             
-            let action = msg.payload.action || null;
-            let target = msg.payload.target || null;
-            let intent = msg.payload.intent || null;
-            let query = msg.payload.query || null;
+            let action = msg.payload.action || (msg.payload.navigation_directive && msg.payload.navigation_directive.action) || null;
+            let target = msg.payload.target || (msg.payload.navigation_directive && msg.payload.navigation_directive.target) || null;
+            let intent = msg.payload.intent || (msg.payload.navigation_directive && msg.payload.navigation_directive.intent) || null;
+            let query = msg.payload.query || (msg.payload.navigation_directive && msg.payload.navigation_directive.query) || null;
+            let activeField = msg.payload.active_field || (msg.payload.navigation_directive && msg.payload.navigation_directive.active_field) || null;
             
             try {
               const parsed = JSON.parse(contentStr);
@@ -476,8 +487,109 @@ export function useSaarthiVoice() {
               if (!target && parsed.target) target = parsed.target;
               if (!intent && parsed.intent) intent = parsed.intent;
               if (!query && parsed.query) query = parsed.query;
+              if (!activeField && parsed.active_field) activeField = parsed.active_field;
               if (parsed.response_text) contentStr = parsed.response_text;
             } catch (e) {}
+
+            console.log('[DEBUG-PAYLOAD-EXTRACT] Extracted action:', action, 'target:', target, 'activeField:', activeField, 'intent:', intent);
+
+            // ── HIGHLIGHT TRIGGER & GENERALIZED DROPDOWN AUTO-EXPAND ON BOT QUESTION ASK ──
+            if (activeField) {
+              document.querySelectorAll('.saarthi-highlight').forEach((el) => {
+                el.classList.remove('saarthi-highlight');
+              });
+              document.querySelectorAll('.saarthi-options-list').forEach((el) => {
+                el.remove();
+              });
+
+              let highlightSelector = '';
+              const isPanditField = activeField.startsWith('pandit-') || !!document.querySelector('[data-testid="tab-usertype-pandit"][aria-pressed="true"]');
+              if (activeField.includes('name')) highlightSelector = isPanditField ? '[data-testid="input-pandit-name"]' : '#devotee-name, [data-testid="input-name"]';
+              else if (activeField.includes('phone') || activeField.includes('mobile')) highlightSelector = isPanditField ? '[data-testid="input-pandit-phone"]' : 'input[type="tel"], [data-testid="input-phone"]';
+              else if (activeField.includes('email')) highlightSelector = isPanditField ? '[data-testid="input-pandit-email"]' : 'input[type="email"], [data-testid="input-email"]';
+              else if (activeField.includes('city')) highlightSelector = isPanditField ? '[data-testid="input-pandit-city"]' : '[data-testid="input-city"]';
+              else if (activeField.includes('state')) highlightSelector = isPanditField ? '[data-testid="input-pandit-state"]' : '[data-testid="input-state"]';
+              else if (activeField.includes('exp')) highlightSelector = '[data-testid="select-pandit-exp"]';
+              else if (activeField.includes('spec')) highlightSelector = '[data-testid="select-pandit-spec"]';
+              else if (activeField.includes('lang')) highlightSelector = '[data-testid^="toggle-lang-"]';
+              else highlightSelector = `#${activeField}, [data-testid="input-${activeField}"], [data-testid="select-${activeField}"]`;
+
+              const targetHighlightEl = document.querySelector(highlightSelector) as HTMLElement | null;
+              console.log('[DEBUG-HIGHLIGHT-TARGET] activeField:', activeField, 'selector:', highlightSelector, 'found:', !!targetHighlightEl, 'tagName:', targetHighlightEl?.tagName);
+
+              if (targetHighlightEl) {
+                targetHighlightEl.classList.add('saarthi-highlight');
+                targetHighlightEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const count = document.querySelectorAll('.saarthi-highlight').length;
+                console.log('[PROOF-FEATURE-A] activeFieldId:', activeField, '| Highlighted Element:', targetHighlightEl.id || targetHighlightEl.getAttribute('data-testid') || targetHighlightEl.tagName, '| Total .saarthi-highlight count in DOM:', count);
+
+                // ── GENERALIZED DROPDOWN DETECTION & INLINE OPTIONS RENDERING ──
+                const selectEl = (targetHighlightEl.tagName === 'SELECT' ? targetHighlightEl : targetHighlightEl.querySelector('select')) as HTMLSelectElement | null;
+                console.log('[DEBUG-DROPDOWN-CHECK] activeField:', activeField, 'selectEl:', selectEl?.tagName, 'optionsCount:', selectEl?.options?.length);
+
+                if (selectEl && selectEl.options && selectEl.options.length > 0) {
+                  const parentContainer = selectEl.closest('.field') || selectEl.parentElement || targetHighlightEl;
+                  if (parentContainer && !parentContainer.querySelector('.saarthi-options-list')) {
+                    const optionsContainer = document.createElement('div');
+                    optionsContainer.className = 'saarthi-options-list';
+                    optionsContainer.setAttribute('data-testid', `options-container-${activeField}`);
+                    optionsContainer.style.cssText = 'display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; padding: 0.5rem; background: #fff8f0; border: 1.5px solid #ee7c2b; border-radius: 0.5rem; box-shadow: 0 4px 12px rgba(238,124,43,0.15); transition: all 0.2s ease;';
+
+                    Array.from(selectEl.options).forEach((opt) => {
+                      if (!opt.value && opt.disabled) return;
+                      const pillBtn = document.createElement('button');
+                      pillBtn.type = 'button';
+                      pillBtn.className = 'saarthi-option-pill';
+                      pillBtn.setAttribute('data-testid', `option-pill-${opt.value}`);
+                      pillBtn.innerText = opt.text || opt.value;
+                      const isSelected = selectEl.value === opt.value;
+                      pillBtn.style.cssText = `padding: 0.45rem 0.85rem; border-radius: 0.4rem; font-size: 0.82rem; font-weight: 700; cursor: pointer; border: 1px solid ${isSelected ? '#ee7c2b' : '#e0d5c5'}; background: ${isSelected ? '#ee7c2b' : '#ffffff'}; color: ${isSelected ? '#ffffff' : '#4a3b32'}; box-shadow: ${isSelected ? '0 2px 6px rgba(238,124,43,0.3)' : '0 1px 3px rgba(0,0,0,0.05)'}; transition: all 150ms ease;`;
+
+                      pillBtn.onclick = () => {
+                        const nativeSelectSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')?.set;
+                        if (nativeSelectSetter) {
+                          nativeSelectSetter.call(selectEl, opt.value);
+                        } else {
+                          selectEl.value = opt.value;
+                        }
+                        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                        selectEl.dispatchEvent(new Event('input', { bubbles: true }));
+                        console.log('[DROPDOWN-TAP] Selected option:', opt.value, 'for activeField:', activeField);
+                        optionsContainer.querySelectorAll('.saarthi-option-pill').forEach((btn) => {
+                          const b = btn as HTMLElement;
+                          b.style.background = '#ffffff';
+                          b.style.color = '#4a3b32';
+                          b.style.borderColor = '#e0d5c5';
+                        });
+                        pillBtn.style.background = '#ee7c2b';
+                        pillBtn.style.color = '#ffffff';
+                        pillBtn.style.borderColor = '#ee7c2b';
+                      };
+
+                      optionsContainer.appendChild(pillBtn);
+                    });
+
+                    parentContainer.appendChild(optionsContainer);
+                    console.log('[PROOF-FEATURE-B] Dropdown options rendered visibly in DOM for activeField:', activeField, '| Total option pills rendered:', optionsContainer.children.length);
+                  }
+                }
+              }
+            } else if (action === 'SUBMIT_FORM' || contentStr.toLowerCase().includes('confirm kar lete hain')) {
+              document.querySelectorAll('.saarthi-highlight').forEach((el) => {
+                el.classList.remove('saarthi-highlight');
+              });
+              document.querySelectorAll('.saarthi-options-list').forEach((el) => {
+                el.remove();
+              });
+            }
+
+            // ── REFRESH_PAGE ACTION HANDLER ──
+            if (action === 'REFRESH_PAGE') {
+              console.log('[PROOF-FEATURE-C] Executing REFRESH_PAGE action directive -> window.location.reload() called!');
+              setTimeout(() => {
+                window.location.reload();
+              }, 1000);
+            }
 
             // ── GREETING GUARD: Initial connect greeting MUST NEVER navigate automatically ──
             if (intent === 'GREETING' || msg.payload.intent === 'GREETING') {
@@ -1092,10 +1204,12 @@ export function useSaarthiVoice() {
         mediaRecorderRef.current.stream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
         
         if (recordedBytesSent > 0) {
-            console.log(`[VAD-DIAGNOSTIC] ✅ Sending AUDIO_END frame with total byte size: ${recordedBytesSent} bytes.`);
+            console.log(`[VAD-DIAGNOSTIC] ✅ Sending AUDIO_END frame with total byte size: ${recordedBytesSent} bytes. current_page: ${window.location.pathname}`);
             wsRef.current?.send(JSON.stringify({
               type: 'AUDIO_END',
-              payload: {}
+              payload: {
+                current_page: window.location.pathname
+              }
             }));
         } else {
             console.log('[VAD-DIAGNOSTIC] Skipping AUDIO_END frame because 0 bytes were recorded.');

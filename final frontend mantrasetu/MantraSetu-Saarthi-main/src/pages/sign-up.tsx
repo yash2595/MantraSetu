@@ -6,6 +6,7 @@ import { SiteHeader, SiteFooter, Modal, type ModalType } from '@/components/shar
 import { authService } from '@/services/auth.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSaarthi } from '@/components/saarthi/SaarthiContext';
+import { getPersistableData } from '@/utils/formSecurity';
 
 export default function SignUp() {
   const { announceMessage } = useSaarthi();
@@ -57,6 +58,47 @@ export default function SignUp() {
   const [formSent, setFormSent] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // ── LOCAL STORAGE PERSISTENCE & RELOAD RESTORATION ──
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('ms_saarthi_pandit_form_data');
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.panditName) setPanditName(data.panditName);
+        if (data.panditPhone) setPanditPhone(data.panditPhone);
+        if (data.panditEmail) setPanditEmail(data.panditEmail);
+        if (data.panditCity) setPanditCity(data.panditCity);
+        if (data.panditState) setPanditState(data.panditState);
+        if (data.panditExp) setPanditExp(data.panditExp);
+        if (data.panditSpec) setPanditSpec(data.panditSpec);
+        if (data.panditLanguages) setPanditLanguages(data.panditLanguages);
+        console.log('[PERSISTENCE] Restored Pandit form progress from localStorage:', data);
+      }
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    if (userType === 'pandit') {
+      try {
+        const rawPayload = {
+          panditName,
+          panditPhone,
+          panditEmail,
+          panditCity,
+          panditState,
+          panditExp,
+          panditSpec,
+          panditLanguages,
+          panditPassword,
+          panditConfirmPassword
+        };
+        // ── GUARANTEED SECURITY SANITIZATION VIA SHARED getPersistableData HELPER ──
+        const safePayload = getPersistableData(rawPayload);
+        localStorage.setItem('ms_saarthi_pandit_form_data', JSON.stringify(safePayload));
+      } catch (e) {}
+    }
+  }, [userType, panditName, panditPhone, panditEmail, panditCity, panditState, panditExp, panditSpec, panditLanguages, panditPassword, panditConfirmPassword]);
 
   const handleGoogleSuccess = async (credentialResponse: any) => {
     if (!credentialResponse.credential) {
