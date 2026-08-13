@@ -114,6 +114,7 @@ export default function SignUp() {
 
   // Pandit multi-step onboarding state
   const [panditStep, setPanditStep] = useState<1 | 2 | 3>(1);
+  const [activeField, setActiveField] = useState<string>('pandit-first-name');
 
   // Step 1: Personal & Contact Details
   const [panditFirstName, setPanditFirstName] = useState('');
@@ -174,51 +175,112 @@ export default function SignUp() {
   };
 
   // ── SESSION STORAGE PERSISTENCE & RELOAD RESTORATION ──
-  // Try to load any previously saved draft from sessionStorage
+  // Smart detection: only restore draft if an active voice session exists (mid-fill F5 refresh).
+  // On a completely fresh visit (new tab / new browser session), saarthi_session_id is absent
+  // from sessionStorage → clear any stale draft and start blank.
   useEffect(() => {
     const loadDraft = () => {
       const saved = sessionStorage.getItem('ms_saarthi_pandit_form_data');
-      if (saved) {
-        try {
-          const data = JSON.parse(saved);
+      if (!saved) return; // Nothing to restore
 
-          // ── Step position (CRITICAL: without this, refresh always resets to Step 1) ──
-          if (data.panditStep && [1, 2, 3].includes(data.panditStep)) {
-            setPanditStep(data.panditStep as 1 | 2 | 3);
-          }
+      // KEY DISTINCTION: Is there an active voice onboarding session?
+      // saarthi_session_id is written by useSaarthiVoice.ts on WebSocket CONNECT.
+      // Exists  → mid-fill F5 refresh → RESTORE form data normally.
+      // Absent  → new browser visit  → CLEAR stale draft so form is blank.
+      const hasActiveVoiceSession = !!sessionStorage.getItem('saarthi_session_id');
 
-          // ── Step 1: Personal & Contact ──
-          if (data.panditFirstName) setPanditFirstName(data.panditFirstName);
-          if (data.panditLastName) setPanditLastName(data.panditLastName);
-          if (data.panditFirstName || data.panditLastName) {
-            setPanditName(`${data.panditFirstName ?? ''} ${data.panditLastName ?? ''}`.trim());
-          }
-          if (data.panditGender) setPanditGender(data.panditGender);
-          if (data.panditPhone) setPanditPhone(data.panditPhone);
-          if (data.panditEmail) setPanditEmail(data.panditEmail);
-          if (data.panditCity) setPanditCity(data.panditCity);
-          if (data.panditState) setPanditState(data.panditState);
-          if (data.panditAvailabilityMode) setPanditAvailabilityMode(data.panditAvailabilityMode);
-          if (Array.isArray(data.selectedServiceAreas)) setSelectedServiceAreas(data.selectedServiceAreas);
+      if (!hasActiveVoiceSession) {
+        sessionStorage.removeItem('ms_saarthi_pandit_form_data');
+        setPanditStep(1);
+        console.log('[PANDIT-STEP-TRACE] New visit (no active voice session). Reset panditStep to 1 and cleared draft.');
+        return;
+      }
 
-          // ── Step 2: Vedic Qualifications, Experience & Achievements ──
-          if (data.panditExp) setPanditExp(data.panditExp);
-          if (data.panditEducation) setPanditEducation(data.panditEducation);
-          if (data.panditGurukul) setPanditGurukul(data.panditGurukul);
-          if (data.panditSpec) setPanditSpec(data.panditSpec);
-          if (Array.isArray(data.selectedSpecs)) setSelectedSpecs(data.selectedSpecs);
-          if (Array.isArray(data.panditLanguages)) setPanditLanguages(data.panditLanguages);
-          if (Array.isArray(data.panditAchievements)) setPanditAchievements(data.panditAchievements);
-          if (data.panditBio) setPanditBio(data.panditBio);
+      // Active session exists → safe to restore (mid-fill F5 refresh)
+      try {
+        const data = JSON.parse(saved);
 
-          console.log('[PERSISTENCE] Restored Pandit form progress from sessionStorage');
-        } catch (e) {
-          console.error('[PERSISTENCE] Failed to parse sessionStorage data', e);
+        // ── Step position (CRITICAL: restore saved step during mid-form refresh) ──
+        if (data.panditStep && [1, 2, 3].includes(data.panditStep)) {
+          console.log(`[PANDIT-STEP-TRACE] Restoring saved panditStep from draft: ${data.panditStep}`);
+          setPanditStep(data.panditStep as 1 | 2 | 3);
         }
+
+        // ── Step 1: Personal & Contact ──
+        if (data.panditFirstName) setPanditFirstName(data.panditFirstName);
+        if (data.panditLastName) setPanditLastName(data.panditLastName);
+        if (data.panditFirstName || data.panditLastName) {
+          setPanditName(`${data.panditFirstName ?? ''} ${data.panditLastName ?? ''}`.trim());
+        }
+        if (data.panditGender) setPanditGender(data.panditGender);
+        if (data.panditPhone) setPanditPhone(data.panditPhone);
+        if (data.panditEmail) setPanditEmail(data.panditEmail);
+        if (data.panditCity) setPanditCity(data.panditCity);
+        if (data.panditState) setPanditState(data.panditState);
+        if (data.panditAvailabilityMode) setPanditAvailabilityMode(data.panditAvailabilityMode);
+        if (Array.isArray(data.selectedServiceAreas)) setSelectedServiceAreas(data.selectedServiceAreas);
+
+        // ── Step 2: Vedic Qualifications, Experience & Achievements ──
+        if (data.panditExp) setPanditExp(data.panditExp);
+        if (data.panditEducation) setPanditEducation(data.panditEducation);
+        if (data.panditGurukul) setPanditGurukul(data.panditGurukul);
+        if (data.panditSpec) setPanditSpec(data.panditSpec);
+        if (Array.isArray(data.selectedSpecs)) setSelectedSpecs(data.selectedSpecs);
+        if (Array.isArray(data.panditLanguages)) setPanditLanguages(data.panditLanguages);
+        if (Array.isArray(data.panditAchievements)) setPanditAchievements(data.panditAchievements);
+        if (data.panditBio) setPanditBio(data.panditBio);
+
+        console.log('[PERSISTENCE] Mid-fill refresh: restored Pandit form draft from sessionStorage.');
+      } catch (e) {
+        console.error('[PERSISTENCE] Failed to parse sessionStorage data', e);
       }
     };
     loadDraft();
   }, []);
+
+  // ── VOICE ASSISTANT STEP SYNC ──
+  // Listen for active_field changes from Saarthi voice agent and switch UI tab/step dynamically
+  useEffect(() => {
+    const handleStepSync = (e: Event) => {
+      const customEvt = e as CustomEvent<{ step: 1 | 2 | 3; activeField: string }>;
+      if (customEvt.detail && customEvt.detail.step) {
+        console.log(`[PANDIT-STEP-TRACE] Received saarthi-set-step event. Changing panditStep -> ${customEvt.detail.step} (Triggered by activeField: "${customEvt.detail.activeField}")`);
+        setPanditStep(customEvt.detail.step);
+      }
+      if (customEvt.detail && customEvt.detail.activeField) {
+        setActiveField(customEvt.detail.activeField);
+      } else if (customEvt.detail && customEvt.detail.step) {
+        const defaults: Record<number, string> = { 1: 'pandit-first-name', 2: 'pandit-exp', 3: 'pandit-certFile' };
+        setActiveField(defaults[customEvt.detail.step] || 'pandit-first-name');
+      }
+    };
+    window.addEventListener('saarthi-set-step', handleStepSync);
+    return () => window.removeEventListener('saarthi-set-step', handleStepSync);
+  }, []);
+
+  // ── ACTIVE FIELD & STEP SYNCHRONIZATION EFFECT ──
+  useEffect(() => {
+    console.log('[SYNC-DEBUG] activeField:', activeField, '| step:', panditStep);
+
+    const stepDefaults: Record<number, string> = {
+      1: 'pandit-first-name',
+      2: 'pandit-exp',
+      3: 'pandit-certFile'
+    };
+    const step2Fields = ['pandit-exp', 'pandit-gurukul', 'pandit-education', 'pandit-languages', 'pandit-spec', 'pandit-achievements', 'pandit-bio'];
+    const step3Fields = ['pandit-certFile', 'pandit-aadhaarFile', 'pandit-galleryFiles', 'pandit-password', 'pandit-confirm'];
+
+    const currentFieldStep = step2Fields.includes(activeField) ? 2 : step3Fields.includes(activeField) ? 3 : 1;
+
+    if (currentFieldStep !== panditStep) {
+      const newField = stepDefaults[panditStep] || 'pandit-first-name';
+      console.log(`[SYNC-DEBUG] Step changed to ${panditStep}. Updating activeField: "${activeField}" -> "${newField}"`);
+      setActiveField(newField);
+    }
+  }, [panditStep, activeField]);
+
+
+
 
   // ── SESSION STORAGE SAVE (fires on every relevant state change) ──
   useEffect(() => {
@@ -591,25 +653,37 @@ export default function SignUp() {
           });
         }
 
-        await authService.applyPandit(formData);
-        setFormSent(true);
-        sessionStorage.removeItem('ms_saarthi_pandit_form_data');
+        console.log('[FRONTEND-PANDIT-SIGNUP] Sending FormData for Pandit:', fullName, panditEmail);
+        const response = await authService.applyPandit(formData);
+        console.log('[FRONTEND-PANDIT-SIGNUP] Pandit Apply API response received:', response);
 
-        const firstName = panditFirstName || fullName.split(' ')[0] || 'Panditji';
-        const successMsg = `Badhai ho ${firstName} ji! Aapka MantraSetu par Pandit ke roop mein registration safaltapoorvak complete ho gaya hai. Ab aap verified Panditji ke roop mein bhakton ki seva kar sakte hain!`;
-        announceMessage(successMsg, true);
+        if (response.status === 'success' || response.application_id) {
+          setFormSent(true);
+          sessionStorage.removeItem('ms_saarthi_pandit_form_data');
+
+          const firstName = panditFirstName || fullName.split(' ')[0] || 'Panditji';
+          const successMsg = `Badhai ho ${firstName} ji! Aapka MantraSetu par Pandit ke roop mein registration safaltapoorvak complete ho gaya hai. Ab aap verified Panditji ke roop mein bhakton ki seva kar sakte hain!`;
+          announceMessage(successMsg, true);
+        } else {
+          throw new Error(response.message || 'Pandit application submission failed.');
+        }
       } else {
+        console.log('[FRONTEND-DEVOTEE-SIGNUP] Sending signup payload for email:', email);
         const response = await authService.signup({
           user_type: 'devotee',
           name,
           email,
-          phone,
+          phone: phone || '9876543210',
           password,
           confirm_password: confirmPassword,
         });
 
-        if (response.access_token) {
-          login(response.access_token, response.user);
+        console.log('[FRONTEND-DEVOTEE-SIGNUP] Signup API response received:', response);
+
+        if (response.status === 'success' || response.user_id || response.access_token) {
+          if (response.access_token) {
+            login(response.access_token, response.user || { name, email, user_type: 'devotee' });
+          }
           setFormSent(true);
           navigate('/', { replace: true });
         }
@@ -734,6 +808,30 @@ export default function SignUp() {
                       transition: 'width 0.3s ease',
                     }}
                   />
+                </div>
+                <div
+                  data-testid="active-field-indicator"
+                  style={{
+                    marginTop: '0.6rem',
+                    padding: '0.5rem 0.8rem',
+                    backgroundColor: '#fff7ed',
+                    border: '1px solid #ffedd5',
+                    borderRadius: '0.5rem',
+                    color: '#9a3412',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span>
+                    🎯 Active Question / Field:{' '}
+                    <strong style={{ color: '#c2410c' }}>{activeField || '(no active field set)'}</strong>
+                  </span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#9a3412', opacity: 0.85 }}>
+                    Sync: Step {panditStep} of 3 (Voice &amp; Manual Active)
+                  </span>
                 </div>
               </div>
             )}
@@ -913,11 +1011,12 @@ export default function SignUp() {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
                           <div className="field">
                             <label htmlFor="pandit-gender">Gender *</label>
-                            <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.2rem' }}>
+                            <div data-field="pandit-gender" data-testid="pill-group-pandit-gender" style={{ display: 'flex', gap: '0.4rem', marginTop: '0.2rem' }}>
                               {(['Male', 'Female', 'Other'] as const).map((g) => (
                                 <button
                                   key={g}
                                   type="button"
+                                  data-testid={`pill-pandit-gender-${g.toLowerCase()}`}
                                   onClick={() => setPanditGender(g)}
                                   style={{
                                     flex: 1,
@@ -951,11 +1050,12 @@ export default function SignUp() {
 
                           <div className="field">
                             <label htmlFor="pandit-availability">Availability *</label>
-                            <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.2rem' }}>
+                            <div data-field="pandit-availability" data-testid="pill-group-pandit-availability" style={{ display: 'flex', gap: '0.4rem', marginTop: '0.2rem' }}>
                               {['Offline', 'Online', 'Both'].map((mode) => (
                                 <button
                                   key={mode}
                                   type="button"
+                                  data-testid={`pill-pandit-availability-${mode.toLowerCase()}`}
                                   onClick={() => setPanditAvailabilityMode(mode)}
                                   style={{
                                     flex: 1,
@@ -1195,6 +1295,8 @@ export default function SignUp() {
                             {panditAchievements.map((ach, idx) => (
                               <div key={idx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                 <input
+                                  id={idx === 0 ? "pandit-achievements" : `pandit-achievements-${idx}`}
+                                  data-testid={`input-pandit-achievements-${idx}`}
                                   value={ach}
                                   onChange={(e) => updateAchievement(idx, e.target.value)}
                                   placeholder={`Achievement ${idx + 1}`}
@@ -1225,6 +1327,7 @@ export default function SignUp() {
                             <button
                               type="button"
                               onClick={addAchievement}
+                              data-testid="button-add-achievement"
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -1251,6 +1354,7 @@ export default function SignUp() {
                           <label htmlFor="pandit-bio">जीवन परिचय * (Bio *)</label>
                           <textarea
                             id="pandit-bio"
+                            data-testid="textarea-pandit-bio"
                             value={panditBio}
                             onChange={(e) => setPanditBio(e.target.value)}
                             rows={3}

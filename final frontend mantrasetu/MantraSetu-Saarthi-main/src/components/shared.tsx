@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { authService } from '@/services/auth.service';
 
 export type ModalType = 'signup' | 'login' | 'launch' | 'assistant' | null;
 
@@ -337,6 +338,48 @@ export function Modal({ modal, onClose }: { modal: ModalType; onClose: () => voi
   const isLogin = modal === 'login';
   const isSignup = modal === 'signup';
 
+  const [modalName, setModalName] = useState('');
+  const [modalEmail, setModalEmail] = useState('');
+  const [modalPassword, setModalPassword] = useState('');
+  const [modalError, setModalError] = useState('');
+  const [modalSubmitting, setModalSubmitting] = useState(false);
+  const { login } = useAuth();
+
+  const handleModalAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setModalError('');
+    setModalSubmitting(true);
+    console.log(`[FRONTEND-MODAL] Submitting ${isLogin ? 'Login' : 'Signup'} for email: ${modalEmail}`);
+    try {
+      if (isLogin) {
+        const res = await authService.login({ email: modalEmail, password: modalPassword });
+        console.log('[FRONTEND-MODAL] Login API response:', res);
+        if (res.access_token) {
+          login(res.access_token, res.user);
+          onClose();
+        }
+      } else if (isSignup) {
+        const res = await authService.signup({
+          name: modalName,
+          email: modalEmail,
+          phone: '9876543210',
+          password: modalPassword,
+          confirm_password: modalPassword,
+        });
+        console.log('[FRONTEND-MODAL] Signup API response:', res);
+        if (res.access_token) {
+          login(res.access_token, res.user || { name: modalName, email: modalEmail });
+        }
+        onClose();
+      }
+    } catch (err: any) {
+      console.error('[FRONTEND-MODAL] Error during auth API call:', err);
+      setModalError(err.message || 'Authentication failed. Please try again.');
+    } finally {
+      setModalSubmitting(false);
+    }
+  };
+
   return (
     <div className="modal-backdrop open" role="presentation"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -362,15 +405,20 @@ export function Modal({ modal, onClose }: { modal: ModalType; onClose: () => voi
             <span className="section-kicker">A sacred space for you</span>
             <h2 id="modal-title">{isLogin ? 'Welcome back to MantraSetu.' : 'Begin your journey with us.'}</h2>
             <p>{isLogin ? 'Sign in to keep your rituals and spiritual moments close.' : 'Create your space to save services, explore rituals and stay connected.'}</p>
-            <form className="modal-form" onSubmit={(e) => { e.preventDefault(); onClose(); }}>
+            {modalError && (
+              <div className="modal-note" style={{ backgroundColor: '#fef2f2', borderColor: '#fca5a5', color: '#991b1b', marginBottom: '1rem' }}>
+                {modalError}
+              </div>
+            )}
+            <form className="modal-form" onSubmit={handleModalAuthSubmit}>
               {!isLogin && <div className="field"><label htmlFor="modal-name">Your name</label>
-                <input id="modal-name" required placeholder="Your name" /></div>}
+                <input id="modal-name" value={modalName} onChange={(e) => setModalName(e.target.value)} required placeholder="Your name" /></div>}
               <div className="field"><label htmlFor="modal-email">Email address</label>
-                <input id="modal-email" type="email" required placeholder="you@example.com" /></div>
+                <input id="modal-email" type="email" value={modalEmail} onChange={(e) => setModalEmail(e.target.value)} required placeholder="you@example.com" /></div>
               <div className="field"><label htmlFor="modal-password">Password</label>
-                <input id="modal-password" type="password" required placeholder="Enter your password" /></div>
-              <button className="button button-primary" type="submit">
-                {isLogin ? 'Continue' : 'Create account'} <ArrowRight size={15} />
+                <input id="modal-password" type="password" value={modalPassword} onChange={(e) => setModalPassword(e.target.value)} required placeholder="Enter your password" /></div>
+              <button className="button button-primary" type="submit" disabled={modalSubmitting}>
+                {modalSubmitting ? 'Please wait...' : (isLogin ? 'Continue' : 'Create account')} <ArrowRight size={15} />
               </button>
             </form>
           </>

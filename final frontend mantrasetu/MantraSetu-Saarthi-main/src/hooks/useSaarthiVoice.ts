@@ -152,10 +152,12 @@ export function useSaarthiVoice() {
   const audioQueueRef = useRef<AudioBuffer[]>([]);
   const isPlayingRef = useRef(false);
   const isFinalChunkReceived = useRef(false);
+  const streamIntervalRef = useRef<number | NodeJS.Timeout | null>(null);
   const fallbackTimeoutRef = useRef<number | NodeJS.Timeout | null>(null);
   const sequenceQueueRef = useRef<any[]>([]);
   const isExecutingSequenceRef = useRef(false);
   const lastTargetRef = useRef<string | null>(null);
+  const activeFieldRef = useRef<string | null>('pandit-first-name');
 
   const stateRef = useRef(state);
   useEffect(() => {
@@ -164,7 +166,12 @@ export function useSaarthiVoice() {
 
   const stopAudioPlayback = useCallback(() => {
     console.log('[BARGE-IN] Executing stopAudioPlayback(). Halting active audio source & flushing audio queue.');
+    if (streamIntervalRef.current) {
+      clearInterval(streamIntervalRef.current as any);
+      streamIntervalRef.current = null;
+    }
     if (currentAudioSourceRef.current) {
+
       try {
         currentAudioSourceRef.current.stop();
         currentAudioSourceRef.current.disconnect();
@@ -455,20 +462,60 @@ export function useSaarthiVoice() {
          targetEl.classList.add('saarthi-highlight');
          console.log('[FORM-FILL-EXEC] Applied saarthi-highlight class to target:', step.target);
 
-         // Set value instantly instead of char-by-char to avoid React race conditions
-         if (nativeInputValueSetter) {
-           nativeInputValueSetter.call(targetEl, step.text);
-         } else {
-           (targetEl as HTMLInputElement).value = step.text;
+         // For select elements: set value instantly (no char-by-char)
+         if (targetEl.tagName.toLowerCase() === 'select') {
+           if (nativeInputValueSetter) {
+             nativeInputValueSetter.call(targetEl, step.text);
+           } else {
+             (targetEl as HTMLSelectElement).value = step.text;
+           }
+           targetEl.dispatchEvent(new Event('input', { bubbles: true }));
+           targetEl.dispatchEvent(new Event('change', { bubbles: true }));
+           setTimeout(() => {
+             targetEl.classList.remove('saarthi-highlight');
+             targetEl.classList.add('saarthi-filled');
+             processNextStep();
+           }, 400);
+           return;
          }
 
-         targetEl.dispatchEvent(new Event('input', { bubbles: true }));
-         targetEl.dispatchEvent(new Event('change', { bubbles: true }));
+         // ── CHARACTER-BY-CHARACTER TYPING ANIMATION ──
+         // Clear field first, then type character by character with React-compatible events
+         const fullText = step.text as string;
+         const charDelay = Math.min(60, Math.max(30, 1200 / fullText.length)); // 30-60ms per char, total ~1-2s
+         let charIndex = 0;
 
-         setTimeout(() => {
-           targetEl.classList.remove('saarthi-highlight');
-           processNextStep();
-         }, 400);
+         // Focus the field so cursor blink is visible
+         (targetEl as HTMLInputElement).focus();
+
+         const typeNextChar = () => {
+           if (charIndex > fullText.length) {
+             // Typing complete: swap highlight → filled glow and advance sequence
+             targetEl.classList.remove('saarthi-highlight');
+             targetEl.classList.add('saarthi-filled');
+             // Fire final change event so React state is committed
+             targetEl.dispatchEvent(new Event('change', { bubbles: true }));
+             console.log('[FORM-FILL-EXEC] Char-by-char typing complete for:', step.target);
+             setTimeout(processNextStep, step.delay || 400);
+             return;
+           }
+
+           const currentVal = fullText.slice(0, charIndex);
+
+           if (nativeInputValueSetter) {
+             nativeInputValueSetter.call(targetEl, currentVal);
+           } else {
+             (targetEl as HTMLInputElement).value = currentVal;
+           }
+
+           // Fire input event so React's onChange / controlled input updates
+           targetEl.dispatchEvent(new Event('input', { bubbles: true }));
+
+           charIndex++;
+           setTimeout(typeNextChar, charDelay);
+         };
+
+         typeNextChar();
       } else {
          console.warn('[NAV-DEBUG] Type target not found:', step.target);
          processNextStep();
@@ -483,6 +530,17 @@ export function useSaarthiVoice() {
   useEffect(() => {
     processNextStepRef.current = processNextStep;
   }, [processNextStep]);
+
+  const runSequence = useCallback((seq: any[]) => {
+    if (seq && seq.length > 0) {
+      console.log('[NAV-SEQUENCE] Queuing navigation action sequence with', seq.length, 'steps:', seq);
+      sequenceQueueRef.current = seq;
+      if (!isExecutingSequenceRef.current) {
+        processNextStepRef.current();
+      }
+    }
+  }, []);
+
 
   useEffect(() => {
     console.log(`[Voice] ---> STATE TRANSITION: ${state} <---`);
@@ -581,6 +639,20 @@ export function useSaarthiVoice() {
 
             // ── HIGHLIGHT TRIGGER & GENERALIZED DROPDOWN AUTO-EXPAND ON BOT QUESTION ASK ──
             if (activeField) {
+              activeFieldRef.current = activeField;
+              // ── STEP MAPPING & UI STEP SYNCHRONIZATION ──
+              const step1Fields = ['pandit-first-name', 'pandit-last-name', 'pandit-email', 'pandit-phone', 'pandit-gender', 'pandit-availability', 'pandit-city', 'pandit-state', 'pandit-service-areas', 'pandit-name'];
+              const step2Fields = ['pandit-exp', 'pandit-gurukul', 'pandit-education', 'pandit-languages', 'pandit-spec', 'pandit-achievements', 'pandit-bio'];
+              const step3Fields = ['pandit-certFile', 'pandit-aadhaarFile', 'pandit-galleryFiles', 'pandit-password', 'pandit-confirm'];
+
+              let targetStep: 1 | 2 | 3 = 1;
+              if (step2Fields.includes(activeField)) targetStep = 2;
+              else if (step3Fields.includes(activeField)) targetStep = 3;
+
+              console.log(`[NAV-SYNC-TRACE] Active field received: "${activeField}" -> Computed Step: ${targetStep}. Dispatching saarthi-set-step event.`);
+              window.dispatchEvent(new CustomEvent('saarthi-set-step', { detail: { step: targetStep, activeField } }));
+
+
               document.querySelectorAll('.saarthi-highlight').forEach((el) => {
                 el.classList.remove('saarthi-highlight');
               });
@@ -590,6 +662,7 @@ export function useSaarthiVoice() {
 
               let highlightSelector = '';
               const isPanditField = activeField.startsWith('pandit-') || !!document.querySelector('[data-testid="tab-usertype-pandit"][aria-pressed="true"]');
+
               
               if (activeField === 'pandit-first-name') {
                 highlightSelector = '[data-testid="input-pandit-first-name"]';
@@ -730,94 +803,71 @@ export function useSaarthiVoice() {
             console.log('[Voice] Raw Action:', action);
             console.log('[Voice] Intent:', intent);
             console.log('[Voice] Query:', query);
-            console.log('[Voice] --------------------------------------------------');
+            if (activeField) {
+              activeFieldRef.current = activeField;
+              const step2Fields = ['exp', 'gurukul', 'education', 'spec', 'lang', 'achievements', 'bio'];
+              const step3Fields = ['certfile', 'aadhaarfile', 'galleryfiles', 'password', 'confirm', 'codeofconduct'];
+              
+              let targetStep: 1 | 2 | 3 = 1;
+              const fieldLower = activeField.toLowerCase();
+              if (step2Fields.some(f => fieldLower.includes(f))) targetStep = 2;
+              if (step3Fields.some(f => fieldLower.includes(f))) targetStep = 3;
+
+              console.log(`[PANDIT-STEP-TRACE] Dispatching saarthi-set-step event for activeField: "${activeField}" -> step: ${targetStep}`);
+              window.dispatchEvent(new CustomEvent('saarthi-set-step', { detail: { step: targetStep, activeField } }));
+
+              // Visually highlight active field in DOM
+              setTimeout(() => {
+                document.querySelectorAll('.saarthi-highlight').forEach(el => el.classList.remove('saarthi-highlight'));
+                const sel = `[data-testid="input-${activeField}"], #${activeField}, [data-testid="input-${activeField.replace('pandit-', '')}"]`;
+                const el = document.querySelector<HTMLElement>(sel);
+                if (el) {
+                  el.classList.add('saarthi-highlight');
+                  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  el.focus();
+                }
+              }, 100);
+            }
 
             console.log('[NAV-DEBUG] RAW AI_RESPONSE Received. action=', action, 'target=', JSON.stringify(target));
 
             if (action === 'NAVIGATE' && target) {
               const cleanTarget = target.trim();
+              const intentName = msg.payload?.intent || '';
+              console.log(`[NAV-DEBUG] Routing for target: ${cleanTarget}, query: ${query}, intent: ${intentName}, currentPath: ${window.location.pathname}`);
               
-              const runSequence = (seq: any[]) => {
-                sequenceQueueRef.current = seq;
-                if (!isExecutingSequenceRef.current) {
-                  processNextStepRef.current();
-                }
-              };
-
-              console.log(`[NAV-DEBUG] Routing for target: ${cleanTarget}, query: ${query}, currentPath: ${window.location.pathname}`);
+              // 1. Reset voice highlighting/focus state cleanly
+              document.querySelectorAll('.saarthi-highlight').forEach((el) => {
+                el.classList.remove('saarthi-highlight');
+              });
+              document.querySelectorAll('.saarthi-options-list').forEach((el) => {
+                el.remove();
+              });
               
-              const getTargetSelectorForPath = (path: string) => {
-                if (path === '/') return '[data-testid="link-home-logo"], [data-testid="link-nav-home"]';
-                if (path.includes('puja')) return '[data-testid="button-nav-services"], [data-testid="link-nav-service-book-puja"]';
-                if (path.includes('kundali')) return '[data-testid="button-nav-spiritual-tools"], [data-testid="link-nav-tool-kundali"]';
-                if (path.includes('muhurat')) return '[data-testid="button-nav-spiritual-tools"], [data-testid="link-nav-tool-muhurat-finder"]';
-                if (path.includes('login')) return '[data-testid="button-login"]';
-                if (path.includes('signup') || path.includes('sign-up')) return '[data-testid="button-signup"]';
-                if (path.includes('dash')) return 'a[href="/dashboard"]';
-                return `a[href="${path}"]`;
-              };
-
-              const getTargetSectionForPath = (path: string) => {
-                if (path.includes('role=pandit')) return '#pandit-onboarding-form, [data-testid="form-signup"], [data-testid="card-signup"]';
-                if (path.includes('signup') || path.includes('sign-up')) return '#signup-form, [data-testid="form-signup"], [data-testid="card-signup"]';
-                if (path.includes('login')) return '#login-form, [data-testid="form-login"], [data-testid="card-login"]';
-                if (path.includes('kundali')) return '#kundali-form-section, [data-testid="section-kundali-form"]';
-                if (path.includes('muhurat')) return '#muhurat-finder-section, [data-testid="section-muhurat-finder"]';
-                if (path.includes('puja')) return '#puja-catalog-section, [data-testid="section-puja-catalog"]';
-                if (path === '/') return '#hero-section, [data-testid="section-hero"]';
-                return 'main, section, body';
-              };
-
-              const seq = [];
-              const finalTarget = getTargetSelectorForPath(cleanTarget);
-              const sectionTarget = getTargetSectionForPath(cleanTarget);
-
-              if (query && cleanTarget.includes('puja')) {
-                // QUERY SEARCH FLOW (Specific puja catalog search)
-                console.log('[NAV-DEBUG] Preparing query search flow:', query);
-                if (window.location.pathname === '/puja') {
-                  seq.push(
-                    { action: 'move', target: '[data-testid="input-search-puja"]', delay: 800 },
-                    { action: 'click', target: '[data-testid="input-search-puja"]', delay: 200 },
-                    { action: 'type', target: '[data-testid="input-search-puja"]', text: query, delay: 800 },
-                    { action: 'wait_for_selector', target: '[data-testid^="button-book-now-"]', delay: 400 },
-                    { action: 'move', target: '[data-testid^="button-book-now-"]', delay: 800 },
-                    { action: 'click', target: '[data-testid^="button-book-now-"]', delay: 0 }
-                  );
-                } else {
-                  seq.push({ action: 'move', target: '[data-testid="button-nav-services"]', delay: 800 });
-                  seq.push({ action: 'click', target: '[data-testid="button-nav-services"]', delay: 400 });
-                  seq.push({ action: 'move', target: '[data-testid="link-nav-service-book-puja"]', delay: 800 });
-                  seq.push({ action: 'click', target: '[data-testid="link-nav-service-book-puja"]', delay: 800 });
-                  seq.push({ action: 'wait_for_selector', target: '[data-testid="input-search-puja"]', delay: 400 });
-                  seq.push({ action: 'move', target: '[data-testid="input-search-puja"]', delay: 800 });
-                  seq.push({ action: 'click', target: '[data-testid="input-search-puja"]', delay: 200 });
-                  seq.push({ action: 'type', target: '[data-testid="input-search-puja"]', text: query, delay: 800 });
-                  seq.push({ action: 'wait_for_selector', target: '[data-testid^="button-book-now-"]', delay: 400 });
-                  seq.push({ action: 'move', target: '[data-testid^="button-book-now-"]', delay: 800 });
-                  seq.push({ action: 'click', target: '[data-testid^="button-book-now-"]', delay: 0 });
-                }
-              } else {
-                // UNIVERSAL WHITE-BOX CURSOR NAVIGATION FOR ALL PAGES
-                console.log(`[NAV-DEBUG] Executing Universal Nav Journey -> Target Nav: ${finalTarget}, Section: ${sectionTarget}`);
-                seq.push({ action: 'move', target: finalTarget, delay: 600 });
-                seq.push({ action: 'click', target: finalTarget, delay: 300 });
-                seq.push({ action: 'navigate', path: cleanTarget, delay: 400 });
-                seq.push({ action: 'wait_for_selector', target: sectionTarget, delay: 300 });
-                seq.push({ action: 'scroll', target: sectionTarget, delay: 400 });
-                seq.push({ action: 'move', target: sectionTarget, delay: 600 });
-                
-                // Fix for Pandit role switching
-                const isPanditSignupJourney = cleanTarget.includes('role=pandit') || (cleanTarget.includes('signup') && (msg.payload.content || '').toLowerCase().includes('pandit'));
-                if (isPanditSignupJourney) {
-                  seq.push({ action: 'wait_for_selector', target: '[data-testid="tab-usertype-pandit"]', delay: 300 });
-                  seq.push({ action: 'click', target: '[data-testid="tab-usertype-pandit"]', delay: 200 });
-                  console.log('[NAV-DEBUG] Clicked Pandit tab explicitly after navigating');
-                }
+              // Also ensure we hide the synthetic cursor immediately
+              const cursor = document.getElementById('saarthi-cursor');
+              if (cursor) cursor.style.opacity = '0';
+              
+              // 🚨 GENERIC AUTO-BOOKING SEQUENCE FOR ALL PUJAS
+              // If navigating to /puja or /services AND (a specific query exists OR intent is BOOK_PUJA)
+              if ((cleanTarget.startsWith('/puja') || cleanTarget.startsWith('/services')) && (query || intentName === 'BOOK_PUJA')) {
+                 console.log(`[PUJA-AUTOBOOK] Auto-booking sequence triggered for query: ${query || 'general'}`);
+                 const seq: any[] = [];
+                 const qParam = query ? `?q=${encodeURIComponent(query)}&autobook=true` : '?autobook=true';
+                 seq.push({ action: 'navigate', path: `/puja${qParam}`, delay: 400 });
+                 seq.push({ action: 'wait_for_selector', target: '[data-testid^="card-puja-"], .service-card', delay: 400 });
+                 seq.push({ action: 'scroll', target: '[data-testid^="card-puja-"], .service-card', delay: 400 });
+                 seq.push({ action: 'move', target: '[data-testid^="button-book-now-"], .service-card button', delay: 800 });
+                 seq.push({ action: 'click', target: '[data-testid^="button-book-now-"], .service-card button', delay: 400 });
+                 runSequence(seq);
+                 return;
               }
 
-              runSequence(seq);
-              // Fallback handled by generic page level flow
+              // 2. Perform soft in-app routing using React Router's useNavigate
+              navigate(cleanTarget);
+              
+              // Allow any cleanup or state resets to happen
+              return;
             } else if (action === 'START_TOUR') {
               console.log('[SITE-TOUR] Preparing site tour sequence for target:', target);
               const seq: any[] = [];
@@ -891,6 +941,8 @@ export function useSaarthiVoice() {
                 else if (fTarget.includes('lang')) selector = '[data-testid^="toggle-lang-"]';
                 else if (fTarget.includes('exp')) selector = '[data-testid="select-pandit-exp"]';
                 else if (fTarget.includes('spec')) selector = '[data-testid="select-pandit-spec"]';
+                else if (fTarget.includes('bio')) selector = '#pandit-bio, [data-testid="textarea-pandit-bio"]';
+                else if (fTarget.includes('achieve')) selector = '#pandit-achievements, [data-testid^="input-pandit-achievements-"]';
                 else if (fTarget.includes('date')) selector = 'input[name="date"], input[type="date"], [data-testid="input-date"], #booking-date';
                 else if (fTarget.includes('time')) selector = 'input[name="time"], input[type="time"], [data-testid="input-time"], select#booking-time, #booking-time';
                 else selector = `input[name="${fTarget}"], #${fTarget}`;
@@ -900,13 +952,13 @@ export function useSaarthiVoice() {
                 if (isPanditField && !hasNavigatedToPandit) {
                   hasNavigatedToPandit = true;
                   if (window.location.pathname !== '/signup') {
-                     seq.push({ action: 'navigate', path: '/signup?role=pandit', delay: 400 });
-                     seq.push({ action: 'wait_for_selector', target: selector, delay: 200 });
+                     seq.push({ action: 'navigate', path: '/signup?role=pandit', delay: 200 });
+                     seq.push({ action: 'wait_for_selector', target: selector, delay: 150 });
                   } else {
                      const isPanditTabActive = !!document.querySelector('[data-testid="tab-usertype-pandit"][aria-pressed="true"]');
                      if (!isPanditTabActive) {
-                        seq.push({ action: 'click', target: '[data-testid="tab-usertype-pandit"]', delay: 200 });
-                        seq.push({ action: 'wait_for_selector', target: selector, delay: 200 });
+                        seq.push({ action: 'click', target: '[data-testid="tab-usertype-pandit"]', delay: 150 });
+                        seq.push({ action: 'wait_for_selector', target: selector, delay: 150 });
                      }
                   }
                 }
@@ -922,42 +974,62 @@ export function useSaarthiVoice() {
                   
                   // Auto-advance wizard steps if needed
                   if (targetStep >= 2) {
-                      seq.push({ action: 'click', target: '[data-testid="button-pandit-next-1"]', delay: 200 });
+                      seq.push({ action: 'click', target: '[data-testid="button-pandit-next-1"]', delay: 150 });
                   }
-                  if (targetStep === 3) {
-                      seq.push({ action: 'click', target: '[data-testid="button-pandit-next-2"]', delay: 200 });
+                  if (targetStep >= 3) {
+                      seq.push({ action: 'click', target: '[data-testid="button-pandit-next-2"]', delay: 150 });
                   }
                   
                   // Add a small delay to allow DOM to render new step
                   if (targetStep > 1) {
-                      seq.push({ action: 'wait_for_selector', target: selector, delay: 300 });
+                      seq.push({ action: 'wait_for_selector', target: selector, delay: 150 });
                   }
 
                   const isSelectDropdown = fTarget.includes('exp') || fTarget.includes('spec');
                   const isLangToggle = fTarget.includes('lang');
-                  if (isSelectDropdown) {
-                    seq.push({ action: 'move', target: selector, delay: 400 });
-                    seq.push({ action: 'open_dropdown', target: selector, delay: 500 });
-                    seq.push({ action: 'select_option', target: selector, text: fQuery, delay: 800 });
+                  const isButtonGroup = fTarget.includes('gender') || fTarget.includes('availability') || fTarget.includes('service') || fTarget.includes('mode');
+
+                  if (isButtonGroup) {
+                    const btnGroupSel = `[data-field="${fTarget}"] button, [data-testid="pill-group-${fTarget}"] button, [data-testid^="pill-${fTarget}"]`;
+                    const queryLower = (fQuery || '').toLowerCase();
+                    const buttons = Array.from(document.querySelectorAll<HTMLElement>(btnGroupSel));
+                    const matchedBtn = buttons.find(b => (b.textContent || '').toLowerCase().includes(queryLower));
+                    
+                    if (matchedBtn) {
+                      const btnIndex = buttons.indexOf(matchedBtn);
+                      const targetBtnSel = `[data-field="${fTarget}"] button:nth-of-type(${btnIndex + 1}), [data-testid="pill-group-${fTarget}"] button:nth-of-type(${btnIndex + 1})`;
+                      seq.push({ action: 'move', target: targetBtnSel, delay: 150 });
+                      seq.push({ action: 'click', target: targetBtnSel, delay: 150 });
+                    } else {
+                      const fallbackSel = `[data-testid="pill-${fTarget}-${queryLower}"]`;
+                      seq.push({ action: 'move', target: fallbackSel, delay: 150 });
+                      seq.push({ action: 'click', target: fallbackSel, delay: 150 });
+                    }
+                  } else if (isSelectDropdown) {
+                    seq.push({ action: 'move', target: selector, delay: 200 });
+                    seq.push({ action: 'open_dropdown', target: selector, delay: 200 });
+                    seq.push({ action: 'select_option', target: selector, text: fQuery, delay: 300 });
                   } else if (isLangToggle) {
-                    const targetLangs = (fQuery || "Hindi, Sanskrit").split(',').map((l: string) => l.trim().toLowerCase());
+                    const queryLower = (fQuery || '').toLowerCase();
                     const allPossibleLangs = ['hindi', 'sanskrit', 'english', 'gujarati', 'marathi', 'bengali', 'tamil', 'telugu'];
                     
                     for (const lang of allPossibleLangs) {
                       const btnSelector = `[data-testid="toggle-lang-${lang}"]`;
-                      const shouldBeActive = targetLangs.includes(lang);
+                      const isSpoken = queryLower.includes(lang) || (lang === 'english' && (queryLower.includes('angrezi') || queryLower.includes('english')));
                       
-                      const btnEl = document.querySelector(btnSelector);
-                      const isActive = btnEl ? (btnEl.textContent || '').includes('✓') : (lang === 'hindi' || lang === 'sanskrit');
+                      const btnEl = document.querySelector<HTMLElement>(btnSelector);
+                      const isActive = btnEl ? (btnEl.textContent || '').includes('✓') : false;
                       
-                      if ((shouldBeActive && !isActive) || (!shouldBeActive && isActive)) {
-                        seq.push({ action: 'move', target: btnSelector, delay: 300 });
-                        seq.push({ action: 'click', target: btnSelector, delay: 200 });
+                      if (isSpoken && !isActive) {
+                        seq.push({ action: 'move', target: btnSelector, delay: 150 });
+                        seq.push({ action: 'click', target: btnSelector, delay: 150 });
                       }
                     }
                   } else {
-                    seq.push({ action: 'move', target: selector, delay: 400 });
-                    seq.push({ action: 'type', target: selector, text: fQuery, delay: 800 });
+                    seq.push({ action: 'move', target: selector, delay: 200 });
+                    seq.push({ action: 'type', target: selector, text: fQuery, delay: 300 });
+                  }
+                }r, text: fQuery, delay: 800 });
                   }
                 } else {
                   const element = document.querySelector(selector);
@@ -1075,7 +1147,29 @@ export function useSaarthiVoice() {
               }
             }
             
-            setDialogueText(contentStr);
+            // 🚨 REAL-TIME WORD-BY-WORD PROGRESSIVE STREAMING FOR ASSISTANT RESPONSE
+            if (streamIntervalRef.current) clearInterval(streamIntervalRef.current as any);
+
+            const fullText = contentStr;
+            const words = fullText.split(' ');
+            if (words.length > 1) {
+               let wordIdx = 0;
+               setDialogueText(words[0]);
+               streamIntervalRef.current = setInterval(() => {
+                  wordIdx++;
+                  if (wordIdx < words.length) {
+                     setDialogueText(words.slice(0, wordIdx + 1).join(' '));
+                  } else {
+                     if (streamIntervalRef.current) {
+                        clearInterval(streamIntervalRef.current as any);
+                        streamIntervalRef.current = null;
+                     }
+                  }
+               }, 110);
+            } else {
+               setDialogueText(fullText);
+            }
+
             console.log('[STATE]', 'idle -> speaking');
             setSaarthiState('speaking');
             isFinalChunkReceived.current = false;
@@ -1194,14 +1288,14 @@ export function useSaarthiVoice() {
 
   const playNextAudio = useCallback(() => {
     if (isPlayingRef.current || audioQueueRef.current.length === 0 || !audioContextRef.current) {
-      if (audioQueueRef.current.length === 0 && !isPlayingRef.current && isFinalChunkReceived.current) {
-         console.log('[STATE]', 'audio queue drained, transitioning to listening');
+      if (audioQueueRef.current.length === 0 && !isPlayingRef.current) {
+         console.log('[VERIFY-DIAGNOSTIC] (a) Audio playback complete (verification readout finished).');
+         console.log('[VERIFY-DIAGNOSTIC] (b) Mic re-armed. Transitioning state: speaking -> listening.');
          isFinalChunkReceived.current = false;
          if (fallbackTimeoutRef.current) {
              clearTimeout(fallbackTimeoutRef.current);
              fallbackTimeoutRef.current = null;
          }
-         console.log('[STATE]', 'speaking -> listening');
          setSaarthiState('listening');
       }
       return;
@@ -1275,128 +1369,175 @@ export function useSaarthiVoice() {
     tryPlay();
   }, [setSaarthiState]);
 
+  // ── PERSISTENT MICROPHONE & VAD EFFECT (Lifetime tied to WS Connection) ──
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const vadAudioCtxRef = useRef<AudioContext | null>(null);
+  const vadIntervalRef = useRef<any>(null);
+  const userRecordedBytesRef = useRef<number>(0);
+  const userHasSpokenRef = useRef<boolean>(false);
+
+  // Reset speech counters whenever entering 'listening' mode (User turn starts)
   useEffect(() => {
-    console.log(`[Voice] state changed to: ${state}, isConnected: ${isConnected}`);
-    let vadInterval: number;
-    let vadAudioCtx: AudioContext;
+    if (state === 'listening') {
+      console.log('[Voice] Entered LISTENING state. Resetting user speech byte counters.');
+      userRecordedBytesRef.current = 0;
+      userHasSpokenRef.current = false;
+    }
+  }, [state]);
+
+  useEffect(() => {
+    console.log('[Voice] mic useEffect triggered | isConnected:', isConnected, '| micStreamActive:', !!(micStreamRef.current && micStreamRef.current.active));
+    if (!isConnected) return;
+
+    if (micStreamRef.current && micStreamRef.current.active && processorRef.current) {
+      console.log('[Voice] Persistent microphone stream is ALREADY active. Preserving active stream.');
+      return;
+    }
+
+    console.log('[Voice] Initializing PERSISTENT microphone stream for WebSocket session...');
     let silenceStart = Date.now();
-    let isSpeaking = false;
-    let recordedBytesSent = 0;
-    let vadWarmupTime = Date.now() + 1000; // 1 second warmup where VAD doesn't trigger silence
+    let vadWarmupTime = Date.now() + 1000;
 
-    if ((state === 'listening' || state === 'speaking') && isConnected) {
-      console.log('[Voice] Requesting microphone permission with Echo Cancellation & Noise Suppression...');
-      navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
-        .then(stream => {
-          console.log('[Voice] Microphone permission granted (Active across listening & speaking states)');
-          // Start AudioContext with 16000 sampleRate
-          if (audioContextRef.current) {
-             if (audioContextRef.current.sampleRate !== 16000) {
-                 audioContextRef.current.close();
-                 audioContextRef.current = null;
-             }
-          }
-          if (!audioContextRef.current) {
-            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-          }
-          
-          const audioCtx = audioContextRef.current;
-          // Ensure AudioContext is resumed if suspended
-          if (audioCtx.state === 'suspended') {
-             audioCtx.resume().then(() => console.log('[Voice] AudioContext resumed for mic input'));
-          }
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+      .then(stream => {
+        micStreamRef.current = stream;
+        console.log('[Voice] Persistent Microphone permission granted & stream active');
 
-          const sourceNode = audioCtx.createMediaStreamSource(stream);
-          const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-          
-          let chunkCounter = 0;
+        if (!audioContextRef.current) {
+          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+        }
+        const audioCtx = audioContextRef.current;
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume().then(() => console.log('[Voice] AudioContext resumed for persistent mic input'));
+        }
 
-          processor.onaudioprocess = (event) => {
+        // ── AUTOPLAY UNBLOCKER: Attach global user interaction listeners ──
+        const resumeAllAudioContexts = () => {
+          if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+            audioContextRef.current.resume().then(() => {
+              console.log('[Voice] Main audioContextRef resumed via user interaction! State:', audioContextRef.current?.state);
+            }).catch(e => console.warn('[Voice] Main AudioContext resume error:', e));
+          }
+          if (vadAudioCtxRef.current && vadAudioCtxRef.current.state === 'suspended') {
+            vadAudioCtxRef.current.resume().then(() => {
+              console.log('[Voice] vadAudioCtxRef resumed via user interaction! State:', vadAudioCtxRef.current?.state);
+            }).catch(e => console.warn('[Voice] VAD AudioContext resume error:', e));
+          }
+        };
+
+        window.addEventListener('click', resumeAllAudioContexts, true);
+        window.addEventListener('pointerdown', resumeAllAudioContexts, true);
+        window.addEventListener('touchstart', resumeAllAudioContexts, true);
+        window.addEventListener('keydown', resumeAllAudioContexts, true);
+
+        const sourceNode = audioCtx.createMediaStreamSource(stream);
+        const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+        processorRef.current = processor;
+
+        let chunkCounter = 0;
+
+        processor.onaudioprocess = (event) => {
+          // Stream AUDIO_FRAMEs during both 'listening' and 'idle' states when Saarthi is not speaking
+          if (stateRef.current !== 'speaking' && wsRef.current?.readyState === WebSocket.OPEN) {
             chunkCounter++;
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
-              const inputData = event.inputBuffer.getChannelData(0);
-              const pcm16 = float32ToPCM16(inputData);
-              const base64data = uint8ArrayToBase64(pcm16);
+            const inputData = event.inputBuffer.getChannelData(0);
+            const pcm16 = float32ToPCM16(inputData);
+            const base64data = uint8ArrayToBase64(pcm16);
 
-              recordedBytesSent += pcm16.byteLength;
-              if (chunkCounter % 10 === 0) {
-                 console.log(`[VAD-DIAGNOSTIC] Streaming AUDIO_FRAME (chunk ${chunkCounter}). Total sent: ${recordedBytesSent} bytes.`);
-              }
-              wsRef.current.send(JSON.stringify({
-                type: 'AUDIO_FRAME',
-                payload: { data: base64data },
-              }));
+            userRecordedBytesRef.current += pcm16.byteLength;
+            if (chunkCounter % 10 === 0) {
+              console.log(`[VAD-DIAGNOSTIC] Streaming AUDIO_FRAME (chunk ${chunkCounter}). Total user bytes: ${userRecordedBytesRef.current}`);
             }
-          };
-          
-          sourceNode.connect(processor);
-          processor.connect(audioCtx.destination);
-          
-          (mediaRecorderRef as any).current = {
-            state: 'recording',
-            stop: () => {
-              processor.disconnect();
-              sourceNode.disconnect();
-            },
-            stream: stream
-          };
-          console.log('[Voice] Started ScriptProcessorNode (Audio streaming active)');
+            wsRef.current.send(JSON.stringify({
+              type: 'AUDIO_FRAME',
+              payload: { data: base64data },
+            }));
+          }
+        };
 
-          // VAD Setup
-          vadAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-          const source = vadAudioCtx.createMediaStreamSource(stream);
-          const analyser = vadAudioCtx.createAnalyser();
-          analyser.fftSize = 512;
-          analyser.minDecibels = -70; // High sensitivity VAD
-          analyser.smoothingTimeConstant = 0.1;
-          source.connect(analyser);
+        sourceNode.connect(processor);
+        processor.connect(audioCtx.destination);
 
-          const dataArray = new Uint8Array(analyser.frequencyBinCount);
-          silenceStart = Date.now();
-          let speechStreakDuringSpeaking = 0;
+        // VAD Setup
+        const vadAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        vadAudioCtxRef.current = vadAudioCtx;
+        if (vadAudioCtx.state === 'suspended') {
+          vadAudioCtx.resume().catch(() => {});
+        }
 
-          vadInterval = window.setInterval(() => {
-            analyser.getByteFrequencyData(dataArray);
-            let sum = 0;
-            for (let i = 0; i < dataArray.length; i++) {
-              sum += dataArray[i];
-            }
-            const average = sum / dataArray.length;
-            
-            // Console log VAD metrics every 500ms
-            if (Date.now() % 500 < 100) {
-              console.log(`[VAD-DIAGNOSTIC] VAD Tick | State: ${stateRef.current} | Vol Avg: ${average.toFixed(2)} | isSpeaking: ${isSpeaking}`);
-            }
+        const vadSource = vadAudioCtx.createMediaStreamSource(stream);
+        const analyser = vadAudioCtx.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.minDecibels = -80;
+        analyser.smoothingTimeConstant = 0.1;
+        vadSource.connect(analyser);
 
-            if (Date.now() < vadWarmupTime) {
-               silenceStart = Date.now();
-               return;
-            }
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        silenceStart = Date.now();
+        const VAD_THRESHOLD = 3.0;
 
-            // -------------------------------------------------------------------------
-            // BARGE-IN DISABLED FOR DEMO STABILITY: Mic only listens after Saarthi finishes speaking
-            // -------------------------------------------------------------------------
-            if (stateRef.current === 'speaking') {
-              silenceStart = Date.now();
-              return;
-            }
+        vadIntervalRef.current = window.setInterval(() => {
+          // Periodically attempt resume if suspended
+          if (vadAudioCtxRef.current?.state === 'suspended') {
+            vadAudioCtxRef.current.resume().catch(() => {});
+          }
+          if (audioContextRef.current?.state === 'suspended') {
+            audioContextRef.current.resume().catch(() => {});
+          }
 
-            // -------------------------------------------------------------------------
-            // NORMAL LISTENING VAD LOGIC (during 'listening' state)
-            // -------------------------------------------------------------------------
-            if (average > 6.0) { // Speech start threshold (6.0 for responsive detection)
-              if (!isSpeaking) {
-                console.log(`[VAD-DIAGNOSTIC] 🎯 Speech CONFIRMED started! (Vol: ${average.toFixed(2)} > 6.0)`);
-                isSpeaking = true;
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+          const average = sum / dataArray.length;
+
+          if (Date.now() % 500 < 100) {
+            console.log(`[VAD-DIAGNOSTIC] VAD Tick | State: ${stateRef.current} | Vol: ${average.toFixed(2)} | Thresh: ${VAD_THRESHOLD} | Vol>Thresh: ${average > VAD_THRESHOLD} | UserSpoken: ${userHasSpokenRef.current}`);
+          }
+
+          if (Date.now() < vadWarmupTime) {
+            silenceStart = Date.now();
+            return;
+          }
+
+          // Ignore VAD during Saarthi's own TTS playback ('speaking')
+          if (stateRef.current === 'speaking') {
+            silenceStart = Date.now();
+            return;
+          }
+
+          // VAD Logic whenever Saarthi is not speaking (during 'listening' or 'idle' state)
+          if (stateRef.current !== 'speaking') {
+            if (average > VAD_THRESHOLD) {
+              if (!userHasSpokenRef.current) {
+                console.log(`[VAD-DIAGNOSTIC] 🎯 User speech CONFIRMED started! (Vol: ${average.toFixed(2)} > ${VAD_THRESHOLD})`);
+                userHasSpokenRef.current = true;
+                if (stateRef.current !== 'listening') {
+                  setSaarthiState('listening');
+                }
               }
               silenceStart = Date.now();
             } else {
-              if (isSpeaking && (Date.now() - silenceStart > 1200)) { // 1.2 seconds of silence after speech
-                console.log(`[VAD-DIAGNOSTIC] 🤫 Silence detected after 1.2s. Triggering state transition to idle. Last Vol: ${average.toFixed(2)}`);
-                isSpeaking = false;
-                setSaarthiState('idle');
+              if (userHasSpokenRef.current && (Date.now() - silenceStart > 1800)) {
+                console.log(`[VAD-DIAGNOSTIC] 🤫 Silence detected after 1.8s. User speech complete. Total bytes: ${userRecordedBytesRef.current}`);
+                userHasSpokenRef.current = false;
                 
-                console.log('[WIDGET] Shrink condition check (VAD): isSpeaking=false, _hasMinimizedOnce=', (window as any)._hasMinimizedOnce);
+                // Send AUDIO_END only for genuine user speech
+                if (wsRef.current?.readyState === WebSocket.OPEN && userRecordedBytesRef.current > 0) {
+                  const domData = getFormStateData();
+                  console.log(`[VAD-DIAGNOSTIC] ✅ Sending AUDIO_END frame with activeField: "${activeFieldRef.current}", DOM data:`, domData);
+                  wsRef.current.send(JSON.stringify({
+                    type: 'AUDIO_END',
+                    payload: {
+                      current_page: window.location.pathname,
+                      active_field: activeFieldRef.current,
+                      dom_form_data: domData,
+                    }
+                  }));
+                }
+                userRecordedBytesRef.current = 0;
+                setSaarthiState('idle');
+
                 if (!(window as any)._hasMinimizedOnce) {
                   console.log('[WIDGET] Triggering shrink-to-corner animation now (via VAD)');
                   forceMinimize();
@@ -1404,49 +1545,44 @@ export function useSaarthiVoice() {
                 }
               }
             }
-          }, 100);
+          }
+        }, 100);
+      })
+      .catch(err => {
+        console.error('[Voice] Persistent Microphone error', err);
+        setError('Could not access microphone');
+        setSaarthiState('idle');
+      });
 
-        })
-        .catch(err => {
-          console.error('[Voice] Microphone error', err);
-          setError('Could not access microphone');
-          setSaarthiState('idle');
-        });
-    }
-    
     return () => {
-      window.clearInterval(vadInterval);
-      if (vadAudioCtx && vadAudioCtx.state !== 'closed') {
-        vadAudioCtx.close();
-      }
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        console.log(`[VAD-DIAGNOSTIC] Stopping MediaRecorder (cleanup). Total recorded bytes sent: ${recordedBytesSent}`);
-        
-        mediaRecorderRef.current.state = 'inactive';
-        mediaRecorderRef.current.stop();
-        mediaRecorderRef.current.stream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
-        
-        if (recordedBytesSent > 0) {
-            console.log(`[VAD-DIAGNOSTIC] ✅ Sending AUDIO_END frame with total byte size: ${recordedBytesSent} bytes. current_page: ${window.location.pathname}`);
-            wsRef.current?.send(JSON.stringify({
-              type: 'AUDIO_END',
-              payload: {
-                current_page: window.location.pathname
-              }
-            }));
-        } else {
-            console.log('[VAD-DIAGNOSTIC] Skipping AUDIO_END frame because 0 bytes were recorded.');
+      // Only destroy microphone stream tracks if the WebSocket connection is explicitly closed
+      if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+        console.log('[Voice] WebSocket closed. Tearing down persistent microphone stream...');
+        if (vadIntervalRef.current) window.clearInterval(vadIntervalRef.current);
+        if (vadAudioCtxRef.current && vadAudioCtxRef.current.state !== 'closed') {
+          vadAudioCtxRef.current.close().catch(() => {});
         }
+        if (processorRef.current) {
+          try { processorRef.current.disconnect(); } catch (e) {}
+        }
+        if (micStreamRef.current) {
+          micStreamRef.current.getTracks().forEach(track => track.stop());
+          micStreamRef.current = null;
+        }
+      } else {
+        console.log('[Voice] Component re-render/remount detected. Preserving active microphone stream & VAD context.');
       }
     };
-  }, [state, isConnected, setSaarthiState]);
+  }, [isConnected]);
 
   const stopSpeaking = useCallback(() => {
     console.log('[Voice] Barge-in / Stop requested. Halting speech.');
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close().then(() => {
-         audioContextRef.current = null;
-      });
+    if (currentAudioSourceRef.current) {
+      try {
+        currentAudioSourceRef.current.stop();
+        currentAudioSourceRef.current.disconnect();
+      } catch (e) {}
+      currentAudioSourceRef.current = null;
     }
     audioQueueRef.current = [];
     isPlayingRef.current = false;

@@ -30,7 +30,7 @@ export const speechBubbleVariants = {
   },
 };
 
-export const SaarthiSpeechBubble: React.FC<SaarthiSpeechBubbleProps> = ({ text }) => {
+export const SaarthiSpeechBubble: React.FC<SaarthiSpeechBubbleProps> = React.memo(({ text }) => {
   if (!text) return null;
 
   return (
@@ -42,9 +42,10 @@ export const SaarthiSpeechBubble: React.FC<SaarthiSpeechBubbleProps> = ({ text }
       className="relative w-full max-w-sm sm:max-w-md bg-[#fffdf9]/95 backdrop-blur-md border border-[#eadbc9] rounded-2xl p-3 sm:p-4 shadow-xl text-center max-h-[140px] overflow-y-auto overflow-x-hidden custom-scrollbar"
       data-testid="saarthi-speech-bubble"
     >
-      <p className="text-sm sm:text-base font-serif text-[#24272d] leading-snug whitespace-pre-line font-medium">
+      <p className="text-sm sm:text-base font-serif text-[#24272d] leading-snug whitespace-pre-line font-medium transition-all duration-100 ease-out">
         {text}
       </p>
     </motion.div>
   );
-};
+});
+

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   SaarthiContext,
   type SaarthiState,
@@ -115,9 +115,9 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
     }
   };
 
-  const setSaarthiState = (newState: SaarthiState) => {
+  const setSaarthiState = useCallback((newState: SaarthiState) => {
     setState(newState);
-  };
+  }, []);
 
   const announceMessage = (text: string, isSuccess: boolean = true) => {
     console.log('[Saarthi] Announce message:', text, 'isSuccess:', isSuccess);

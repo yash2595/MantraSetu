@@ -1941,6 +1941,31 @@
   transition: all 0.3s ease-in-out !important;
 }
 
+/* Persistent soft glow AFTER a field is filled by Saarthi */
+.saarthi-filled {
+  border-color: #ee7c2b !important;
+  box-shadow: 0 0 8px rgba(238, 124, 43, 0.35) !important;
+  background-color: #fffaf5 !important;
+  transition: all 0.5s ease-in-out !important;
+}
+
+/* Blinking cursor during char-by-char typing */
+@keyframes saarthiCursorBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* Namaste bow animation on Saarthi avatar */
+@keyframes saarthiNamastebow {
+  0%   { transform: rotate(0deg) scale(1); }
+  30%  { transform: rotate(12deg) scale(0.95); }
+  60%  { transform: rotate(-6deg) scale(1.02); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+.saarthi-namaste-bow {
+  animation: saarthiNamastebow 0.9s ease-in-out;
+}
+
 input, select, textarea {
   transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
@@ -1958,4 +1983,11 @@ input, select, textarea {
 @keyframes saarthiFadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+.saarthi-highlight {
+  outline: 3px solid #ee7c2b !important;
+  box-shadow: 0 0 16px rgba(238, 124, 43, 0.6) !important;
+  border-color: #ee7c2b !important;
+  transition: all 0.3s ease-in-out !important;
 }

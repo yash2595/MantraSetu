@@ -142,6 +142,19 @@ export default function Puja() {
     }
   }, [searchParams]);
 
+  // Auto-open booking modal if autobook=true in URL parameter and matched pujas exist
+  useEffect(() => {
+    const isAutoBook = searchParams.get('autobook') === 'true';
+    if (isAutoBook && filteredPujas.length > 0 && !bookingPuja) {
+      const timer = setTimeout(() => {
+        console.log('[PUJA-PAGE] Autobook parameter active: Opening booking modal for:', filteredPujas[0].title);
+        setBookingPuja(filteredPujas[0]);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams, filteredPujas, bookingPuja]);
+
+
   // Form state for booking modal
   const [bookingDate, setBookingDate] = useState('2026-08-15');
   const [bookingCity, setBookingCity] = useState('New Delhi');
