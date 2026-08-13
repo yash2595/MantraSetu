@@ -58,6 +58,7 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
     try:
         while True:
             raw_text = await websocket.receive_text()
+            logger.info(f"[WS-ROUTER] Incoming raw WebSocket text message: {raw_text[:200]}...")
             try:
                 frame = WebSocketEnvelope.model_validate_json(raw_text)
             except Exception as parse_err:
@@ -230,9 +231,10 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                         _intent = _nav.get("intent") if _nav else (resp.response_type.value if hasattr(resp, "response_type") else "chat")
                         _query = _nav.get("query") if _nav else None
                         _fields = _nav.get("fields") if _nav else None
+                        _active_field = _nav.get("active_field") if _nav else None
                         logger.info(
-                            "[WS-ROUTER] AI_RESPONSE payload: target=%s  action=%s  intent=%s  query=%s  fields=%s  text=%r",
-                            _target, _action, _intent, _query, _fields, resp.text[:80] if resp.text else "",
+                            "[WS-ROUTER] AI_RESPONSE payload: target=%s  action=%s  intent=%s  query=%s  fields=%s  active_field=%s  text=%r",
+                            _target, _action, _intent, _query, _fields, _active_field, resp.text[:80] if resp.text else "",
                         )
 
                         ai_reply = WebSocketEnvelope(
@@ -247,6 +249,7 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                                 "target": _target,
                                 "query": _query,
                                 "fields": _fields,
+                                "active_field": _active_field,
                             },
                         )
                         try:
@@ -293,13 +296,24 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                 session = await voice_gateway.session_manager.get_session(active_session_id)
                 pujas = session.context_data.get("pujas", []) if session and hasattr(session, "context_data") else []
 
+                # Extract user_parameters if present in the raw text JSON
+                import json
+                user_params = {"pujas": pujas}
+                try:
+                    raw_dict = json.loads(raw_text)
+                    frame_params = raw_dict.get("user_parameters") or raw_dict.get("payload", {}).get("user_parameters")
+                    if isinstance(frame_params, dict):
+                        user_params.update(frame_params)
+                except Exception:
+                    pass
+
                 resp = await voice_gateway._ai_orchestrator.process_request(
                     request=OrchestratorRequest(
                         conversation_id=frame.conversation_id or "default_conv",
                         session_id=active_session_id,
                         user_message=frame.payload.get("text", ""),
                         current_page=frame.payload.get("current_page", None),
-                        user_parameters={"pujas": pujas}
+                        user_parameters=user_params
                     )
                 )
 
@@ -317,6 +331,7 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                         "target": resp.navigation_directive.get("target") if resp.navigation_directive else None,
                         "query": resp.navigation_directive.get("query") if resp.navigation_directive else None,
                         "fields": resp.navigation_directive.get("fields") if resp.navigation_directive else None,
+                        "active_field": resp.navigation_directive.get("active_field") if resp.navigation_directive else None,
                     },
                 )
                 try:

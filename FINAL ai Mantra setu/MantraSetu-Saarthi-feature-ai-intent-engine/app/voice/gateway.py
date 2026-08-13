@@ -138,6 +138,7 @@ class VoiceGateway:
 
         buffer = self._buffers.get(session_id) or AudioBuffer()
         stt_result = await self._speech_recognizer.finish_session(session, buffer)
+        logger.info(f"[DIAGNOSTIC] RAW STT TRANSCRIPT before LLM extraction: {stt_result.text!r}")
 
         aggregator = self._aggregators.get(session_id)
         if aggregator:

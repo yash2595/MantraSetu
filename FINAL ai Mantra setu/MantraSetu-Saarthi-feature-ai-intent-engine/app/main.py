@@ -26,6 +26,24 @@ if sys.platform == "win32":
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from app.core.app import create_app
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+
+if not os.environ.get("SPEECH_API_KEY"):
+    warning_msg = """
+    ======================================================================
+    WARNING: SPEECH_API_KEY environment variable is MISSING!
+    
+    The AI Intent Engine will silently fall back to the free Google Web
+    Speech API (using 'en-IN'). This will drastically degrade speech
+    recognition quality, especially for code-mixed English and Hindi.
+    
+    To fix this, please configure SPEECH_API_KEY for Whisper STT in your .env
+    ======================================================================
+    """
+    print(warning_msg)
+    logger.warning(warning_msg)
 
 app = create_app()
-

@@ -183,10 +183,14 @@ class WhisperProvider(BaseSpeechToTextProvider):
                 with sr.AudioFile(io.BytesIO(request.audio_bytes)) as source:
                     audio_data = recognizer.record(source)
                 
-                transcript_text = recognizer.recognize_google(audio_data, language=request.language or "en-US")
+                # STOPGAP MITIGATION: Force 'en-IN' instead of strict Hindi (request.language)
+                # to allow Google STT to capture English names without mangling them.
+                # Permanent fix is configuring SPEECH_API_KEY for Whisper.
+                fallback_lang = "en-IN"
+                transcript_text = recognizer.recognize_google(audio_data, language=fallback_lang)
                 return SpeechToTextResponse(
                     transcript=transcript_text,
-                    language=request.language,
+                    language=fallback_lang,
                     confidence=1.0,
                 )
             except sr.UnknownValueError:

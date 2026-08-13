@@ -30,11 +30,22 @@ export interface PanditApplyPayload {
   confirm_password?: string;
   city?: string;
   state?: string;
+  // Step 1 extras
+  gender?: string;
+  availability_mode?: string;
+  service_areas?: string[];
+  // Step 2 qualifications
   languages?: string[];
   experience?: string;
-  specialization?: string;
+  specializations?: string[];   // List[str] – multi-select
+  education?: string;
+  gurukul?: string;
+  achievements?: string[];
+  bio?: string;
+  // Step 3 files
   aadhaar_file?: File | null;
   certificate_file?: File | null;
+  gallery_files?: File[];
 }
 
 export interface AuthResponse {

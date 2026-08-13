@@ -39,3 +39,4 @@ class WebSocketEnvelope(SchemaModel):
     type: ProtocolMessageType = Field(description="Message frame type tag.")
     timestamp_ms: int = Field(default_factory=lambda: int(time.time() * 1000), description="Epoch millisecond timestamp.")
     payload: dict[str, Any] = Field(default_factory=dict, description="Frame payload dictionary.")
+    user_parameters: dict[str, Any] | None = Field(default=None, description="Optional request parameters passed from client.")

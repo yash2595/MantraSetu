@@ -3,11 +3,11 @@ import { useSaarthi } from '../components/saarthi/SaarthiContext';
 import { useNavigate } from 'react-router-dom';
 import { getPersistableData } from '../utils/formSecurity';
 
-/** Shared sanitization helper to guarantee no passwords/credentials enter localStorage */
+/** Shared sanitization helper to guarantee no passwords/credentials enter sessionStorage */
 export function persistVoiceState(data: Record<string, any>) {
   try {
     const safeData = getPersistableData(data);
-    localStorage.setItem('ms_saarthi_form_state', JSON.stringify(safeData));
+    sessionStorage.setItem('ms_saarthi_form_state', JSON.stringify(safeData));
   } catch (e) {}
 }
 
@@ -217,7 +217,7 @@ export function useSaarthiVoice() {
     if (!cursor) {
       cursor = document.createElement('div');
       cursor.id = 'saarthi-cursor';
-      cursor.style.position = 'absolute'; // Use absolute so it scrolls with the page
+      cursor.style.position = 'fixed'; // Use fixed so it tracks viewport coordinates
       cursor.style.width = '24px';
       cursor.style.height = '24px';
       cursor.style.borderRadius = '50%';
@@ -227,8 +227,8 @@ export function useSaarthiVoice() {
       cursor.style.zIndex = '99999';
       cursor.style.pointerEvents = 'none';
       cursor.style.transition = 'all 0.8s ease-in-out';
-      cursor.style.left = `${window.innerWidth / 2 + window.scrollX - 12}px`;
-      cursor.style.top = `${window.innerHeight / 2 + window.scrollY - 12}px`;
+      cursor.style.left = `${window.innerWidth / 2 - 12}px`;
+      cursor.style.top = `${window.innerHeight / 2 - 12}px`;
       cursor.style.opacity = '0';
       document.body.appendChild(cursor);
     }
@@ -258,10 +258,16 @@ export function useSaarthiVoice() {
       return;
     }
 
+    if (step.action === 'REFRESH_PAGE') {
+      console.log('[NAV-DEBUG] Triggering browser reload for REFRESH_PAGE action');
+      window.location.reload();
+      return;
+    }
+
     if (step.action === 'scroll' && step.target) {
       const targetEl = document.querySelector(step.target) as HTMLElement;
       if (targetEl) {
-        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetEl.scrollIntoView({ behavior: 'auto', block: 'center' });
         setTimeout(processNextStep, step.delay || 400);
       } else {
         console.warn('[NAV-DEBUG] Scroll target not found, gracefully staying at top:', step.target);
@@ -273,14 +279,14 @@ export function useSaarthiVoice() {
     if (step.action === 'move' && step.target) {
       const targetEl = document.querySelector(step.target) as HTMLElement;
       if (targetEl) {
-        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetEl.scrollIntoView({ behavior: 'auto', block: 'center' });
         
         // 300ms scroll buffer to ensure final coordinates are accurate
         setTimeout(() => {
           const rect = targetEl.getBoundingClientRect();
-          // Absolute coordinates targeting the center of the element
-          const targetX = rect.left + rect.width / 2 + window.scrollX;
-          const targetY = rect.top + rect.height / 2 + window.scrollY;
+          // Coordinates targeting the center of the element relative to viewport
+          const targetX = rect.left + rect.width / 2;
+          const targetY = rect.top + rect.height / 2;
           
           cursor!.style.opacity = '1';
           cursor!.style.transform = 'scale(1)';
@@ -304,8 +310,8 @@ export function useSaarthiVoice() {
       }
       if (targetEl) {
         const rect = targetEl.getBoundingClientRect();
-        const targetX = rect.left + rect.width / 2 + window.scrollX;
-        const targetY = rect.top + rect.height / 2 + window.scrollY;
+        const targetX = rect.left + rect.width / 2;
+        const targetY = rect.top + rect.height / 2;
         
         cursor.style.left = `${targetX - 12}px`;
         cursor.style.top = `${targetY - 12}px`;
@@ -313,6 +319,7 @@ export function useSaarthiVoice() {
         cursor.style.backgroundColor = 'rgba(238, 124, 43, 0.9)';
         
         targetEl.click();
+        targetEl.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
         const formEl = targetEl.closest('form');
         if (formEl && (targetEl.getAttribute('type') === 'submit' || step.target.includes('submit'))) {
           console.log('[FORM-SUBMIT] Triggering form.requestSubmit() explicitly');
@@ -338,7 +345,7 @@ export function useSaarthiVoice() {
     if (step.action === 'open_dropdown' && step.target) {
       const targetEl = document.querySelector(step.target) as HTMLSelectElement;
       if (targetEl && targetEl.tagName.toLowerCase() === 'select') {
-        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetEl.scrollIntoView({ behavior: 'auto', block: 'center' });
         setTimeout(() => {
           // Open dropdown visually by setting size to options length
           targetEl.size = targetEl.options.length || 4;
@@ -368,21 +375,21 @@ export function useSaarthiVoice() {
         const matchedOption = options[matchedIdx];
         const selectRect = targetEl.getBoundingClientRect();
         
-        let optX = selectRect.left + selectRect.width / 2 + window.scrollX;
-        let optY = selectRect.top + selectRect.height + window.scrollY;
+        let optX = selectRect.left + selectRect.width / 2;
+        let optY = selectRect.top + selectRect.height;
 
         try {
           const optRect = matchedOption.getBoundingClientRect();
           if (optRect && optRect.height > 0) {
-            optX = optRect.left + optRect.width / 2 + window.scrollX;
-            optY = optRect.top + optRect.height / 2 + window.scrollY;
+            optX = optRect.left + optRect.width / 2;
+            optY = optRect.top + optRect.height / 2;
           } else {
             const optionHeight = 24; // fallback item height
-            optY = selectRect.top + selectRect.height + matchedIdx * optionHeight + optionHeight / 2 + window.scrollY;
+            optY = selectRect.top + selectRect.height + matchedIdx * optionHeight + optionHeight / 2;
           }
         } catch (e) {
           const optionHeight = 24;
-          optY = selectRect.top + selectRect.height + matchedIdx * optionHeight + optionHeight / 2 + window.scrollY;
+          optY = selectRect.top + selectRect.height + matchedIdx * optionHeight + optionHeight / 2;
         }
 
         // Move cursor to option visual center
@@ -427,8 +434,8 @@ export function useSaarthiVoice() {
       console.log(`[FORM-FILL-EXEC] Action: TYPE. Target: "${step.target}". ElementFound: ${!!targetEl}. ValueToSet: "${step.text}"`);
       if (targetEl) {
          const rect = targetEl.getBoundingClientRect();
-         const targetX = rect.left + rect.width / 2 + window.scrollX;
-         const targetY = rect.top + rect.height / 2 + window.scrollY;
+         const targetX = rect.left + rect.width / 2;
+         const targetY = rect.top + rect.height / 2;
          
          cursor.style.left = `${targetX - 12}px`;
          cursor.style.top = `${targetY - 12}px`;
@@ -441,10 +448,6 @@ export function useSaarthiVoice() {
              nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')?.set;
          }
 
-         const textToType = step.text;
-         let currentText = '';
-         let charIndex = 0;
-
          // Clear previous highlights before typing new field value
          document.querySelectorAll('.saarthi-highlight').forEach((el) => {
            el.classList.remove('saarthi-highlight');
@@ -452,29 +455,20 @@ export function useSaarthiVoice() {
          targetEl.classList.add('saarthi-highlight');
          console.log('[FORM-FILL-EXEC] Applied saarthi-highlight class to target:', step.target);
 
-         const typeNextChar = () => {
-           if (charIndex < textToType.length) {
-             currentText += textToType[charIndex];
-             charIndex++;
+         // Set value instantly instead of char-by-char to avoid React race conditions
+         if (nativeInputValueSetter) {
+           nativeInputValueSetter.call(targetEl, step.text);
+         } else {
+           (targetEl as HTMLInputElement).value = step.text;
+         }
 
-             if (nativeInputValueSetter) {
-               nativeInputValueSetter.call(targetEl, currentText);
-             } else {
-               targetEl.value = currentText;
-             }
+         targetEl.dispatchEvent(new Event('input', { bubbles: true }));
+         targetEl.dispatchEvent(new Event('change', { bubbles: true }));
 
-             targetEl.dispatchEvent(new Event('input', { bubbles: true }));
-             targetEl.dispatchEvent(new Event('change', { bubbles: true }));
-
-             setTimeout(typeNextChar, 40); // ~30-50ms delay between characters
-           } else {
-             // Typing complete, remove highlight from filled field
-             targetEl.classList.remove('saarthi-highlight');
-             setTimeout(processNextStep, step.delay);
-           }
-         };
-
-         typeNextChar();
+         setTimeout(() => {
+           targetEl.classList.remove('saarthi-highlight');
+           processNextStep();
+         }, 400);
       } else {
          console.warn('[NAV-DEBUG] Type target not found:', step.target);
          processNextStep();
@@ -596,22 +590,53 @@ export function useSaarthiVoice() {
 
               let highlightSelector = '';
               const isPanditField = activeField.startsWith('pandit-') || !!document.querySelector('[data-testid="tab-usertype-pandit"][aria-pressed="true"]');
-              if (activeField.includes('name')) highlightSelector = isPanditField ? '[data-testid="input-pandit-name"]' : '#devotee-name, [data-testid="input-name"]';
-              else if (activeField.includes('phone') || activeField.includes('mobile')) highlightSelector = isPanditField ? '[data-testid="input-pandit-phone"]' : 'input[type="tel"], [data-testid="input-phone"]';
-              else if (activeField.includes('email')) highlightSelector = isPanditField ? '[data-testid="input-pandit-email"]' : 'input[type="email"], [data-testid="input-email"]';
-              else if (activeField.includes('city')) highlightSelector = isPanditField ? '[data-testid="input-pandit-city"]' : '[data-testid="input-city"]';
-              else if (activeField.includes('state')) highlightSelector = isPanditField ? '[data-testid="input-pandit-state"]' : '[data-testid="input-state"]';
-              else if (activeField.includes('exp')) highlightSelector = '[data-testid="select-pandit-exp"]';
-              else if (activeField.includes('spec')) highlightSelector = '[data-testid="select-pandit-spec"]';
-              else if (activeField.includes('lang')) highlightSelector = '[data-testid^="toggle-lang-"]';
-              else highlightSelector = `#${activeField}, [data-testid="input-${activeField}"], [data-testid="select-${activeField}"]`;
+              
+              if (activeField === 'pandit-first-name') {
+                highlightSelector = '[data-testid="input-pandit-first-name"]';
+              } else if (activeField === 'pandit-last-name') {
+                highlightSelector = '[data-testid="input-pandit-last-name"]';
+              } else if (activeField === 'pandit-gender') {
+                highlightSelector = '[data-testid="pill-group-pandit-gender"]';
+              } else if (activeField === 'pandit-availability') {
+                highlightSelector = '[data-testid="pill-group-pandit-availability"]';
+              } else if (activeField === 'pandit-service-areas') {
+                highlightSelector = '[data-testid="pill-group-pandit-service-areas"]';
+              } else if (activeField === 'pandit-languages') {
+                highlightSelector = '[data-testid="pill-group-pandit-languages"]';
+              } else if (activeField === 'pandit-spec') {
+                highlightSelector = '[data-testid="pill-group-pandit-spec"]';
+              } else if (activeField === 'pandit-certFile') {
+                highlightSelector = '[data-testid="upload-pandit-certFile"]';
+              } else if (activeField === 'pandit-aadhaarFile') {
+                highlightSelector = '[data-testid="upload-pandit-aadhaarFile"]';
+              } else if (activeField === 'pandit-galleryFiles') {
+                highlightSelector = '[data-testid="upload-pandit-galleryFiles"]';
+              } else if (activeField === 'pandit-password') {
+                highlightSelector = '[data-testid="input-pandit-password"]';
+              } else if (activeField === 'pandit-confirm') {
+                highlightSelector = '[data-testid="input-pandit-confirm"]';
+              } else if (activeField.includes('name')) {
+                highlightSelector = isPanditField ? '[data-testid="input-pandit-name"]' : '#devotee-name, [data-testid="input-name"]';
+              } else if (activeField.includes('phone') || activeField.includes('mobile')) {
+                highlightSelector = isPanditField ? '[data-testid="input-pandit-phone"]' : 'input[type="tel"], [data-testid="input-phone"]';
+              } else if (activeField.includes('email')) {
+                highlightSelector = isPanditField ? '[data-testid="input-pandit-email"]' : 'input[type="email"], [data-testid="input-email"]';
+              } else if (activeField.includes('city')) {
+                highlightSelector = isPanditField ? '[data-testid="input-pandit-city"]' : '[data-testid="input-city"]';
+              } else if (activeField.includes('state')) {
+                highlightSelector = isPanditField ? '[data-testid="input-pandit-state"]' : '[data-testid="input-state"]';
+              } else if (activeField.includes('exp')) {
+                highlightSelector = '[data-testid="select-pandit-exp"]';
+              } else {
+                highlightSelector = `#${activeField}, [data-testid="input-${activeField}"], [data-testid="select-${activeField}"]`;
+              }
 
               const targetHighlightEl = document.querySelector(highlightSelector) as HTMLElement | null;
               console.log('[DEBUG-HIGHLIGHT-TARGET] activeField:', activeField, 'selector:', highlightSelector, 'found:', !!targetHighlightEl, 'tagName:', targetHighlightEl?.tagName);
 
               if (targetHighlightEl) {
                 targetHighlightEl.classList.add('saarthi-highlight');
-                targetHighlightEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetHighlightEl.scrollIntoView({ behavior: 'auto', block: 'center' });
                 const count = document.querySelectorAll('.saarthi-highlight').length;
                 console.log('[PROOF-FEATURE-A] activeFieldId:', activeField, '| Highlighted Element:', targetHighlightEl.id || targetHighlightEl.getAttribute('data-testid') || targetHighlightEl.tagName, '| Total .saarthi-highlight count in DOM:', count);
 
@@ -856,7 +881,9 @@ export function useSaarthiVoice() {
                 }
 
                 let selector = '';
-                if (fTarget.includes('name')) selector = isPanditField ? '[data-testid="input-pandit-name"]' : 'input[name="name"], [data-testid="input-name"], #devotee-name';
+                if (fTarget === 'pandit-first-name') selector = '[data-testid="input-pandit-first-name"], #pandit-first-name';
+                else if (fTarget === 'pandit-last-name') selector = '[data-testid="input-pandit-last-name"], #pandit-last-name';
+                else if (fTarget.includes('name')) selector = isPanditField ? '[data-testid="input-pandit-first-name"]' : 'input[name="name"], [data-testid="input-name"], #devotee-name';
                 else if (fTarget.includes('phone') || fTarget.includes('mobile')) selector = isPanditField ? '[data-testid="input-pandit-phone"]' : 'input[name="phone"], input[type="tel"], [data-testid="input-phone"], #devotee-phone';
                 else if (fTarget.includes('city') || fTarget.includes('location')) selector = isPanditField ? '[data-testid="input-pandit-city"]' : 'input[name="city"], [data-testid="input-city"], select#booking-city, #booking-city';
                 else if (fTarget.includes('state')) selector = isPanditField ? '[data-testid="input-pandit-state"]' : 'input[name="state"], [data-testid="input-state"]';
@@ -885,6 +912,27 @@ export function useSaarthiVoice() {
                 }
 
                 if (isPanditField) {
+                  const step2Fields = ['exp', 'gurukul', 'education', 'spec', 'lang', 'achievements', 'bio'];
+                  const step3Fields = ['certfile', 'aadhaarfile', 'galleryfiles', 'password', 'confirm', 'codeofconduct'];
+                  
+                  let targetStep = 1;
+                  const fTargetLower = fTarget.toLowerCase();
+                  if (step2Fields.some(f => fTargetLower.includes(f))) targetStep = 2;
+                  if (step3Fields.some(f => fTargetLower.includes(f))) targetStep = 3;
+                  
+                  // Auto-advance wizard steps if needed
+                  if (targetStep >= 2) {
+                      seq.push({ action: 'click', target: '[data-testid="button-pandit-next-1"]', delay: 200 });
+                  }
+                  if (targetStep === 3) {
+                      seq.push({ action: 'click', target: '[data-testid="button-pandit-next-2"]', delay: 200 });
+                  }
+                  
+                  // Add a small delay to allow DOM to render new step
+                  if (targetStep > 1) {
+                      seq.push({ action: 'wait_for_selector', target: selector, delay: 300 });
+                  }
+
                   const isSelectDropdown = fTarget.includes('exp') || fTarget.includes('spec');
                   const isLangToggle = fTarget.includes('lang');
                   if (isSelectDropdown) {

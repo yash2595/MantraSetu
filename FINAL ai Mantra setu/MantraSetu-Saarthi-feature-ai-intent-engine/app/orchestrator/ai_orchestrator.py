@@ -471,7 +471,28 @@ class AIOrchestrator:
                 session.onboarding_state = {
                     "active": True,
                     "current_field_index": 0,
-                    "fields": ["pandit-name", "pandit-phone", "pandit-email", "pandit-city", "pandit-state", "pandit-exp", "pandit-spec", "pandit-lang"],
+                    "fields": [
+                        "pandit-galleryFiles",
+                        "pandit-first-name",
+                        "pandit-last-name",
+                        "pandit-email",
+                        "pandit-phone",
+                        "pandit-gender",
+                        "pandit-availability",
+                        "pandit-city",
+                        "pandit-state",
+                        "pandit-service-areas",
+                        "pandit-exp",
+                        "pandit-gurukul",
+                        "pandit-languages",
+                        "pandit-spec",
+                        "pandit-achievements",
+                        "pandit-bio",
+                        "pandit-certFile",
+                        "pandit-aadhaarFile",
+                        "pandit-password",
+                        "pandit-confirm"
+                    ],
                     "field_names_hinglish": {
                         "pandit-name": "poora naam",
                         "pandit-phone": "mobile number",
@@ -484,7 +505,7 @@ class AIOrchestrator:
                     },
                     "collected_data": {},
                 }
-                ceremonial_text = "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi aur sirf verification ke liye upyog hogi. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, apna poora naam bataiye."
+                ceremonial_text = "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi aur sirf verification ke liye upyog hogi. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, kya aap apni profile photo upload karna chahenge?"
                 nav_directive = {
                     "action": "NAVIGATE",
                     "target": "/signup?role=pandit",
@@ -553,7 +574,28 @@ class AIOrchestrator:
                 session.onboarding_state = {
                     "active": True,
                     "current_field_index": 0,
-                    "fields": ["pandit-name", "pandit-phone", "pandit-email", "pandit-city", "pandit-state", "pandit-exp", "pandit-spec", "pandit-lang"],
+                    "fields": [
+                        "pandit-galleryFiles",
+                        "pandit-first-name",
+                        "pandit-last-name",
+                        "pandit-email",
+                        "pandit-phone",
+                        "pandit-gender",
+                        "pandit-availability",
+                        "pandit-city",
+                        "pandit-state",
+                        "pandit-service-areas",
+                        "pandit-exp",
+                        "pandit-gurukul",
+                        "pandit-languages",
+                        "pandit-spec",
+                        "pandit-achievements",
+                        "pandit-bio",
+                        "pandit-certFile",
+                        "pandit-aadhaarFile",
+                        "pandit-password",
+                        "pandit-confirm"
+                    ],
                     "field_names_hinglish": {
                         "pandit-name": "poora naam",
                         "pandit-phone": "mobile number",
@@ -566,11 +608,11 @@ class AIOrchestrator:
                     },
                     "collected_data": {},
                 }
-                response_text = "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi aur sirf verification ke liye upyog hogi. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, apna poora naam bataiye."
+                response_text = "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi aur sirf verification ke liye upyog hogi. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, kya aap apni profile photo upload karna chahenge?"
                 nav_directive = {
                     "action": "NAVIGATE",
                     "target": "/signup?role=pandit",
-                    "active_field": "pandit-name",
+                    "active_field": "pandit-galleryFiles",
                     "intent": "OPEN_SIGNUP"
                 }
                 self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
@@ -731,7 +773,28 @@ class AIOrchestrator:
             session.onboarding_state = {
                 "active": True,
                 "current_field_index": 0,
-                "fields": ["pandit-name", "pandit-phone", "pandit-email", "pandit-city", "pandit-state", "pandit-exp", "pandit-spec", "pandit-lang"],
+                "fields": [
+                        "pandit-galleryFiles",
+                        "pandit-first-name",
+                        "pandit-last-name",
+                        "pandit-email",
+                        "pandit-phone",
+                        "pandit-gender",
+                        "pandit-availability",
+                        "pandit-city",
+                        "pandit-state",
+                        "pandit-service-areas",
+                        "pandit-exp",
+                        "pandit-gurukul",
+                        "pandit-languages",
+                        "pandit-spec",
+                        "pandit-achievements",
+                        "pandit-bio",
+                        "pandit-certFile",
+                        "pandit-aadhaarFile",
+                        "pandit-password",
+                        "pandit-confirm"
+                    ],
                 "field_names_hinglish": {
                     "pandit-name": "poora naam",
                     "pandit-phone": "mobile number",
@@ -744,11 +807,11 @@ class AIOrchestrator:
                 },
                 "collected_data": {},
             }
-            response_text = "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi aur sirf verification ke liye upyog hogi. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, apna poora naam bataiye."
+            response_text = "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi aur sirf verification ke liye upyog hogi. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, kya aap apni profile photo upload karna chahenge?"
             nav_directive = {
                 "action": "NAVIGATE",
                 "target": "/signup?role=pandit",
-                "active_field": "pandit-name",
+                "active_field": "pandit-galleryFiles",
                 "intent": "OPEN_SIGNUP"
             }
             self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
