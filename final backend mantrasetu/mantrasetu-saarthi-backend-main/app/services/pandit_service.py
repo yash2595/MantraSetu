@@ -12,7 +12,7 @@ from app.services.security import hash_password
 
 
 UPLOAD_DIR = "uploads"
-ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".pdf"}
+ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".pdf", ".webp", ".mp4", ".webm", ".mov", ".avi", ".mkv"}
 
 
 def save_uploaded_file(file: UploadFile, subfolder: str) -> str:
@@ -108,6 +108,7 @@ async def execute_pandit_application(
     hashed = hash_password(password)
 
     try:
+        print(f"[BACKEND-PANDIT-APPLY] Writing Pandit application document to MongoDB 'pandit_applications' collection...")
         application_id = await create_pandit_application(
             name=name,
             email=email,
@@ -129,7 +130,9 @@ async def execute_pandit_application(
             certificate_file=certificate_path,
             gallery_files=saved_gallery_paths,
         )
+        print(f"[BACKEND-PANDIT-APPLY] Pandit application persisted in MongoDB! Inserted ID: {application_id}")
     except Exception as e:
+        print(f"[BACKEND-PANDIT-APPLY] DB insert error: {e}")
         if "duplicate" in str(e).lower() or "11000" in str(e):
             raise HTTPException(
                 status_code=409,

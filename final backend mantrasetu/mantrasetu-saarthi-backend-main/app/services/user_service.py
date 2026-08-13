@@ -10,10 +10,11 @@ import os
 
 
 async def execute_signup(request: SignupRequest) -> SignupResponse:
-
+    print(f"[BACKEND-SIGNUP] Endpoint reached for email: {request.email}, name: {request.name}")
     existing_user = await find_user_by_email(request.email)
 
     if existing_user:
+        print(f"[BACKEND-SIGNUP] 409 Conflict: Email {request.email} already exists")
         raise HTTPException(
             status_code=409,
             detail="An account with this email already exists."
@@ -21,17 +22,23 @@ async def execute_signup(request: SignupRequest) -> SignupResponse:
 
     hashed = hash_password(request.password)
 
+    print(f"[BACKEND-SIGNUP] Writing user document to MongoDB 'users' collection...")
     user_id = await create_user(
         request.name,
         request.email,
         request.phone,
         hashed,
     )
+    print(f"[BACKEND-SIGNUP] User document successfully persisted in MongoDB! Inserted ID: {user_id}")
+
+    token = create_access_token(user_id=user_id, email=request.email)
 
     return SignupResponse(
         status="success",
         message="Account created successfully.",
         user_id=user_id,
+        access_token=token,
+        token_type="bearer",
     )
 
 

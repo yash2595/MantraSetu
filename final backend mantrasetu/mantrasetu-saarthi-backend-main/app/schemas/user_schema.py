@@ -25,6 +25,8 @@ class SignupResponse(BaseModel):
     status: str
     message: str
     user_id: str
+    access_token: str | None = None
+    token_type: str = "bearer"
     
 class LoginRequest(BaseModel):
     """What the frontend sends us when someone logs in."""
