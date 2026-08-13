@@ -217,7 +217,11 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                     logger.info(f"[WS-ROUTER] [DIAGNOSTIC] Received AUDIO_END for session {active_session_id}, current_page={current_page_from_frame!r}, finishing voice session")
                     try:
                         logger.info(f"[WS-ROUTER] [DIAGNOSTIC] Calling voice_gateway.finish_voice_session()")
-                        resp, final_text = await voice_gateway.finish_voice_session(active_session_id, current_page=current_page_from_frame)
+                        resp, final_text = await voice_gateway.finish_voice_session(
+                            active_session_id,
+                            current_page=current_page_from_frame,
+                            user_parameters=frame.payload if isinstance(frame.payload, dict) else None
+                        )
                         logger.info(f"[WS-ROUTER] [DIAGNOSTIC] finish_voice_session returned with text: {final_text}")
                         
                         # 🚨 INSTANT USER STT TRANSCRIPT: Send user's transcript immediately before AI processing!

@@ -583,8 +583,8 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
             logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-exp: 1-5 years")
             return "1-5 years"
 
-    # Deterministic Fast-Path for Languages (pandit-lang)
-    if field in ["pandit-lang", "language", "languages"]:
+    # Deterministic Fast-Path for Languages (pandit-languages)
+    if field in ["pandit-languages", "pandit-lang", "language", "languages"]:
         msg_lower = user_message_normalized.lower()
         if any(w in msg_lower for w in ["sahi", "theek", "thik", "okay", "yes", "agreed", "continue", "haan", "default"]):
             logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-lang: Hindi, Sanskrit")
@@ -946,7 +946,7 @@ async def process_onboarding_step(
     # -------------------------------------------------------------------------
     # CASE 1: Awaiting Confirmation Summary Response (End of Step 2)
     # -------------------------------------------------------------------------
-    if status == "awaiting_confirmation":
+    if status == "awaiting_confirmation" or (client_active_field in ["summary", "pandit-summary"] and is_affirmative(request.user_message)):
         logger.info("[PANDIT-ONBOARDING] AWAITING CONFIRMATION turn | user_msg: %r", request.user_message)
         if is_affirmative(request.user_message):
             logger.info("[PANDIT-ONBOARDING] Step 1 & 2 Summary CONFIRMED by user. Moving to Step 3 uploads.")

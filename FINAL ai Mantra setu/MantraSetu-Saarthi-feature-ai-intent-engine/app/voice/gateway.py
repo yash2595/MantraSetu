@@ -127,6 +127,7 @@ class VoiceGateway:
         self,
         session_id: str,
         current_page: str | None = None,
+        user_parameters: dict | None = None,
     ) -> tuple[Any, str]:
         """Finalize voice stream, generate final transcript, and invoke AIOrchestrator.process()."""
         session = await self._session_manager.get_session(session_id)
@@ -177,21 +178,25 @@ class VoiceGateway:
             )
             return empty_response, ""
 
+        merged_user_params = {
+            "transport": "voice_websocket",
+            "connection_id": session.connection_id,
+            "language": session.language,
+            "stt_provider": stt_result.provider,
+            "confidence": stt_result.confidence,
+            "duration_seconds": stt_result.duration_seconds,
+            "pujas": session.context_data.get("pujas", []),
+        }
+        if isinstance(user_parameters, dict):
+            merged_user_params.update(user_parameters)
+
         # Create normalized OrchestratorRequest for AIOrchestrator (Module 1)
         interaction_request = OrchestratorRequest(
             conversation_id=session.conversation_id or "default_conv",
             session_id=session.session_id,
             user_message=final_text,
             current_page=current_page,  # Pass real page from frontend; orchestrator calls session.update_location()
-            user_parameters={
-                "transport": "voice_websocket",
-                "connection_id": session.connection_id,
-                "language": session.language,
-                "stt_provider": stt_result.provider,
-                "confidence": stt_result.confidence,
-                "duration_seconds": stt_result.duration_seconds,
-                "pujas": session.context_data.get("pujas", []),
-            },
+            user_parameters=merged_user_params,
         )
 
         logger.info(
