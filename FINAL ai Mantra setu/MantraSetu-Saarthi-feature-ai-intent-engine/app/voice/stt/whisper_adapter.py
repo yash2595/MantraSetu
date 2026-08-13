@@ -18,7 +18,8 @@ class WhisperAdapter(ISpeechRecognizer):
     """Speech-to-Text adapter connecting to Whisper STT engine or API."""
 
     def __init__(self, api_key: str | None = None, model: str = "whisper-1") -> None:
-        self._api_key = api_key
+        import os
+        self._api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
         self._model = model
 
     @property
@@ -43,54 +44,87 @@ class WhisperAdapter(ISpeechRecognizer):
         logger.info("Whisper STT finish_session called", extra={"session_id": session.session_id, "size_bytes": buffer.size})
         
         try:
-            import speech_recognition as sr
             import io
             import wave
+            import os
+            import re
             
             # Convert raw PCM16 to WAV in memory
+            raw_pcm = buffer.flush()
             wav_io = io.BytesIO()
             with wave.open(wav_io, 'wb') as wav_file:
                 wav_file.setnchannels(1)
                 wav_file.setsampwidth(2)
                 wav_file.setframerate(session.sample_rate or 16000)
-                wav_file.writeframes(buffer.flush())
-            wav_io.seek(0)
+                wav_file.writeframes(raw_pcm)
             
-            with open("debug_last.wav", "wb") as f:
-                f.write(wav_io.read())
-            wav_io.seek(0)
-            
-            recognizer = sr.Recognizer()
-            with sr.AudioFile(wav_io) as source:
-                audio = recognizer.record(source)
-                
-            # Map simple language codes to BCP-47 for Google STT
-            lang = session.language or "hi"
-            lang_code = "hi-IN" if lang.startswith("hi") else "en-IN"
-            
-            text = recognizer.recognize_google(audio, language=lang_code)
-            
+            wav_data = wav_io.getvalue()
+            text = ""
+            stt_model_used = "gemini-1.5-flash"
+
+            # ── Tier 1: High-Accuracy Gemini Multimodal Audio STT ──
+            gemini_key = os.environ.get("GEMINI_API_KEY", "")
+            if gemini_key:
+                try:
+                    from google import genai
+                    from google.genai import types
+                    client = genai.Client(api_key=gemini_key)
+                    resp = client.models.generate_content(
+                        model="gemini-1.5-flash",
+                        contents=[
+                            types.Part.from_bytes(data=wav_data, mime_type="audio/wav"),
+                            "Transcribe this audio with 100% precision. Return ONLY the exact spoken transcript text in Hindi, Hinglish, or English. If there is no clear human speech, return empty string."
+                        ]
+                    )
+                    if resp and resp.text:
+                        text = resp.text.strip()
+                        logger.info(f"[STT-GEMINI] Transcribed audio ({len(wav_data)} bytes) -> '{text}'")
+                except Exception as g_err:
+                    logger.warning(f"[STT-GEMINI] Gemini Audio STT failed: {g_err}, falling back to WebSpeech")
+
+            # ── Tier 2: Fallback to Google Web Speech API ──
+            if not text:
+                try:
+                    import speech_recognition as sr
+                    recognizer = sr.Recognizer()
+                    audio_file = sr.AudioFile(io.BytesIO(wav_data))
+                    with audio_file as source:
+                        audio = recognizer.record(source)
+                    lang = "hi-IN" if (session.language and session.language.startswith("hi")) else "en-US"
+                    text = recognizer.recognize_google(audio, language=lang)
+                    stt_model_used = "google_web_speech"
+                except Exception as ws_err:
+                    logger.warning(f"[STT-WEBSPEECH] WebSpeech fallback error: {ws_err}")
+
+            # ── Hallucination Filter: Remove repetitive garbled tokens (e.g., "जिन जिनजिन", "पानी पानी") ──
+            clean_text = text.strip()
+            if clean_text:
+                words = clean_text.split()
+                if len(words) >= 4 and len(set(words)) <= 2:
+                    logger.warning(f"[STT-HALLUCINATION-FILTER] Rejected repetitive garbled STT transcript: '{clean_text}'")
+                    clean_text = ""
+
             logger.info("================================================")
-            logger.info(f"RAW WHISPER TRANSCRIPT: '{text}'")
+            logger.info(f"FINAL STT TRANSCRIPT [{stt_model_used}]: '{clean_text}'")
             logger.info("================================================")
             
             return TranscriptResult(
-                text=text.strip(),
-                confidence=1.0,
+                text=clean_text,
+                confidence=1.0 if clean_text else 0.0,
                 language=session.language,
                 provider=self.provider_name,
                 duration_seconds=round(buffer.size / (session.sample_rate * 2), 2) if session.sample_rate else 0.0,
-                metadata={"model": self._model, "status": "success"},
+                metadata={"model": stt_model_used, "status": "success" if clean_text else "empty_or_hallucination"},
             )
         except Exception as e:
-            logger.info(f"SpeechRecognition could not transcribe audio (silence/indistinct noise): {e}")
+            logger.error(f"STT could not transcribe audio: {e}")
             return TranscriptResult(
                 text="",
                 confidence=0.0,
                 language=session.language,
                 provider=self.provider_name,
                 duration_seconds=round(buffer.size / (session.sample_rate * 2), 2) if session.sample_rate else 0.0,
-                metadata={"model": self._model, "status": "no_speech_detected"},
+                metadata={"model": "stt_error", "status": "error", "error": str(e)},
             )
 
     async def cancel_session(self, session: VoiceSession) -> None:

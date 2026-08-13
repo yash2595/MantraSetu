@@ -9,9 +9,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class SpeechSettings(BaseSettings):
     """Typed Speech-to-Text configuration loaded from environment variables."""
 
-    api_key: SecretStr = Field(default=SecretStr(""))
+
     base_url: str = Field(default="https://api.openai.com/v1")
     model: str = Field(default="whisper-1")
+    # OpenAI API key for Whisper (use OPENAI_API_KEY env var)
+    api_key: SecretStr = Field(default=SecretStr(""), env="OPENAI_API_KEY")
 
     # Timeout settings in seconds
     timeout_connect: float = Field(default=10.0, gt=0)
@@ -26,7 +28,7 @@ class SpeechSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        env_prefix="SPEECH_",
+
         extra="ignore",
     )
 

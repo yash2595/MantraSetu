@@ -31,16 +31,29 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-if not os.environ.get("SPEECH_API_KEY"):
+if not os.environ.get("OPENAI_API_KEY"):
     warning_msg = """
     ======================================================================
-    WARNING: SPEECH_API_KEY environment variable is MISSING!
+    WARNING: OPENAI_API_KEY environment variable is MISSING!
     
-    The AI Intent Engine will silently fall back to the free Google Web
-    Speech API (using 'en-IN'). This will drastically degrade speech
-    recognition quality, especially for code-mixed English and Hindi.
+    The AI Intent Engine uses OpenAI's Whisper API for speech-to-text.
+    Without it, speech recognition will not work.
     
-    To fix this, please configure SPEECH_API_KEY for Whisper STT in your .env
+    To fix this, please configure OPENAI_API_KEY in your .env
+    ======================================================================
+    """
+    print(warning_msg)
+    logger.warning(warning_msg)
+
+if not os.environ.get("ELEVENLABS_API_KEY"):
+    warning_msg = """
+    ======================================================================
+    WARNING: ELEVENLABS_API_KEY environment variable is MISSING!
+    
+    The AI Intent Engine uses ElevenLabs for TTS.
+    Without it, speech synthesis will not work.
+    
+    To fix this, please configure ELEVENLABS_API_KEY in your .env
     ======================================================================
     """
     print(warning_msg)

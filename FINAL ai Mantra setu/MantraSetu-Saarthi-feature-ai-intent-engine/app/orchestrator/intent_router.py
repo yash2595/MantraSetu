@@ -41,8 +41,10 @@ class FastPathResolution:
     response_text: str = ""
     target_route: str | None = None
     intent_name: str = "UNKNOWN"
+    query: str | None = None
     response_type: ResponseType = ResponseType.CHAT
     confidence: float = 0.0
+
 
 
 class FastPathIntentRouter:
@@ -220,24 +222,79 @@ class FastPathIntentRouter:
                 "stt_unavailable": ("CHAT", None, "Kshama karein, main theek se sun nahi paya. Kripya dobara boliye."),
             }
 
-            for rule_phrase, (intent, target, response_text_obj) in rule_based_mappings.items():
-                if msg_clean == rule_phrase:
+            # Dynamic Puja Intent & Query Detection
+            detected_puja_query = None
+            puja_keywords = [
+                ("satyanarayan", "Satyanarayan"),
+                ("griha pravesh", "Griha Pravesh"),
+                ("ghar ki puja", "Griha Pravesh"),
+                ("housewarming", "Griha Pravesh"),
+                ("navgraha", "Navgraha"),
+                ("mrityunjaya", "Maha Mrityunjaya"),
+                ("mrityunjay", "Maha Mrityunjaya"),
+                ("laxmi", "Laxmi Kuber"),
+                ("kuber", "Laxmi Kuber"),
+                ("rudrabhishek", "Rudra Abhishek"),
+                ("rudra", "Rudra Abhishek"),
+                ("kalsarp", "Kalsarp"),
+                ("kal sarp", "Kalsarp"),
+                ("ganesh", "Ganesh"),
+                ("ganpati", "Ganesh"),
+            ]
+            for kw, q_val in puja_keywords:
+                if kw in msg_clean:
+                    detected_puja_query = q_val
+                    break
+
+            if detected_puja_query or any(w in msg_clean for w in ["puja", "pooja"]):
+                if not any(w in msg_clean for w in ["pandit", "login", "signup", "kundali", "muhurat"]):
                     self._fast_path_hits_count += 1
+                    puja_name_display = detected_puja_query or "Puja"
+                    resp = f"Ji, main aapke liye {puja_name_display} ki booking open kar raha hoon."
+                    logger.info(
+                        "[FAST-PATH HIT] transcript=%r intent=BOOK_PUJA target=/puja query=%s",
+                        msg_clean, detected_puja_query,
+                    )
+                    return FastPathResolution(
+                        is_fast_path=True,
+                        response_text=resp,
+                        intent_name="BOOK_PUJA",
+                        target_route="/puja",
+                        query=detected_puja_query,
+                        confidence=1.0,
+                    )
+
+            for rule_phrase, tuple_val in rule_based_mappings.items():
+                intent = tuple_val[0]
+                target = tuple_val[1]
+                if len(tuple_val) == 4:
+                    rule_query = tuple_val[2]
+                    response_text_obj = tuple_val[3]
+                else:
+                    rule_query = None
+                    response_text_obj = tuple_val[2]
+
+                if msg_clean == rule_phrase or rule_phrase in msg_clean:
+                    self._fast_path_hits_count += 1
+                    final_query = rule_query or detected_puja_query
                     if isinstance(response_text_obj, (list, tuple)):
                         selected_text = random.choice(response_text_obj)
                     else:
                         selected_text = response_text_obj
                     logger.info(
-                        "[FAST-PATH HIT] transcript=%r  matched=%r  intent=%s  target=%s",
-                        msg_clean, rule_phrase, intent, target,
+                        "[FAST-PATH HIT] transcript=%r matched=%r intent=%s target=%s query=%s",
+                        msg_clean, rule_phrase, intent, target, final_query,
                     )
                     return FastPathResolution(
                         is_fast_path=True,
                         response_text=selected_text,
                         intent_name=intent,
                         target_route=target,
+                        query=final_query,
                         confidence=1.0,
                     )
+
+
 
             logger.info("[FAST-PATH MISS] transcript=%r — falling through to LLM", msg_clean)
             return FastPathResolution(is_fast_path=False)

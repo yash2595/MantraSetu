@@ -220,10 +220,29 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                         resp, final_text = await voice_gateway.finish_voice_session(active_session_id, current_page=current_page_from_frame)
                         logger.info(f"[WS-ROUTER] [DIAGNOSTIC] finish_voice_session returned with text: {final_text}")
                         
+                        # 🚨 INSTANT USER STT TRANSCRIPT: Send user's transcript immediately before AI processing!
+                        if final_text and final_text.strip():
+                            tx_reply = WebSocketEnvelope(
+                                request_id=frame.request_id,
+                                session_id=active_session_id,
+                                conversation_id=frame.conversation_id,
+                                type=ProtocolMessageType.TRANSCRIPT,
+                                payload={
+                                    "text": final_text,
+                                    "is_final": True
+                                }
+                            )
+                            try:
+                                outbound_queue.put_nowait(tx_reply)
+                                logger.info(f"[WS-ROUTER] Instant user TRANSCRIPT envelope queued: {final_text!r}")
+                            except asyncio.QueueFull:
+                                pass
+
                         if not resp.text or not resp.text.strip():
                             logger.info("[WS-ROUTER] [DIAGNOSTIC] Empty response text. Skipping AI_RESPONSE & TTS streaming to stay quiet.")
                             active_session_id = None
                             continue
+
                         
                         _nav = resp.navigation_directive
                         _target = _nav.get("target") if _nav else None

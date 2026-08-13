@@ -109,8 +109,7 @@ class WhisperProvider(BaseSpeechToTextProvider):
 
         self._client = client or httpx.AsyncClient(timeout=timeout)
 
-        if not self._settings.api_key.get_secret_value():
-            logger.warning("Whisper API key (SPEECH_API_KEY) is not configured.")
+
 
         logger.info(
             "WhisperProvider initialized [provider=%s, model=%s]",
@@ -183,11 +182,10 @@ class WhisperProvider(BaseSpeechToTextProvider):
                 with sr.AudioFile(io.BytesIO(request.audio_bytes)) as source:
                     audio_data = recognizer.record(source)
                 
-                # STOPGAP MITIGATION: Force 'en-IN' instead of strict Hindi (request.language)
-                # to allow Google STT to capture English names without mangling them.
-                # Permanent fix is configuring SPEECH_API_KEY for Whisper.
-                fallback_lang = "en-IN"
+                # Use 'hi-IN' to properly capture Hindi, Sanskrit terms, and Hinglish names/inputs.
+                fallback_lang = "hi-IN"
                 transcript_text = recognizer.recognize_google(audio_data, language=fallback_lang)
+
                 return SpeechToTextResponse(
                     transcript=transcript_text,
                     language=fallback_lang,

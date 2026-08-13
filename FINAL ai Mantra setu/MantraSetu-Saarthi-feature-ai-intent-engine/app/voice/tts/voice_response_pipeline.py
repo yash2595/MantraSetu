@@ -33,14 +33,45 @@ EMOJI_PATTERN = re.compile(
 )
 
 
+HINGLISH_PHONETIC_REPLACEMENTS = [
+    (r'!', '.'),
+    (r'\?', '.'),
+    (r'(\d+)-digit', r'\1 digit'),
+    (r'\b10-digit\b', 'दस अंकों का'),
+    (r'\bNamaste\b', 'नमस्ते'),
+    (r'\bMantraSetu\b', 'मंत्रसेतु'),
+    (r'\bPanditji\b', 'पंडित जी'),
+    (r'\bPandit\b', 'पंडित'),
+    (r'\bSwagat\b', 'स्वागत'),
+    (r'\bSeva\b', 'सेवा'),
+    (r'\bDhanyawad\b', 'धन्यवाद'),
+    (r'\bUttam\b', 'उत्तम'),
+    (r'\bBahut\b', 'बहुत'),
+    (r'\bSundar\b', 'सुंदर'),
+    (r'\bBadhiya\b', 'बढ़िया'),
+    (r'\bKripya\b', 'कृपया'),
+    (r'\bBataiye\b', 'बताइए'),
+    (r'\bDobara\b', 'दोबारा'),
+    (r'\bSamajh\b', 'समझ'),
+    (r'\bRoop\b', 'रूप'),
+    (r'\bJudna\b', 'जुड़ना'),
+    (r'\bChahte\b', 'चाहते'),
+    (r'\bBhakt\b', 'भक्त'),
+    (r'\bMobile\b', 'मोबाइल'),
+    (r'\bNumber\b', 'नंबर'),
+    (r'\bEmail\b', 'ईमेल'),
+    (r'\bCity\b', 'शहर'),
+    (r'\bState\b', 'राज्य'),
+    (r'\bForm\b', 'फॉर्म'),
+    (r'\bRecord\b', 'रिकॉर्ड'),
+]
+
+
 def clean_text_for_tts(text: str) -> str:
     """Sanitize text specifically for TTS audio generation.
 
-    Strips emojis, markdown symbols, and extra whitespace so TTS engines
-    do not read emojis out loud (e.g. pronouncing 'folded hands' for 🙏).
-    Formats continuous 10-digit phone numbers into spaced digit groups (e.g. 999 888 7776)
-    so TTS engines speak individual digits instead of multi-billion numbers.
-    The visual text displayed in UI bubbles remains untouched.
+    Strips emojis, markdown symbols, exclamation marks, and applies Hinglish
+    phonetic normalization so gTTS (hi-IN) does not mispronounce symbols as 'flag'.
     """
     if not text:
         return "Namaste"
@@ -54,7 +85,14 @@ def clean_text_for_tts(text: str) -> str:
     # 3. Format continuous 10-digit mobile numbers into spaced digit groups for TTS
     cleaned = re.sub(r'\b([56789]\d{2})(\d{3})(\d{4})\b', r'\1 \2 \3', cleaned)
 
-    # 4. Normalize whitespace
+    # 4. Replace exclamation marks and symbols that cause gTTS to read 'flag' or punctuation names
+    cleaned = re.sub(r'[!#\*\_~`^]', '.', cleaned)
+
+    # 5. Apply Hinglish phonetic replacements for gTTS (hi-IN)
+    for pattern, replacement in HINGLISH_PHONETIC_REPLACEMENTS:
+        cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
+
+    # 6. Normalize whitespace
     cleaned = re.sub(r'\s+', ' ', cleaned).strip()
 
     return cleaned if cleaned else "Namaste"
