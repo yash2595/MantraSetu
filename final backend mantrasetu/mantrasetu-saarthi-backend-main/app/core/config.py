@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "supersecret"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRY_MINUTES: int = 60 * 24
-    GOOGLE_CLIENT_ID: str
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
     class Config:
         env_file = ".env"
 
