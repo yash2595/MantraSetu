@@ -1264,9 +1264,31 @@ export function useSaarthiVoice() {
         }
       };
 
-    ws.onclose = () => {
-      console.log('[Voice] WebSocket Closed');
+    const reconnectAttemptsRef = { current: 0 };
+    const MAX_RECONNECT_ATTEMPTS = 10;
+
+    ws.onclose = (event: CloseEvent) => {
+      console.log(`[Voice] WebSocket Closed (code: ${event.code}, clean: ${event.wasClean})`);
       setIsConnected(false);
+
+      const isClean = event.code === 1000 || event.code === 1001;
+      if (!isClean && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttemptsRef.current += 1;
+        const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttemptsRef.current - 1));
+        console.log(`[Voice] WebSocket auto-reconnect attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS} in ${delay} ms`);
+        
+        setTimeout(() => {
+          if (wsRef.current?.readyState === WebSocket.CLOSED) {
+            console.log(`[Voice] Retrying WebSocket connection (Attempt ${reconnectAttemptsRef.current})...`);
+            const newWs = new WebSocket(wsUrl);
+            newWs.onopen = ws.onopen;
+            newWs.onmessage = ws.onmessage;
+            newWs.onerror = ws.onerror;
+            newWs.onclose = ws.onclose;
+            wsRef.current = newWs;
+          }
+        }, delay);
+      }
     };
     ws.onerror = (e) => {
       console.error('[Voice] WebSocket Error', e);
