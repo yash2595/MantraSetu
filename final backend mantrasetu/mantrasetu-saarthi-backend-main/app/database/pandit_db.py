@@ -1,3 +1,4 @@
+from typing import Any
 from app.database.mongodb import database
 
 
@@ -17,9 +18,17 @@ async def create_pandit_application(
     state: str,
     languages: list,
     experience: str,
-    specialization: str,
-    aadhaar_file: str | None,
-    certificate_file: str | None,
+    specialization: Any,
+    gender: str | None = None,
+    availability: str | None = None,
+    service_areas: list | None = None,
+    education: str | None = None,
+    gurukul: str | None = None,
+    achievements: list | None = None,
+    bio: str | None = None,
+    aadhaar_file: str | None = None,
+    certificate_file: str | None = None,
+    gallery_files: list | None = None,
 ) -> str:
     document = {
         "name": name,
@@ -31,8 +40,16 @@ async def create_pandit_application(
         "languages": languages,
         "experience": experience,
         "specialization": specialization,
+        "gender": gender,
+        "availability": availability,
+        "service_areas": service_areas or [],
+        "education": education,
+        "gurukul": gurukul,
+        "achievements": achievements or [],
+        "bio": bio,
         "aadhaar_file": aadhaar_file,
         "certificate_file": certificate_file,
+        "gallery_files": gallery_files or [],
         "status": "pending",
         "reviewed_at": None,
         "reviewed_by": None,

@@ -47,6 +47,98 @@ function uint8ArrayToBase64(u8: Uint8Array): string {
 
 // ---------------------------------------------------------------------------
 
+export function getFormStateData(): Record<string, string> {
+  const data: Record<string, string> = {};
+
+  try {
+    const isPanditForm = !!document.querySelector('#pandit-onboarding-form, [data-testid="card-signup"]');
+    if (!isPanditForm) return data;
+
+    const firstNameEl = document.querySelector<HTMLInputElement>('#pandit-first-name, [data-testid="input-pandit-first-name"]');
+    const lastNameEl = document.querySelector<HTMLInputElement>('#pandit-last-name, [data-testid="input-pandit-last-name"]');
+    const phoneEl = document.querySelector<HTMLInputElement>('#pandit-phone, [data-testid="input-pandit-phone"]');
+    const emailEl = document.querySelector<HTMLInputElement>('#pandit-email, [data-testid="input-pandit-email"]');
+    const genderEl = document.querySelector<HTMLSelectElement>('#pandit-gender, [data-testid="select-pandit-gender"]');
+    const cityEl = document.querySelector<HTMLInputElement>('#pandit-city, [data-testid="input-pandit-city"]');
+    const stateEl = document.querySelector<HTMLInputElement>('#pandit-state, [data-testid="input-pandit-state"]');
+    const expEl = document.querySelector<HTMLSelectElement>('#pandit-exp, [data-testid="select-pandit-exp"]');
+    const eduEl = document.querySelector<HTMLInputElement>('#pandit-education, [data-testid="input-pandit-education"]');
+    const specEl = document.querySelector<HTMLSelectElement>('#pandit-spec, [data-testid="select-pandit-spec"]');
+    const bioEl = document.querySelector<HTMLTextAreaElement>('#pandit-bio, [data-testid="textarea-pandit-bio"]');
+
+    const pwdEl = document.querySelector<HTMLInputElement>('#pandit-password, [data-testid="input-pandit-password"]');
+    const cpwdEl = document.querySelector<HTMLInputElement>('#pandit-confirm, [data-testid="input-pandit-confirm"]');
+    const aadhaarInput = document.querySelector<HTMLInputElement>('#pandit-aadhaar-input, [data-testid="input-aadhaar-file"]');
+    const certInput = document.querySelector<HTMLInputElement>('#pandit-cert-input, [data-testid="input-cert-file"]');
+    const termsEl = document.querySelector<HTMLInputElement>('#pandit-terms-accepted, [data-testid="checkbox-pandit-terms"]');
+
+    const stepEl = document.querySelector('[data-testid="pandit-wizard-step"]');
+    if (stepEl) {
+      data['pandit-step'] = stepEl.getAttribute('data-step') || '1';
+    }
+
+    if (firstNameEl?.value) data['pandit-first-name'] = firstNameEl.value.trim();
+    if (lastNameEl?.value) data['pandit-last-name'] = lastNameEl.value.trim();
+
+    const fn = firstNameEl?.value?.trim() || '';
+    const ln = lastNameEl?.value?.trim() || '';
+    if (fn || ln) {
+      data['pandit-name'] = `${fn} ${ln}`.trim();
+      data['name'] = `${fn} ${ln}`.trim();
+    }
+
+    if (phoneEl?.value) {
+      data['pandit-phone'] = phoneEl.value.trim();
+      data['phone'] = phoneEl.value.trim();
+    }
+    if (emailEl?.value) {
+      data['pandit-email'] = emailEl.value.trim();
+      data['email'] = emailEl.value.trim();
+    }
+    if (genderEl?.value) data['pandit-gender'] = genderEl.value.trim();
+    if (cityEl?.value) {
+      data['pandit-city'] = cityEl.value.trim();
+      data['city'] = cityEl.value.trim();
+    }
+    if (stateEl?.value) {
+      data['pandit-state'] = stateEl.value.trim();
+      data['state'] = stateEl.value.trim();
+    }
+    if (expEl?.value) {
+      data['pandit-exp'] = expEl.value.trim();
+      data['experience'] = expEl.value.trim();
+    }
+    if (eduEl?.value) data['pandit-education'] = eduEl.value.trim();
+    if (specEl?.value) {
+      data['pandit-spec'] = specEl.value.trim();
+      data['specialization'] = specEl.value.trim();
+    }
+    if (bioEl?.value) data['pandit-bio'] = bioEl.value.trim();
+
+    // Password security: send flags only, never raw string
+    data['pandit-password_filled'] = (pwdEl && pwdEl.value && pwdEl.value.trim().length > 0) ? 'true' : 'false';
+    data['password_filled'] = data['pandit-password_filled'];
+
+    data['pandit-confirm_filled'] = (cpwdEl && cpwdEl.value && cpwdEl.value.trim().length > 0) ? 'true' : 'false';
+    data['confirm_filled'] = data['pandit-confirm_filled'];
+
+    data['aadhaar_attached'] = (aadhaarInput && aadhaarInput.files && aadhaarInput.files.length > 0) ? 'true' : 'false';
+    data['cert_attached'] = (certInput && certInput.files && certInput.files.length > 0) ? 'true' : 'false';
+    data['terms_accepted'] = (termsEl && termsEl.checked) ? 'true' : 'false';
+
+    if ((window as any)._lastSubmissionError) {
+      data['submission_error'] = (window as any)._lastSubmissionError;
+    }
+    if ((window as any)._lastConflictField) {
+      data['conflict_field'] = (window as any)._lastConflictField;
+    }
+  } catch (e) {
+    console.warn('[FORM-STATE] Error building form state data:', e);
+  }
+
+  return data;
+}
+
 export function useSaarthiVoice() {
   const { state, setDialogueText, setSaarthiState, minimizeSaarthi, forceMinimize } = useSaarthi();
   const [isConnected, setIsConnected] = useState(false);
@@ -839,16 +931,99 @@ export function useSaarthiVoice() {
               }
             } else if (action === 'SUBMIT_FORM') {
               console.log('[FORM-SUBMIT] SUBMIT_FORM action received. Target button:', target);
-              const submitSelector = '[data-testid="button-submit-pandit-signup"], [data-testid="button-submit-signup"], form button[type="submit"], button[type="submit"]';
-              const seq: any[] = [
-                { action: 'wait_for_selector', target: submitSelector, delay: 300 },
-                { action: 'scroll', target: submitSelector, delay: 400 },
-                { action: 'move', target: submitSelector, delay: 800 },
-                { action: 'click', target: submitSelector, delay: 200 },
-              ];
-              sequenceQueueRef.current = seq;
-              if (!isExecutingSequenceRef.current) {
-                processNextStepRef.current();
+
+              const isPanditForm = !!document.querySelector('#pandit-onboarding-form, [data-testid="card-signup"]');
+              if (isPanditForm) {
+                const stepEl = document.querySelector('[data-testid="pandit-wizard-step"]');
+                const currentStep = stepEl ? (stepEl.getAttribute('data-step') || '1') : '1';
+                console.log(`[FORM-SUBMIT] Current wizard step: ${currentStep}`);
+
+                if (currentStep === '1') {
+                  const next1Btn = '[data-testid="button-pandit-next-1"]';
+                  const seq: any[] = [
+                    { action: 'wait_for_selector', target: next1Btn, delay: 300 },
+                    { action: 'scroll', target: next1Btn, delay: 400 },
+                    { action: 'move', target: next1Btn, delay: 800 },
+                    { action: 'click', target: next1Btn, delay: 200 },
+                  ];
+                  sequenceQueueRef.current = seq;
+                  if (!isExecutingSequenceRef.current) {
+                    processNextStepRef.current();
+                  }
+                  return;
+                } else if (currentStep === '2') {
+                  const next2Btn = '[data-testid="button-pandit-next-2"]';
+                  const seq: any[] = [
+                    { action: 'wait_for_selector', target: next2Btn, delay: 300 },
+                    { action: 'scroll', target: next2Btn, delay: 400 },
+                    { action: 'move', target: next2Btn, delay: 800 },
+                    { action: 'click', target: next2Btn, delay: 200 },
+                  ];
+                  sequenceQueueRef.current = seq;
+                  if (!isExecutingSequenceRef.current) {
+                    processNextStepRef.current();
+                  }
+                  return;
+                } else if (currentStep === '3') {
+                  // Perform 5 Step 3 Checks
+                  const pwdEl = document.querySelector<HTMLInputElement>('#pandit-password, [data-testid="input-pandit-password"]');
+                  const cpwdEl = document.querySelector<HTMLInputElement>('#pandit-confirm, [data-testid="input-pandit-confirm"]');
+                  const aadhaarInput = document.querySelector<HTMLInputElement>('#pandit-aadhaar-input, [data-testid="input-aadhaar-file"]');
+                  const certInput = document.querySelector<HTMLInputElement>('#pandit-cert-input, [data-testid="input-cert-file"]');
+                  const termsEl = document.querySelector<HTMLInputElement>('#pandit-terms-accepted, [data-testid="checkbox-pandit-terms"]');
+
+                  const pwdVal = pwdEl?.value?.trim() || '';
+                  const cpwdVal = cpwdEl?.value?.trim() || '';
+                  const hasPwd = pwdVal.length >= 8;
+                  const pwdMatches = pwdVal === cpwdVal;
+                  const hasAadhaar = aadhaarInput && aadhaarInput.files && aadhaarInput.files.length > 0;
+                  const hasCert = certInput && certInput.files && certInput.files.length > 0;
+                  const hasTerms = termsEl && termsEl.checked;
+
+                  if (!hasPwd) {
+                    announceMessage("Panditji, aapne abhi tak Password set nahi kiya hai. Kripya screen par Password set karke dobara 'maine kar diya' boliye.", false);
+                    return;
+                  } else if (!pwdMatches) {
+                    announceMessage("Panditji, aapka password aur confirm password match nahi kar rahe. Kripya dono ek jaisa dobara set kijiye.", false);
+                    return;
+                  } else if (!hasAadhaar && !hasCert) {
+                    announceMessage("Panditji, aapne Aadhaar Identity Proof aur Vedic Certificate dono documents upload nahi kiye hain. Kripya dono upload karke dobara 'maine kar diya' boliye.", false);
+                    return;
+                  } else if (!hasAadhaar) {
+                    announceMessage("Panditji, aapka Aadhaar Identity Proof upload karna baki hai. Kripya Aadhaar upload karke dobara 'maine kar diya' boliye.", false);
+                    return;
+                  } else if (!hasCert) {
+                    announceMessage("Panditji, aapka Vedic Certificate document upload karna baki hai. Kripya Certificate upload karke dobara 'maine kar diya' boliye.", false);
+                    return;
+                  } else if (!hasTerms) {
+                    announceMessage("Panditji, aapne Terms & Conditions aur Code of Conduct accept nahi kiya hai. Kripya checkbox tick karke dobara 'maine kar diya' boliye.", false);
+                    return;
+                  }
+
+                  const submitSelector = '[data-testid="button-submit-pandit-signup"], [data-testid="button-submit-signup"], form button[type="submit"], button[type="submit"]';
+                  const seq: any[] = [
+                    { action: 'wait_for_selector', target: submitSelector, delay: 300 },
+                    { action: 'scroll', target: submitSelector, delay: 400 },
+                    { action: 'move', target: submitSelector, delay: 800 },
+                    { action: 'click', target: submitSelector, delay: 200 },
+                  ];
+                  sequenceQueueRef.current = seq;
+                  if (!isExecutingSequenceRef.current) {
+                    processNextStepRef.current();
+                  }
+                }
+              } else {
+                const submitSelector = '[data-testid="button-submit-pandit-signup"], [data-testid="button-submit-signup"], form button[type="submit"], button[type="submit"]';
+                const seq: any[] = [
+                  { action: 'wait_for_selector', target: submitSelector, delay: 300 },
+                  { action: 'scroll', target: submitSelector, delay: 400 },
+                  { action: 'move', target: submitSelector, delay: 800 },
+                  { action: 'click', target: submitSelector, delay: 200 },
+                ];
+                sequenceQueueRef.current = seq;
+                if (!isExecutingSequenceRef.current) {
+                  processNextStepRef.current();
+                }
               }
             }
             

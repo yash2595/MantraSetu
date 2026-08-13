@@ -47,8 +47,16 @@ async def execute_pandit_application(
     languages: List[str],
     experience: str,
     specialization: str,
-    aadhaar_file: Optional[UploadFile],
-    certificate_file: Optional[UploadFile],
+    gender: Optional[str] = None,
+    availability: Optional[str] = None,
+    service_areas: Optional[List[str]] = None,
+    education: Optional[str] = None,
+    gurukul: Optional[str] = None,
+    achievements: Optional[List[str]] = None,
+    bio: Optional[str] = None,
+    aadhaar_file: Optional[UploadFile] = None,
+    certificate_file: Optional[UploadFile] = None,
+    gallery_files: Optional[List[UploadFile]] = None,
 ) -> PanditApplicationResponse:
 
     if password != confirm_password:
@@ -61,14 +69,14 @@ async def execute_pandit_application(
     if existing_application:
         raise HTTPException(
             status_code=409,
-            detail="An application with this email already exists."
+            detail="Is email address se pehle se ek application maujood hai."
         )
 
     existing_user = await find_user_by_email(email)
     if existing_user:
         raise HTTPException(
             status_code=409,
-            detail="This email is already registered as a devotee account."
+            detail="Yeh email pehle se hi ek devotee account ke saath registered hai."
         )
 
     aadhaar_path = (
@@ -81,21 +89,53 @@ async def execute_pandit_application(
         if certificate_file else None
     )
 
+    saved_gallery_paths: List[str] = []
+    if gallery_files:
+        for gfile in gallery_files:
+            if gfile and gfile.filename:
+                gpath = save_uploaded_file(gfile, "gallery")
+                saved_gallery_paths.append(gpath)
+
+    # Specialization parsing: accept list or comma-separated string
+    spec_list: List[str] = []
+    if isinstance(specialization, str):
+        spec_list = [s.strip() for s in specialization.split(",") if s.strip()]
+    elif isinstance(specialization, list):
+        spec_list = specialization
+    else:
+        spec_list = [str(specialization)]
+
     hashed = hash_password(password)
 
-    application_id = await create_pandit_application(
-        name=name,
-        email=email,
-        phone=phone,
-        hashed_password=hashed,
-        city=city,
-        state=state,
-        languages=languages,
-        experience=experience,
-        specialization=specialization,
-        aadhaar_file=aadhaar_path,
-        certificate_file=certificate_path,
-    )
+    try:
+        application_id = await create_pandit_application(
+            name=name,
+            email=email,
+            phone=phone,
+            hashed_password=hashed,
+            city=city,
+            state=state,
+            languages=languages,
+            experience=experience,
+            specialization=spec_list if len(spec_list) > 1 else specialization,
+            gender=gender,
+            availability=availability,
+            service_areas=service_areas or [],
+            education=education,
+            gurukul=gurukul,
+            achievements=achievements or [],
+            bio=bio,
+            aadhaar_file=aadhaar_path,
+            certificate_file=certificate_path,
+            gallery_files=saved_gallery_paths,
+        )
+    except Exception as e:
+        if "duplicate" in str(e).lower() or "11000" in str(e):
+            raise HTTPException(
+                status_code=409,
+                detail="Is email ya mobile number se pehle se ek application maujood hai."
+            )
+        raise e
 
     return PanditApplicationResponse(
         status="success",

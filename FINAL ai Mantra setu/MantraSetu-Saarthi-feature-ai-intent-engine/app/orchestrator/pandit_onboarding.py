@@ -1,7 +1,7 @@
 import logging
 import random
 import re
-from typing import Any
+from typing import Any, Callable
 from app.llm.models import LLMRequest
 from app.services.ai_service import AIService
 from app.orchestrator.orchestrator_models import (

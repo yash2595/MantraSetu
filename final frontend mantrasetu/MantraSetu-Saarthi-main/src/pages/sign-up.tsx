@@ -510,6 +510,19 @@ export default function SignUp() {
         formData.append('city', panditCity);
         formData.append('state', panditState);
         formData.append('experience', panditExp.includes('year') ? panditExp : `${panditExp} years`);
+        formData.append('gender', panditGender);
+        formData.append('availability', panditAvailabilityMode);
+        formData.append('education', panditEducation);
+        formData.append('gurukul', panditGurukul);
+        formData.append('bio', panditBio);
+
+        selectedServiceAreas.forEach((area) => {
+          formData.append('service_areas', area);
+        });
+
+        panditAchievements.filter((a) => a && a.trim()).forEach((ach) => {
+          formData.append('achievements', ach.trim());
+        });
 
         // Format combined specializations into compatible string
         const formattedSpec =
@@ -525,6 +538,11 @@ export default function SignUp() {
         }
         if (certFile) {
           formData.append('certificate_file', certFile);
+        }
+        if (galleryFiles && galleryFiles.length > 0) {
+          galleryFiles.forEach((gf) => {
+            formData.append('gallery_files', gf);
+          });
         }
 
         await authService.applyPandit(formData);
@@ -654,7 +672,7 @@ export default function SignUp() {
 
             {/* Pandit Onboarding Progress Indicator */}
             {userType === 'pandit' && !formSent && (
-              <div style={{ marginBottom: '1.8rem' }}>
+              <div style={{ marginBottom: '1.8rem' }} data-testid="pandit-wizard-step" data-step={panditStep}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 700, color: '#7a3e1e' }}>
                   <span style={{ color: panditStep >= 1 ? '#ee7c2b' : '#a89d91' }}>1. Personal Information</span>
                   <span style={{ color: panditStep >= 2 ? '#ee7c2b' : '#a89d91' }}>2. Professional Details</span>
@@ -1256,6 +1274,8 @@ export default function SignUp() {
                                 )}
                               </span>
                               <input
+                                id="pandit-cert-input"
+                                data-testid="input-cert-file"
                                 type="file"
                                 accept=".pdf,image/*"
                                 style={{ display: 'none' }}
@@ -1293,6 +1313,8 @@ export default function SignUp() {
                                 )}
                               </span>
                               <input
+                                id="pandit-aadhaar-input"
+                                data-testid="input-aadhaar-file"
                                 type="file"
                                 accept=".pdf,image/*"
                                 style={{ display: 'none' }}
