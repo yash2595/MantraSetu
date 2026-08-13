@@ -174,12 +174,34 @@ export default function SignUp() {
   };
 
   // ── LOCAL STORAGE PERSISTENCE & RELOAD RESTORATION ──
+  // Restores all serializable pandit wizard fields on mount so a page refresh
+  // lands the user back on the same step with their data intact.
+  // NOTE: galleryFiles (File objects) are intentionally NOT persisted —
+  //       binary blobs cannot be JSON-serialised safely; user re-uploads after refresh.
   useEffect(() => {
     try {
       const saved = localStorage.getItem('ms_saarthi_pandit_form_data');
       if (saved) {
         const data = JSON.parse(saved);
-        if (data.panditName) {
+
+        // ── Step position (CRITICAL: without this, refresh always resets to Step 1) ──
+        if (data.panditStep && [1, 2, 3].includes(data.panditStep)) {
+          setPanditStep(data.panditStep as 1 | 2 | 3);
+        }
+
+        // ── Step 1: Personal & Contact ──
+        // panditName migration: stored as full name, split back into first/last
+        if (data.panditFirstName) {
+          setPanditFirstName(data.panditFirstName);
+        }
+        if (data.panditLastName) {
+          setPanditLastName(data.panditLastName);
+        }
+        // Reconstruct panditName from stored first+last (canonical source of truth)
+        if (data.panditFirstName || data.panditLastName) {
+          setPanditName(`${data.panditFirstName ?? ''} ${data.panditLastName ?? ''}`.trim());
+        } else if (data.panditName) {
+          // Legacy fallback: old saves only stored panditName as a single string
           setPanditName(data.panditName);
           const parts = data.panditName.trim().split(' ');
           if (parts.length > 1) {
@@ -189,39 +211,89 @@ export default function SignUp() {
             setPanditFirstName(data.panditName);
           }
         }
-        if (data.panditPhone) setPanditPhone(data.panditPhone);
-        if (data.panditEmail) setPanditEmail(data.panditEmail);
-        if (data.panditCity) setPanditCity(data.panditCity);
-        if (data.panditState) setPanditState(data.panditState);
-        if (data.panditExp) setPanditExp(data.panditExp);
-        if (data.panditSpec) setPanditSpec(data.panditSpec);
-        if (data.panditLanguages) setPanditLanguages(data.panditLanguages);
-        console.log('[PERSISTENCE] Restored Pandit form progress from localStorage:', data);
+        if (data.panditGender && ['Male', 'Female', 'Other'].includes(data.panditGender)) {
+          setPanditGender(data.panditGender as 'Male' | 'Female' | 'Other');
+        }
+        if (data.panditPhone)             setPanditPhone(data.panditPhone);
+        if (data.panditEmail)             setPanditEmail(data.panditEmail);
+        if (data.panditCity)              setPanditCity(data.panditCity);
+        if (data.panditState)             setPanditState(data.panditState);
+        if (data.panditAvailabilityMode)  setPanditAvailabilityMode(data.panditAvailabilityMode);
+        if (Array.isArray(data.selectedServiceAreas) && data.selectedServiceAreas.length > 0) {
+          setSelectedServiceAreas(data.selectedServiceAreas);
+        }
+
+        // ── Step 2: Vedic Qualifications, Experience & Achievements ──
+        if (data.panditExp)              setPanditExp(data.panditExp);
+        if (data.panditEducation)        setPanditEducation(data.panditEducation);
+        if (data.panditGurukul)          setPanditGurukul(data.panditGurukul);
+        if (data.panditSpec)             setPanditSpec(data.panditSpec);
+        if (Array.isArray(data.selectedSpecs) && data.selectedSpecs.length > 0) {
+          setSelectedSpecs(data.selectedSpecs);
+        }
+        if (Array.isArray(data.panditLanguages) && data.panditLanguages.length > 0) {
+          setPanditLanguages(data.panditLanguages);
+        }
+        if (Array.isArray(data.panditAchievements) && data.panditAchievements.length > 0) {
+          setPanditAchievements(data.panditAchievements);
+        }
+        if (data.panditBio)              setPanditBio(data.panditBio);
+
+        console.log('[PERSISTENCE] Restored Pandit form progress from localStorage (step:', data.panditStep ?? 1, '):', data);
       }
     } catch {}
   }, []);
 
+  // ── LOCAL STORAGE SAVE (fires on every relevant state change) ──
+  // galleryFiles excluded: File objects are not JSON-serialisable.
+  // panditPassword / panditConfirmPassword stripped by getPersistableData().
   useEffect(() => {
     if (userType === 'pandit') {
       try {
         const rawPayload = {
+          // Step position
+          panditStep,
+          // Step 1 fields
+          panditFirstName,
+          panditLastName,
           panditName,
+          panditGender,
           panditPhone,
           panditEmail,
           panditCity,
           panditState,
+          panditAvailabilityMode,
+          selectedServiceAreas,
+          // Step 2 fields
           panditExp,
+          panditEducation,
+          panditGurukul,
           panditSpec,
+          selectedSpecs,
           panditLanguages,
+          panditAchievements,
+          panditBio,
+          // Step 3: passwords — will be stripped by getPersistableData()
           panditPassword,
-          panditConfirmPassword
+          panditConfirmPassword,
+          // galleryFiles intentionally omitted (non-serialisable File objects)
         };
         // ── GUARANTEED SECURITY SANITIZATION VIA SHARED getPersistableData HELPER ──
         const safePayload = getPersistableData(rawPayload);
         localStorage.setItem('ms_saarthi_pandit_form_data', JSON.stringify(safePayload));
       } catch {}
     }
-  }, [userType, panditName, panditPhone, panditEmail, panditCity, panditState, panditExp, panditSpec, panditLanguages, panditPassword, panditConfirmPassword]);
+  }, [
+    userType,
+    panditStep,
+    panditFirstName, panditLastName, panditName, panditGender,
+    panditPhone, panditEmail, panditCity, panditState,
+    panditAvailabilityMode, selectedServiceAreas,
+    panditExp, panditEducation, panditGurukul,
+    panditSpec, selectedSpecs, panditLanguages,
+    panditAchievements, panditBio,
+    panditPassword, panditConfirmPassword,
+  ]);
 
   const handleGoogleSuccess = async (credentialResponse: any) => {
     if (!credentialResponse.credential) {
