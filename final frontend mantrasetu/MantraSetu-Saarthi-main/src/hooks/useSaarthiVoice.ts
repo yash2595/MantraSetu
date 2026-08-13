@@ -1029,8 +1029,6 @@ export function useSaarthiVoice() {
                     seq.push({ action: 'move', target: selector, delay: 200 });
                     seq.push({ action: 'type', target: selector, text: fQuery, delay: 300 });
                   }
-                }r, text: fQuery, delay: 800 });
-                  }
                 } else {
                   const element = document.querySelector(selector);
                   console.log(`[FORM-FILL] Attempting to queue fill: field="${fTarget}", value="${fQuery}", selector="${selector}", foundElement=${!!element}`);
