@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Uploads / Sensitive data
+uploads/
+uploads/aadhaar/
+**/uploads/aadhaar/*

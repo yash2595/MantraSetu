@@ -7,6 +7,11 @@ node_modules/
 .venv/
 data/
 *.wav
+uploads/
+uploads/aadhaar/
+**/uploads/aadhaar/*
+*.jpeg
+*.jpg
 
 # Uploads containing sensitive documents
 final backend mantrasetu/mantrasetu-saarthi-backend-main/uploads/aadhaar/
