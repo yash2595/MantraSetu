@@ -65,22 +65,39 @@ class WhisperAdapter(ISpeechRecognizer):
             # ── Tier 1: High-Accuracy Gemini Multimodal Audio STT ──
             gemini_key = os.environ.get("GEMINI_API_KEY", "")
             if gemini_key:
+                stt_start_time = time.time()
                 try:
                     from google import genai
                     from google.genai import types
                     client = genai.Client(api_key=gemini_key)
-                    resp = client.models.generate_content(
-                        model="gemini-1.5-flash",
-                        contents=[
-                            types.Part.from_bytes(data=wav_data, mime_type="audio/wav"),
-                            "Transcribe this audio with 100% precision. Return ONLY the exact spoken transcript text in Hindi, Hinglish, or English. If there is no clear human speech, return empty string."
-                        ]
-                    )
+                    
+                    max_attempts = 5
+                    resp = None
+                    for attempt in range(max_attempts):
+                        try:
+                            resp = client.models.generate_content(
+                                model="gemini-flash-lite-latest",
+                                contents=[
+                                    types.Part.from_bytes(data=wav_data, mime_type="audio/wav"),
+                                    "Transcribe this audio with 100% precision. Return ONLY the exact spoken transcript text in Hindi, Hinglish, or English. If there is no clear human speech, return empty string."
+                                ]
+                            )
+                            if resp:
+                                break
+                        except Exception as try_err:
+                            if ("503" in str(try_err) or "429" in str(try_err) or "UNAVAILABLE" in str(try_err) or "RESOURCE_EXHAUSTED" in str(try_err)) and attempt < max_attempts - 1:
+                                logger.warning(f"[TIMING-STT] Gemini Audio STT rate limit/503 on attempt {attempt+1}/{max_attempts}: {try_err}. Retrying in {(attempt+1)*3}s...")
+                                time.sleep(3.0 * (attempt + 1))
+                            else:
+                                raise try_err
+
+                    stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
                     if resp and resp.text:
                         text = resp.text.strip()
-                        logger.info(f"[STT-GEMINI] Transcribed audio ({len(wav_data)} bytes) -> '{text}'")
+                        logger.info(f"[TIMING-STT] Gemini Audio STT completed in {stt_elapsed_ms}ms | Transcribed: '{text}'")
                 except Exception as g_err:
-                    logger.warning(f"[STT-GEMINI] Gemini Audio STT failed: {g_err}, falling back to WebSpeech")
+                    stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
+                    logger.warning(f"[TIMING-STT] Gemini Audio STT failed in {stt_elapsed_ms}ms: {g_err}, falling back to WebSpeech")
 
             # ── Tier 2: Fallback to Google Web Speech API ──
             if not text:

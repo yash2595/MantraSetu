@@ -136,23 +136,21 @@ export default function Puja() {
   const [bookingPuja, setBookingPuja] = useState<PujaItem | null>(null);
   const [pujas, setPujas] = useState<PujaItem[]>(defaultPujaCatalog);
 
+  const filteredPujas = useMemo(() => {
+    return pujas.filter((puja) => {
+      const matchesCategory = selectedCategory === 'All Pujas' || puja.category === selectedCategory;
+      const matchesSearch =
+        puja.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        puja.description.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+  }, [pujas, selectedCategory, searchQuery]);
+
   useEffect(() => {
     if (searchParams.get('q')) {
       setSearchQuery(searchParams.get('q') || '');
     }
   }, [searchParams]);
-
-  // Auto-open booking modal if autobook=true in URL parameter and matched pujas exist
-  useEffect(() => {
-    const isAutoBook = searchParams.get('autobook') === 'true';
-    if (isAutoBook && filteredPujas.length > 0 && !bookingPuja) {
-      const timer = setTimeout(() => {
-        console.log('[PUJA-PAGE] Autobook parameter active: Opening booking modal for:', filteredPujas[0].title);
-        setBookingPuja(filteredPujas[0]);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [searchParams, filteredPujas, bookingPuja]);
 
 
   // Form state for booking modal
@@ -198,16 +196,6 @@ export default function Puja() {
       isMounted = false;
     };
   }, []);
-
-  const filteredPujas = useMemo(() => {
-    return pujas.filter((puja) => {
-      const matchesCategory = selectedCategory === 'All Pujas' || puja.category === selectedCategory;
-      const matchesSearch =
-        puja.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        puja.description.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
-    });
-  }, [pujas, selectedCategory, searchQuery]);
 
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -111,6 +111,11 @@ class VoiceGateway:
         session.status = VoiceSessionStatus.STREAMING
         session.touch()
 
+        if session_id not in self._buffers:
+            self._buffers[session_id] = AudioBuffer()
+        if session_id not in self._aggregators:
+            self._aggregators[session_id] = TranscriptAggregator()
+
         buffer = self._buffers.get(session_id)
         if buffer:
             buffer.append(chunk)
@@ -163,6 +168,63 @@ class VoiceGateway:
             session.session_id, final_text, stt_result.confidence, stt_result.provider
         )
 
+        # ── Noise & Low Confidence Guard ──
+        is_noise = False
+        msg_lower = final_text.lower().strip()
+        
+        # 1. Strip standard noise/non-speech markers
+        import re
+        clean_marker = re.sub(r'<[^>]+>', '', msg_lower).strip()
+        clean_marker = re.sub(r'\[[^\]]+\]', '', clean_marker).strip()
+        clean_marker = re.sub(r'\([^\)]+\)', '', clean_marker).strip()
+        
+        # 2. Filler words check
+        fillers = {
+            "uh", "um", "ah", "eh", "oh", "hm", "hmm", "hmmm", "oops", "mhm", "uh-huh",
+            "aa", "aaa", "ummm", "ehh", "err", "uhh", "aur", "toh", "like", "actually",
+            "basically", "ya", "yea", "yeah", "ok", "okay"
+        }
+        words = [w.strip(".,?!;:") for w in clean_marker.split() if w.strip(".,?!;:")]
+        remaining_words = [w for w in words if w not in fillers]
+        
+        # 3. Confidence threshold
+        is_low_confidence = stt_result.confidence is not None and stt_result.confidence < 0.40
+        
+        if not remaining_words or is_low_confidence or clean_marker == "":
+            is_noise = True
+            
+        if is_noise:
+            logger.info(
+                "[STT-GUARD] Noise/Low confidence transcript detected: %r (confidence: %.2f). Asking to repeat.",
+                final_text, stt_result.confidence
+            )
+            repeat_msg = "Kshama karein, main sun nahi paya. Kripya apna jawab dobara boliye."
+            
+            from app.orchestrator.orchestrator_models import OrchestratorResponse, ResponseType
+            current_field = None
+            if hasattr(session, "onboarding_state") and session.onboarding_state:
+                idx = session.onboarding_state.get("current_field_index", 0)
+                fields = session.onboarding_state.get("fields", [])
+                if idx < len(fields):
+                    current_field = fields[idx]
+                    
+            repeat_response = OrchestratorResponse(
+                response_id=f"resp_repeat_{session_id[:8]}",
+                request_id=session_id,
+                text=repeat_msg,
+                response_type=ResponseType.CHAT,
+                navigation_directive={
+                    "action": None, 
+                    "target": None, 
+                    "query": None, 
+                    "active_field": current_field, 
+                    "intent": "REPEAT_PROMPT"
+                }
+            )
+            self._buffers.pop(session_id, None)
+            self._aggregators.pop(session_id, None)
+            return repeat_response, ""
+
         if not final_text:
             logger.info("[STT-DIAGNOSTIC] Session %s | Empty transcript detected (silence/background noise). Suppressing AI response.", session.session_id)
             self._buffers.pop(session_id, None)
@@ -214,8 +276,8 @@ class VoiceGateway:
 
         # Keep session alive for multi-turn voice interaction
         session.status = VoiceSessionStatus.CONNECTED
-        self._buffers.pop(session_id, None)
-        self._aggregators.pop(session_id, None)
+        self._buffers[session_id] = AudioBuffer()
+        self._aggregators[session_id] = TranscriptAggregator()
 
         return response, final_text
 

@@ -38,8 +38,8 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
 }, []);
 
   // ── USER CHOICE 1: Continue Manually ────────────────────────
-  const continueManually = () => {
-        console.log('[Provider] continueManually invoked');
+  const continueManually = useCallback(() => {
+    console.log('[Provider] continueManually invoked');
     // 180ms fade out popup & bubble -> 100ms pause -> bow -> minimize to bottom-right
     setShowChoicePopup(false);
     setShowSpeechBubble(false);
@@ -53,21 +53,21 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
         setDialogueText('');
       }, 500);
     }, 280); // 180ms fade + 100ms pause
-  };
+  }, []);
 
   // ── USER CHOICE 2: Continue with Saarthi ────────────────────
-  const continueWithSaarthi = () => {
-        console.log('[Provider] continueWithSaarathi invoked, switching to listening');
+  const continueWithSaarthi = useCallback(() => {
+    console.log('[Provider] continueWithSaarathi invoked, switching to listening');
     setShowChoicePopup(false);
     setIsMinimized(false); // REMAINS in center
     setShowSpeechBubble(true);
     setDialogueText('जी बताइए,\nआज मैं आपकी क्या सहायता कर सकता हूँ?');
     setState('listening');
     setOnboardingPhase('saarthi_listening');
-  };
+  }, []);
 
   // ── MINIMIZE / STEP-ASIDE CONTROL (Sequence Refined) ─────────
-  const minimizeSaarthi = () => {
+  const minimizeSaarthi = useCallback(() => {
     console.trace('[Provider] minimizeSaarthi invoked');
     // 1. Speech bubble & popup fade out (180ms)
     setShowChoicePopup(false);
@@ -83,21 +83,21 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
         setDialogueText('');
       }, 500);
     }, 280); // 180ms fade + 100ms pause
-  };
+  }, []);
 
   // ── FORCE MINIMIZE (Instant, for AI Interactions) ─────────
-  const forceMinimize = () => {
+  const forceMinimize = useCallback(() => {
     console.log('[WIDGET] forceMinimize executing. setting isMinimized to true');
     console.trace('[Provider] forceMinimize invoked');
     setShowChoicePopup(false);
     setShowSpeechBubble(true); // Keep speech bubble visible!
     setIsMinimized(true);
     setOnboardingPhase('minimized');
-  };
+  }, []);
 
   // ── REOPEN CONTROL (When floating avatar is clicked later) ───
-  const reopenSaarthi = () => {
-        console.log('[Provider] reopenSaarthi invoked');
+  const reopenSaarthi = useCallback(() => {
+    console.log('[Provider] reopenSaarthi invoked');
     // Return to center, skip onboarding, skip "Jai Bholenath", simply say "जी बताइए।"
     setIsMinimized(false);
     setShowChoicePopup(false);
@@ -105,21 +105,21 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
     setDialogueText('जी बताइए।');
     setState('listening');
     setOnboardingPhase('saarthi_listening');
-  };
+  }, []);
 
-  const toggleMinimized = () => {
+  const toggleMinimized = useCallback(() => {
     if (isMinimized) {
       reopenSaarthi();
     } else {
       minimizeSaarthi();
     }
-  };
+  }, [isMinimized, reopenSaarthi, minimizeSaarthi]);
 
   const setSaarthiState = useCallback((newState: SaarthiState) => {
     setState(newState);
   }, []);
 
-  const announceMessage = (text: string, isSuccess: boolean = true) => {
+  const announceMessage = useCallback((text: string, isSuccess: boolean = true) => {
     console.log('[Saarthi] Announce message:', text, 'isSuccess:', isSuccess);
     setDialogueText(text);
     setShowSpeechBubble(true);
@@ -147,7 +147,7 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
     setTimeout(() => {
       setState('idle');
     }, 8000);
-  };
+  }, []);
 
   return (
     <SaarthiContext.Provider

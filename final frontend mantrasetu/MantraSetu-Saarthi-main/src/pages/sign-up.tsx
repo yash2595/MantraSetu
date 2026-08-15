@@ -114,7 +114,7 @@ export default function SignUp() {
 
   // Pandit multi-step onboarding state
   const [panditStep, setPanditStep] = useState<1 | 2 | 3>(1);
-  const [activeField, setActiveField] = useState<string>('pandit-first-name');
+  const [activeField, setActiveField] = useState<string>('pandit-avatar');
 
   // Step 1: Personal & Contact Details
   const [panditFirstName, setPanditFirstName] = useState('');
@@ -263,7 +263,7 @@ export default function SignUp() {
     console.log('[SYNC-DEBUG] activeField:', activeField, '| step:', panditStep);
 
     const stepDefaults: Record<number, string> = {
-      1: 'pandit-first-name',
+      1: 'pandit-avatar',
       2: 'pandit-exp',
       3: 'pandit-certFile'
     };
@@ -273,7 +273,7 @@ export default function SignUp() {
     const currentFieldStep = step2Fields.includes(activeField) ? 2 : step3Fields.includes(activeField) ? 3 : 1;
 
     if (currentFieldStep !== panditStep) {
-      const newField = stepDefaults[panditStep] || 'pandit-first-name';
+      const newField = stepDefaults[panditStep] || 'pandit-avatar';
       console.log(`[SYNC-DEBUG] Step changed to ${panditStep}. Updating activeField: "${activeField}" -> "${newField}"`);
       setActiveField(newField);
     }
@@ -919,7 +919,15 @@ export default function SignUp() {
                             <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#3d2b1f', display: 'block' }}>फोटो / Profile Photo (Optional)</span>
                             <label style={{ fontSize: '0.78rem', color: '#ee7c2b', fontWeight: 700, cursor: 'pointer', display: 'inline-block', marginTop: '0.2rem' }}>
                               Choose Picture
-                              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoSelect} />
+                              <input
+                                id="pandit-avatar"
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={handlePhotoSelect}
+                                data-testid="input-pandit-avatar"
+                                data-field="pandit-avatar"
+                              />
                             </label>
                           </div>
                         </div>

@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 
 from pydantic import Field, SecretStr
@@ -15,7 +16,7 @@ class LLMSettings(BaseSettings):
     )
 
     base_url: str = Field(default="https://generativelanguage.googleapis.com/v1beta")
-    model: str = Field(default="gemini-3.5-flash-lite")
+    model_name: str = Field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest"))
 
     temperature: float = Field(default=0.7)
     max_tokens: int = Field(default=1024)

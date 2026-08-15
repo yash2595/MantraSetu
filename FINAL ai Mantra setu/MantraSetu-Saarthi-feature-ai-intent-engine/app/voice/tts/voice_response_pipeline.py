@@ -167,7 +167,11 @@ class VoiceResponsePipeline:
             },
         )
 
+        import time
+        tts_start_time = time.time()
         async for chunk in self._tts_provider.stream(synthesis_request):
+            tts_elapsed_ms = int((time.time() - tts_start_time) * 1000)
+            logger.info(f"[TIMING-TTS] TTS Audio stream chunk produced in {tts_elapsed_ms}ms | size={len(chunk.data)} bytes")
             yield chunk
 
     async def cancel(self, request_id: str) -> None:

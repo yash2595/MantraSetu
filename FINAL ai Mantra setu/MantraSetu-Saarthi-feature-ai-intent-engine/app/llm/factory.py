@@ -43,6 +43,8 @@ class LLMProviderFactory:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._registry = {}
+            from app.llm.providers.gemini import GeminiProvider
+            cls._instance._registry["gemini"] = GeminiProvider
         return cls._instance
 
     def register(self, name: str, provider_cls: type[BaseLLMProvider]) -> None:

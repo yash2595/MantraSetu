@@ -416,7 +416,8 @@ class AIOrchestrator:
         onboarding_state = getattr(session, "onboarding_state", None)
         
         # Auto-initialize onboarding state if user is on signup page
-        if (not onboarding_state or not onboarding_state.get("active")) and ("/signup" in sanitized_req.current_page or "pandit" in sanitized_req.current_page):
+        page_str = sanitized_req.current_page or ""
+        if (not onboarding_state or not onboarding_state.get("active")) and ("/signup" in page_str or "pandit" in page_str):
             session.onboarding_state = {
                 "active": True,
                 "current_field_index": 0,
@@ -1008,6 +1009,23 @@ class AIOrchestrator:
             )
 
         # 4. Context Building & LLM Provider Execution (Fallback for CHAT)
+        if intent_result and intent_result.get("response_text"):
+            elapsed_ms = (time.perf_counter() - t_start) * 1000.0
+            self._telemetry_manager.record_request(is_success=True, latency_ms=elapsed_ms)
+            self._observability_manager.record_trace(diag)
+            self._lifecycle_manager.complete_request_lifecycle(request.request_id)
+            self._scheduler.complete_request(request.request_id)
+
+            return self._response_builder.build_response(
+                request_id=request.request_id,
+                text_override=intent_result.get("response_text"),
+                response_type=ResponseType.CHAT,
+                metadata=ResponseMetadata(
+                    provider_type="gemini",
+                    latency_ms=round(elapsed_ms, 2),
+                ),
+            )
+
         context = self._prompt_builder.build_context(sanitized_req)
 
         self._lifecycle_manager.transition_state(request.request_id, OrchestratorState.EXECUTING_LLM)

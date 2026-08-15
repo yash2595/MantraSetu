@@ -122,6 +122,12 @@ export function getFormStateData(): Record<string, string> {
     data['pandit-confirm_filled'] = (cpwdEl && cpwdEl.value && cpwdEl.value.trim().length > 0) ? 'true' : 'false';
     data['confirm_filled'] = data['pandit-confirm_filled'];
 
+    const avatarInput = document.querySelector<HTMLInputElement>('#pandit-avatar, [data-testid="input-pandit-avatar"]');
+    const avatarPreviewImg = document.querySelector<HTMLImageElement>('[alt="Preview"]');
+    const hasAvatarFile = (avatarInput && avatarInput.files && avatarInput.files.length > 0) ||
+                          (avatarPreviewImg && avatarPreviewImg.getAttribute('src')?.startsWith('data:image'));
+    data['avatar_attached'] = hasAvatarFile ? 'true' : 'false';
+
     data['aadhaar_attached'] = (aadhaarInput && aadhaarInput.files && aadhaarInput.files.length > 0) ? 'true' : 'false';
     data['cert_attached'] = (certInput && certInput.files && certInput.files.length > 0) ? 'true' : 'false';
     data['terms_accepted'] = (termsEl && termsEl.checked) ? 'true' : 'false';
@@ -140,24 +146,80 @@ export function getFormStateData(): Record<string, string> {
 }
 
 export function useSaarthiVoice() {
-  const { state, setDialogueText, setSaarthiState, minimizeSaarthi, forceMinimize } = useSaarthi();
+  const { state, setDialogueText, setSaarthiState, minimizeSaarthi, forceMinimize, announceMessage } = useSaarthi();
   const [isConnected, setIsConnected] = useState(false);
+  const [isSessionReady, setIsSessionReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const wsRef = useRef<WebSocket | null>(null);
+  const isSessionReadyRef = useRef(false);
+  const isConnectingRef = useRef(false);
+  const reconnectTimerRef = useRef<any>(null);
+  const connectionTimeoutRef = useRef<any>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const MAX_RECONNECT_ATTEMPTS = 10;
+
+  const updateSessionReady = useCallback((ready: boolean) => {
+    console.log(`[Voice] Session ready state updated: ${ready}`);
+    isSessionReadyRef.current = ready;
+    setIsSessionReady(ready);
+    if (ready) {
+      userRecordedBytesRef.current = 0;
+      userHasSpokenRef.current = false;
+    }
+  }, []);
+
+  const sendWsMessage = useCallback((payload: any): boolean => {
+    const currentWs = wsRef.current;
+    if (currentWs && currentWs.readyState === WebSocket.OPEN) {
+      currentWs.send(JSON.stringify(payload));
+      return true;
+    }
+    console.warn(
+      `[Voice] Cannot send WebSocket message (type: ${payload?.type}). ` +
+      `Socket state is ${currentWs ? currentWs.readyState : 'NULL'} (expected WebSocket.OPEN=${WebSocket.OPEN}).`
+    );
+    return false;
+  }, []);
+
+  useEffect(() => {
+    (window as any).simulateUserSpeech = (text: string) => {
+      console.log(`[DEBUG-SIMULATION] Simulating user speech: "${text}"`);
+      sendWsMessage({
+        type: 'TEXT',
+        payload: {
+          text: text,
+          language: 'hi'
+        }
+      });
+    };
+    return () => {
+      delete (window as any).simulateUserSpeech;
+    };
+  }, [sendWsMessage]);
+
+  const playNextAudioRef = useRef<(() => void) | undefined>(undefined);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const currentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const audioQueueRef = useRef<AudioBuffer[]>([]);
   const isPlayingRef = useRef(false);
   const isFinalChunkReceived = useRef(false);
-  const streamIntervalRef = useRef<number | NodeJS.Timeout | null>(null);
-  const fallbackTimeoutRef = useRef<number | NodeJS.Timeout | null>(null);
+  const streamIntervalRef = useRef<number | any | null>(null);
+  const fallbackTimeoutRef = useRef<number | any | null>(null);
   const sequenceQueueRef = useRef<any[]>([]);
   const isExecutingSequenceRef = useRef(false);
   const lastTargetRef = useRef<string | null>(null);
-  const activeFieldRef = useRef<string | null>('pandit-first-name');
+  const activeFieldRef = useRef<string | null>(null);
+
+  // Sync activeFieldRef on page change: reset to null on non-signup pages
+  useEffect(() => {
+    const isSignupPage = window.location.pathname.includes('/signup');
+    if (!isSignupPage) {
+      activeFieldRef.current = null;
+    }
+  }, [navigate]);
 
   const stateRef = useRef(state);
   useEffect(() => {
@@ -489,33 +551,41 @@ export function useSaarthiVoice() {
          (targetEl as HTMLInputElement).focus();
 
          const typeNextChar = () => {
-           if (charIndex > fullText.length) {
-             // Typing complete: swap highlight → filled glow and advance sequence
-             targetEl.classList.remove('saarthi-highlight');
-             targetEl.classList.add('saarthi-filled');
-             // Fire final change event so React state is committed
-             targetEl.dispatchEvent(new Event('change', { bubbles: true }));
-             console.log('[FORM-FILL-EXEC] Char-by-char typing complete for:', step.target);
-             setTimeout(processNextStep, step.delay || 400);
-             return;
-           }
+            if (charIndex > fullText.length) {
+              // Typing complete: swap highlight → filled glow and advance sequence
+              targetEl.classList.remove('saarthi-highlight');
+              targetEl.classList.add('saarthi-filled');
+              const tracker = (targetEl as any)._valueTracker;
+              if (tracker) tracker.setValue('');
+              targetEl.dispatchEvent(new Event('input', { bubbles: true }));
+              targetEl.dispatchEvent(new Event('change', { bubbles: true }));
+              console.log(`[FORM-FILL-PROOF] Final Char-by-char typing complete for target="${step.target}" | Final DOM Value="${(targetEl as HTMLInputElement).value}"`);
+              setTimeout(processNextStep, step.delay || 400);
+              return;
+            }
 
-           const currentVal = fullText.slice(0, charIndex);
+            const currentVal = fullText.slice(0, charIndex);
 
-           if (nativeInputValueSetter) {
-             nativeInputValueSetter.call(targetEl, currentVal);
-           } else {
-             (targetEl as HTMLInputElement).value = currentVal;
-           }
+            const tracker = (targetEl as any)._valueTracker;
+            if (tracker) tracker.setValue('');
 
-           // Fire input event so React's onChange / controlled input updates
-           targetEl.dispatchEvent(new Event('input', { bubbles: true }));
+            if (nativeInputValueSetter) {
+              nativeInputValueSetter.call(targetEl, currentVal);
+            } else {
+              (targetEl as HTMLInputElement).value = currentVal;
+            }
 
-           charIndex++;
-           setTimeout(typeNextChar, charDelay);
-         };
+            // Fire input & change events so React's onChange / controlled input updates
+            targetEl.dispatchEvent(new Event('input', { bubbles: true }));
+            targetEl.dispatchEvent(new Event('change', { bubbles: true }));
 
-         typeNextChar();
+            console.log(`[FORM-FILL-PROOF] Typing target="${step.target}" | Char ${charIndex}/${fullText.length} | Val="${currentVal}" | DOM Val="${(targetEl as HTMLInputElement).value}"`);
+
+            charIndex++;
+            setTimeout(typeNextChar, charDelay);
+          };
+
+          typeNextChar();
       } else {
          console.warn('[NAV-DEBUG] Type target not found:', step.target);
          processNextStep();
@@ -541,38 +611,85 @@ export function useSaarthiVoice() {
     }
   }, []);
 
+  const connectWebSocket = useCallback(() => {
+    const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+    const wsUrl = apiBase.replace('http', 'ws') + '/ws/voice';
 
-  useEffect(() => {
-    console.log(`[Voice] ---> STATE TRANSITION: ${state} <---`);
-  }, [state]);
+    // Prevent duplicate in-flight reconnection attempts
+    if (isConnectingRef.current) {
+      console.log('[Voice] Reconnect/Connect already in progress. Debouncing duplicate attempt.');
+      return;
+    }
 
-  useEffect(() => {
-    console.log('[Voice] Initializing WebSocket...');
-    const wsUrl = import.meta.env.VITE_API_BASE_URL.replace('http', 'ws') + '/ws/voice';
-    const ws = new WebSocket(wsUrl);
+    if (wsRef.current && (wsRef.current.readyState === WebSocket.CONNECTING || wsRef.current.readyState === WebSocket.OPEN)) {
+      console.log('[Voice] WebSocket is already CONNECTING or OPEN. Skipping connect.');
+      return;
+    }
+
+    isConnectingRef.current = true;
     
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+    }
+    connectionTimeoutRef.current = setTimeout(() => {
+      if (isConnectingRef.current && wsRef.current && wsRef.current.readyState === WebSocket.CONNECTING) {
+        console.warn('[Voice] Connection attempt timed out. Resetting connection state and forcing retry.');
+        isConnectingRef.current = false;
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.close();
+        wsRef.current = null;
+        
+        // Trigger a fresh reconnect attempt
+        const delay = 1000;
+        console.log(`[Voice] Scheduling WebSocket auto-reconnect after timeout in ${delay} ms`);
+        if (reconnectTimerRef.current) {
+          clearTimeout(reconnectTimerRef.current);
+        }
+        reconnectTimerRef.current = setTimeout(() => {
+          connectWebSocket();
+        }, delay);
+      }
+    }, 5000);
+
+    console.log('[Voice] Opening WebSocket connection to:', wsUrl);
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
     ws.onopen = () => {
-      console.log('[Voice] WebSocket Connected');
+      console.log('[Voice] WebSocket Connected successfully.');
+      isConnectingRef.current = false;
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = null;
+      }
+      reconnectAttemptsRef.current = 0;
       setIsConnected(true);
-      
+      updateSessionReady(false);
+
       let persistentSessionId = sessionStorage.getItem('saarthi_session_id');
       if (!persistentSessionId) {
         persistentSessionId = 'vsession_f' + Math.random().toString(36).substring(2, 14);
         sessionStorage.setItem('saarthi_session_id', persistentSessionId);
       }
       console.log('[Voice] Sending CONNECT with session_id:', persistentSessionId, 'current_page:', window.location.pathname);
-      
-      ws.send(JSON.stringify({
+
+      // Always read fresh wsRef.current at send time!
+      const sent = sendWsMessage({
         type: 'CONNECT',
         payload: {
           language: 'hi',
           session_id: persistentSessionId,
-          current_page: window.location.pathname
-        }
-      }));
+          current_page: window.location.pathname,
+        },
+      });
+
+      if (!sent) {
+        console.warn('[Voice] CONNECT frame could not be sent on ws.onopen!');
+      }
     };
 
-    ws.onmessage = async (event) => {
+    ws.onmessage = async (event: MessageEvent) => {
         try {
           const msg = JSON.parse(event.data);
           // [DIAGNOSTIC] Log every single message type and AI_RESPONSE payload explicitly
@@ -581,12 +698,16 @@ export function useSaarthiVoice() {
           }
           if (!msg.type) return;
           console.log(`[Voice] Received message type: ${msg.type}`);
+          if (msg.type === 'ERROR') {
+             console.error('[Voice] [ERROR-PAYLOAD] Received ERROR envelope from backend:', JSON.stringify(msg.payload || msg));
+          }
 
           // ----------- TRANSCRIPT handling -----------------------------------
           if (msg.type === 'TRANSCRIPT') {
             const { text, is_final } = msg.payload as { text: string; is_final: boolean };
             console.log('[Voice] TRANSCRIPT', is_final ? 'final' : 'partial', text);
-            setDialogueText(text);
+            // Bug 2 Fix: Do not render live user transcript in dialogue bubble
+            // setDialogueText(text);
             
             // BARGE-IN / INTERRUPTION: Flush any active tour or sequence when user speaks
             if (sequenceQueueRef.current.length > 0) {
@@ -610,12 +731,16 @@ export function useSaarthiVoice() {
 
           // ----------- CONNECTED handling -----------------------------------
           if (msg.type === 'CONNECTED') {
-            console.log('[Voice] CONNECTED received');
+            console.log('[Voice] CONNECTED received from backend. Session handshake READY.');
+            updateSessionReady(true);
             return;
           }
 
           // ----------- AI_RESPONSE handling -----------------------------------
           if (msg.type === 'AI_RESPONSE') {
+            if (!isSessionReadyRef.current) {
+              updateSessionReady(true);
+            }
             console.log('[Voice] [CONNECT-DIAGNOSTIC] RAW AI_RESPONSE Received:', JSON.stringify(msg.payload));
             let contentStr = msg.payload.content || '';
             
@@ -664,7 +789,9 @@ export function useSaarthiVoice() {
               const isPanditField = activeField.startsWith('pandit-') || !!document.querySelector('[data-testid="tab-usertype-pandit"][aria-pressed="true"]');
 
               
-              if (activeField === 'pandit-first-name') {
+              if (activeField === 'pandit-avatar') {
+                highlightSelector = '[data-testid="input-pandit-avatar"], #pandit-avatar';
+              } else if (activeField === 'pandit-first-name') {
                 highlightSelector = '[data-testid="input-pandit-first-name"]';
               } else if (activeField === 'pandit-last-name') {
                 highlightSelector = '[data-testid="input-pandit-last-name"]';
@@ -853,7 +980,7 @@ export function useSaarthiVoice() {
               if ((cleanTarget.startsWith('/puja') || cleanTarget.startsWith('/services')) && (query || intentName === 'BOOK_PUJA')) {
                  console.log(`[PUJA-AUTOBOOK] Auto-booking sequence triggered for query: ${query || 'general'}`);
                  const seq: any[] = [];
-                 const qParam = query ? `?q=${encodeURIComponent(query)}&autobook=true` : '?autobook=true';
+                 const qParam = query ? `?q=${encodeURIComponent(query)}` : '';
                  seq.push({ action: 'navigate', path: `/puja${qParam}`, delay: 400 });
                  seq.push({ action: 'wait_for_selector', target: '[data-testid^="card-puja-"], .service-card', delay: 400 });
                  seq.push({ action: 'scroll', target: '[data-testid^="card-puja-"], .service-card', delay: 400 });
@@ -920,13 +1047,14 @@ export function useSaarthiVoice() {
               let hasNavigatedToPandit = false;
 
               for (const field of fieldsToFill) {
-                const fTarget = field.target;
-                const fQuery = field.query;
+                const fTarget = field.target || '';
+                const fQuery = field.query || '';
                 
-                let isPanditField = fTarget.startsWith('pandit-');
-                
-                // Smart tab detection: If we are on signup page and pandit tab is active, treat all generic fields as pandit fields
-                if (!isPanditField && window.location.pathname.includes('signup') && document.querySelector('[data-testid="tab-usertype-pandit"][aria-pressed="true"]')) {
+                let isPanditField = fTarget.startsWith('pandit-') || 
+                                    (activeField && activeField.startsWith('pandit-')) || 
+                                    !!document.querySelector('[data-testid="tab-usertype-pandit"][aria-pressed="true"]');
+
+                if (window.location.pathname.includes('signup') && document.querySelector('[data-testid="tab-usertype-pandit"][aria-pressed="true"]')) {
                    isPanditField = true;
                 }
 
@@ -1195,7 +1323,7 @@ export function useSaarthiVoice() {
                 isFinalChunkReceived.current = true;
             }
             if (!audioContextRef.current) {
-              audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+              audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
             }
             if (audioContextRef.current.state === 'suspended') {
               console.log(`[Voice] AudioContext is suspended. Attempting resume()...`);
@@ -1238,10 +1366,11 @@ export function useSaarthiVoice() {
               for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
               console.log(`[Voice] Decoded audioData bytes length: ${bytes.length}`);
               try {
-                const decoded = await audioContextRef.current.decodeAudioData(bytes.buffer);
+                // Slice buffer copy to prevent detaching original bytes.buffer
+                const decoded = await audioContextRef.current.decodeAudioData(bytes.buffer.slice(0));
                 console.log(`[Voice] Successfully decoded via decodeAudioData (duration: ${decoded.duration}s)`);
                 audioQueueRef.current.push(decoded);
-                playNextAudio();
+                playNextAudioRef.current?.();
               } catch (e) {
                 console.warn('[Voice] decodeAudioData failed, falling back to PCM16 buffer creation', e);
                 const pcm16 = new Int16Array(bytes.buffer);
@@ -1252,7 +1381,7 @@ export function useSaarthiVoice() {
                 const audioBuf = audioContextRef.current.createBuffer(1, float32.length, 16000);
                 audioBuf.copyToChannel(float32, 0);
                 audioQueueRef.current.push(audioBuf);
-                playNextAudio();
+                playNextAudioRef.current?.();
               }
             } else {
               console.warn('[Voice] AUDIO_CHUNK missing audio payload');
@@ -1264,12 +1393,10 @@ export function useSaarthiVoice() {
         }
       };
 
-    const reconnectAttemptsRef = { current: 0 };
-    const MAX_RECONNECT_ATTEMPTS = 10;
-
     ws.onclose = (event: CloseEvent) => {
       console.log(`[Voice] WebSocket Closed (code: ${event.code}, clean: ${event.wasClean})`);
       setIsConnected(false);
+      updateSessionReady(false);
 
       const isClean = event.code === 1000 || event.code === 1001;
       if (!isClean && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
@@ -1277,32 +1404,57 @@ export function useSaarthiVoice() {
         const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttemptsRef.current - 1));
         console.log(`[Voice] WebSocket auto-reconnect attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS} in ${delay} ms`);
         
-        setTimeout(() => {
-          if (wsRef.current?.readyState === WebSocket.CLOSED) {
-            console.log(`[Voice] Retrying WebSocket connection (Attempt ${reconnectAttemptsRef.current})...`);
-            const newWs = new WebSocket(wsUrl);
-            newWs.onopen = ws.onopen;
-            newWs.onmessage = ws.onmessage;
-            newWs.onerror = ws.onerror;
-            newWs.onclose = ws.onclose;
-            wsRef.current = newWs;
+        if (reconnectTimerRef.current) {
+          clearTimeout(reconnectTimerRef.current);
+        }
+        reconnectTimerRef.current = setTimeout(() => {
+          if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+            console.log(`[Voice] Executing auto-reconnect attempt ${reconnectAttemptsRef.current}...`);
+            connectWebSocket();
           }
         }, delay);
       }
     };
+
     ws.onerror = (e) => {
       console.error('[Voice] WebSocket Error', e);
+      isConnectingRef.current = false;
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = null;
+      }
       setError('WebSocket error');
+      updateSessionReady(false);
     };
 
     wsRef.current = ws;
+  }, [updateSessionReady, sendWsMessage, setDialogueText, setSaarthiState, forceMinimize, announceMessage, stopAudioPlayback, runSequence, navigate]);
+
+  const connectWebSocketRef = useRef(connectWebSocket);
+  useEffect(() => {
+    connectWebSocketRef.current = connectWebSocket;
+  }, [connectWebSocket]);
+
+  useEffect(() => {
+    console.log('[Voice] Mounting: Initializing WebSocket connection...');
+    connectWebSocketRef.current();
 
     return () => {
-      console.log('[Voice] Cleaning up WebSocket');
-      ws.close();
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
+      console.log('[Voice] Unmounting: Cleaning up WebSocket...');
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
       }
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+      }
+      if (wsRef.current) {
+        console.log('[Voice] Silencing event handlers and closing socket during unmount.');
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      isConnectingRef.current = false;
     };
   }, []);
 
@@ -1389,6 +1541,10 @@ export function useSaarthiVoice() {
     tryPlay();
   }, [setSaarthiState]);
 
+  useEffect(() => {
+    playNextAudioRef.current = playNextAudio;
+  }, [playNextAudio]);
+
   // ── PERSISTENT MICROPHONE & VAD EFFECT (Lifetime tied to WS Connection) ──
   const micStreamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
@@ -1458,8 +1614,8 @@ export function useSaarthiVoice() {
         let chunkCounter = 0;
 
         processor.onaudioprocess = (event) => {
-          // Stream AUDIO_FRAMEs during both 'listening' and 'idle' states when Saarthi is not speaking
-          if (stateRef.current !== 'speaking' && wsRef.current?.readyState === WebSocket.OPEN) {
+          // Stream AUDIO_FRAMEs ONLY when backend handshake is CONFIRMED READY and Saarthi is not speaking
+          if ((stateRef.current as string) !== 'speaking' && wsRef.current?.readyState === WebSocket.OPEN && isSessionReadyRef.current) {
             chunkCounter++;
             const inputData = event.inputBuffer.getChannelData(0);
             const pcm16 = float32ToPCM16(inputData);
@@ -1469,10 +1625,14 @@ export function useSaarthiVoice() {
             if (chunkCounter % 10 === 0) {
               console.log(`[VAD-DIAGNOSTIC] Streaming AUDIO_FRAME (chunk ${chunkCounter}). Total user bytes: ${userRecordedBytesRef.current}`);
             }
-            wsRef.current.send(JSON.stringify({
+            sendWsMessage({
               type: 'AUDIO_FRAME',
               payload: { data: base64data },
-            }));
+            });
+          } else if (!isSessionReadyRef.current) {
+            // Discard audio captured during connection/handshake gap so stale audio does not garble future utterances
+            userRecordedBytesRef.current = 0;
+            userHasSpokenRef.current = false;
           }
         };
 
@@ -1521,17 +1681,18 @@ export function useSaarthiVoice() {
           }
 
           // Ignore VAD during Saarthi's own TTS playback ('speaking')
-          if (stateRef.current === 'speaking') {
+          if ((stateRef.current as string) === 'speaking') {
             silenceStart = Date.now();
             return;
           }
 
           // VAD Logic whenever Saarthi is not speaking (during 'listening' or 'idle' state)
-          if (stateRef.current !== 'speaking') {
+          if ((stateRef.current as string) !== 'speaking') {
             if (average > VAD_THRESHOLD) {
               if (!userHasSpokenRef.current) {
                 console.log(`[VAD-DIAGNOSTIC] 🎯 User speech CONFIRMED started! (Vol: ${average.toFixed(2)} > ${VAD_THRESHOLD})`);
                 userHasSpokenRef.current = true;
+                userRecordedBytesRef.current = 0; // Clear noise bytes accumulated during silence!
                 if (stateRef.current !== 'listening') {
                   setSaarthiState('listening');
                 }
@@ -1542,18 +1703,18 @@ export function useSaarthiVoice() {
                 console.log(`[VAD-DIAGNOSTIC] 🤫 Silence detected after 1.8s. User speech complete. Total bytes: ${userRecordedBytesRef.current}`);
                 userHasSpokenRef.current = false;
                 
-                // Send AUDIO_END only for genuine user speech
-                if (wsRef.current?.readyState === WebSocket.OPEN && userRecordedBytesRef.current > 0) {
+                // Send AUDIO_END only for genuine user speech when session handshake is READY
+                if (wsRef.current?.readyState === WebSocket.OPEN && isSessionReadyRef.current && userRecordedBytesRef.current > 0) {
                   const domData = getFormStateData();
                   console.log(`[VAD-DIAGNOSTIC] ✅ Sending AUDIO_END frame with activeField: "${activeFieldRef.current}", DOM data:`, domData);
-                  wsRef.current.send(JSON.stringify({
+                  sendWsMessage({
                     type: 'AUDIO_END',
                     payload: {
                       current_page: window.location.pathname,
                       active_field: activeFieldRef.current,
                       dom_form_data: domData,
                     }
-                  }));
+                  });
                 }
                 userRecordedBytesRef.current = 0;
                 setSaarthiState('idle');
@@ -1614,5 +1775,5 @@ export function useSaarthiVoice() {
     setSaarthiState('listening');
   }, [setSaarthiState]);
 
-  return { isConnected, error, stopSpeaking };
+  return { isConnected, isSessionReady, error, stopSpeaking };
 }

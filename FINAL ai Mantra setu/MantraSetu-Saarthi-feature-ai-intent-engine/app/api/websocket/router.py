@@ -73,20 +73,23 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                 continue
 
             # Validate frame type against active connection state
-            if frame.type == ProtocolMessageType.AUDIO_FRAME and state_machine.current_state not in (
-                ConnectionState.CONNECTED,
-                ConnectionState.STREAMING,
-            ):
-                err_reply = WebSocketEnvelope(
-                    request_id=frame.request_id,
-                    type=ProtocolMessageType.ERROR,
-                    payload={"message": f"Cannot process AUDIO_FRAME in state '{state_machine.current_state.value}'."},
-                )
-                try:
-                    outbound_queue.put_nowait(err_reply)
-                except asyncio.QueueFull:
-                    transport_metrics.record_dropped_frame()
-                continue
+            if frame.type == ProtocolMessageType.AUDIO_FRAME:
+                if state_machine.current_state == ConnectionState.IDLE:
+                    try:
+                        state_machine.transition_to(ConnectionState.STREAMING, reason="audio_frame_received")
+                    except Exception:
+                        pass
+                elif state_machine.current_state not in (ConnectionState.CONNECTED, ConnectionState.STREAMING):
+                    err_reply = WebSocketEnvelope(
+                        request_id=frame.request_id,
+                        type=ProtocolMessageType.ERROR,
+                        payload={"message": f"Cannot process AUDIO_FRAME in state '{state_machine.current_state.value}'."},
+                    )
+                    try:
+                        outbound_queue.put_nowait(err_reply)
+                    except asyncio.QueueFull:
+                        transport_metrics.record_dropped_frame()
+                    continue
 
             if frame.type == ProtocolMessageType.CONNECT:
                 try:
@@ -136,8 +139,14 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                 except asyncio.QueueFull:
                     transport_metrics.record_dropped_frame()
 
-                # ── Bug 7 fix: Send greeting AI_RESPONSE on connect ──
-                greeting_text = "Namaste! MantraSetu mein aapka swagat hai. Aaj main aapki kya seva kar sakta hoon?"
+                # ── Send page-aware greeting AI_RESPONSE on connect ──
+                if connect_page and ("signup" in connect_page or "pandit" in connect_page):
+                    greeting_text = "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, aapka pehla naam (first name) kya hai?"
+                    initial_active_field = "pandit-first-name"
+                else:
+                    greeting_text = "Namaste! MantraSetu mein aapka swagat hai. Aaj main aapki kya seva kar sakta hoon?"
+                    initial_active_field = None
+
                 greeting_reply = WebSocketEnvelope(
                     request_id=frame.request_id,
                     session_id=active_session_id,
@@ -145,9 +154,10 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                     type=ProtocolMessageType.AI_RESPONSE,
                     payload={
                         "content": greeting_text,
-                        "intent": "GREETING",
-                        "action": None,
-                        "target": None,
+                        "intent": "PANDIT_ONBOARDING" if initial_active_field else "GREETING",
+                        "action": "FILL_FORM" if initial_active_field else None,
+                        "target": initial_active_field,
+                        "active_field": initial_active_field,
                     },
                 )
                 try:
@@ -212,6 +222,8 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                         logger.error(f"Failed to process AUDIO_FRAME: {e}")
 
             elif frame.type == ProtocolMessageType.AUDIO_END:
+                if not active_session_id:
+                    active_session_id = primary_session_id or frame.session_id
                 if active_session_id:
                     current_page_from_frame = frame.payload.get("current_page", None)
                     logger.info(f"[WS-ROUTER] [DIAGNOSTIC] Received AUDIO_END for session {active_session_id}, current_page={current_page_from_frame!r}, finishing voice session")
@@ -373,6 +385,7 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                             "sequence_number": chunk.sequence_number,
                             "is_final": chunk.is_final,
                             "data_length": len(chunk.data),
+                            "data": __import__('base64').b64encode(chunk.data).decode('utf-8')
                         },
                     )
                     try:

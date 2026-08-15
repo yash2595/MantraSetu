@@ -1,6 +1,7 @@
 import logging
 import random
 import re
+import time
 from typing import Any, Callable
 from app.llm.models import LLMRequest
 from app.services.ai_service import AIService
@@ -527,6 +528,25 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
     }
     field_desc = field_descs.get(field, field)
 
+    # Deterministic Fast-Path for First Name & Last Name (0ms Latency)
+    if field in ["pandit-first-name", "first-name"]:
+        clean = re.sub(r'^(mera|my|apna)\s+(naam|name)\s+(hai|is)\s*', '', user_message_normalized, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'\b(hai|ji|shri|pandit)\b', '', clean, flags=re.IGNORECASE).strip()
+        words = clean.split()
+        if 1 <= len(words) <= 2 and all(len(w) >= 2 for w in words):
+            extracted_name = words[0].capitalize()
+            logger.info("[PANDIT-ONBOARDING] Deterministic fast-path for pandit-first-name: %s", extracted_name)
+            return extracted_name
+
+    if field in ["pandit-last-name", "last-name"]:
+        clean = re.sub(r'^(mera|my|apna)\s+(upnaam|last name|surname)\s+(hai|is)\s*', '', user_message_normalized, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'\b(hai|ji|shri|pandit)\b', '', clean, flags=re.IGNORECASE).strip()
+        words = clean.split()
+        if 1 <= len(words) <= 2 and all(len(w) >= 2 for w in words):
+            extracted_name = words[-1].capitalize()
+            logger.info("[PANDIT-ONBOARDING] Deterministic fast-path for pandit-last-name: %s", extracted_name)
+            return extracted_name
+
     # Deterministic Fast-Path for Phone and Email (0ms Latency & 100% Deterministic Reliability)
     if field in ["pandit-phone", "phone"]:
         digits_only = re.sub(r'\D', '', user_message_normalized)
@@ -884,7 +904,10 @@ async def process_onboarding_step(
     ai_service = orchestrator._llm_intent_detector._ai
     status = state.get("status", "collecting")
     
-    # 20 new fields in order
+    user_params = request.user_parameters if isinstance(request.user_parameters, dict) else {}
+    client_active_field = user_params.get("active_field")
+    
+    # 21 fields in order
     default_fields = [
         "pandit-first-name",
         "pandit-last-name",
@@ -921,6 +944,7 @@ async def process_onboarding_step(
 
     # Map hinglish names for fallback and correction prompts
     field_hinglish_names_step = {
+        "pandit-avatar": "profile photo",
         "pandit-first-name": "pehla naam",
         "pandit-last-name": "last name",
         "pandit-email": "email address",
@@ -1118,6 +1142,7 @@ async def process_onboarding_step(
     # ── Active Field Tag & DOM Input Sync ──
     user_params = request.user_parameters if isinstance(request.user_parameters, dict) else {}
     client_active_field = user_params.get("active_field")
+    raw_msg = user_params.get("raw_user_message", request.user_message)
     dom_data = user_params.get("dom_form_data", {})
     collected = state.setdefault("collected_data", {})
     
@@ -1126,7 +1151,7 @@ async def process_onboarding_step(
         if v and str(v).strip() and (k not in collected or not collected[k]):
             collected[k] = str(v).strip()
     
-    if client_active_field and client_active_field in fields and (client_active_field not in collected or collected[client_active_field] is None):
+    if client_active_field and client_active_field in fields:
         state["current_field_index"] = fields.index(client_active_field)
         logger.info("[PANDIT-ONBOARDING] Using client active_field: %s (index %d)", client_active_field, state["current_field_index"])
     else:
@@ -1170,9 +1195,95 @@ async def process_onboarding_step(
                 metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
             )
 
-    raw_msg = user_params.get("raw_user_message", request.user_message)
-    dom_data = user_params.get("dom_form_data", {})
-    
+    # ── Profile Photo (pandit-avatar) special handling ──
+    if current_field == "pandit-avatar":
+        msg_lower = request.user_message.lower().strip()
+        skip_kw = ["skip", "nahi", "no", "chhod", "baad", "bina", "rehne"]
+        is_skip = any(k in msg_lower for k in skip_kw)
+        
+        upload_kw = ["upload", "picture", "photo", "ho gaya", "done", "kar diya", "choose", "selected", "file"]
+        is_upload_intent = any(k in msg_lower for k in upload_kw)
+        
+        is_file_attached_in_dom = (
+            dom_data.get("avatar_attached") == "true" or
+            dom_data.get("profilePhotoPreview") or
+            dom_data.get("panditAvatar")
+        )
+        
+        if is_skip:
+            state["collected_data"]["pandit-avatar"] = "skipped"
+            state["current_field_index"] += 1
+            next_field = fields[state["current_field_index"]]
+            question = f"Koi baat nahi {pji}. Ab apna pehla naam (First Name) bataiye."
+            nav_directive = {
+                "action": "FILL_FORM",
+                "target": "pandit-avatar",
+                "query": "skipped",
+                "active_field": next_field,
+                "intent": "PANDIT_ONBOARDING",
+                "fields": None
+            }
+            session.update_location(page="/signup?role=pandit", field=next_field)
+            orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+            return orchestrator._response_builder.build_response(
+                request_id=request.request_id,
+                text_override=question,
+                response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                navigation_directive=nav_directive,
+                metadata=ResponseMetadata(fast_path=True, latency_ms=0.0)
+            )
+        elif is_upload_intent:
+            if is_file_attached_in_dom:
+                state["collected_data"]["pandit-avatar"] = "uploaded"
+                state["current_field_index"] += 1
+                next_field = fields[state["current_field_index"]]
+                question = f"Bahut sundar photo! Maine aapki profile photo set kar di hai. Ab apna pehla naam (First Name) bataiye."
+                nav_directive = {
+                    "action": "FILL_FORM",
+                    "target": "pandit-avatar",
+                    "query": "uploaded",
+                    "active_field": next_field,
+                    "intent": "PANDIT_ONBOARDING",
+                    "fields": None
+                }
+                session.update_location(page="/signup?role=pandit", field=next_field)
+                orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+                return orchestrator._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override=question,
+                    response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                    navigation_directive=nav_directive,
+                    metadata=ResponseMetadata(fast_path=True, latency_ms=0.0)
+                )
+            else:
+                # No file selected in DOM! Do NOT advance active_field!
+                question = "Mujhe koi photo nahi mili, kya aapne 'Choose Picture' par click karke photo select ki hai? Ya phir 'skip' boliye."
+                nav_directive = {
+                    "action": None,
+                    "target": None,
+                    "query": None,
+                    "active_field": "pandit-avatar",
+                    "intent": "PANDIT_ONBOARDING",
+                    "fields": None
+                }
+                return orchestrator._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override=question,
+                    response_type=ResponseType.CHAT,
+                    navigation_directive=nav_directive,
+                    metadata=ResponseMetadata(fast_path=True, latency_ms=0.0)
+                )
+        else:
+            question = f"Namaste! Aap chahein to apni profile photo upload kar sakte hain, ye optional hai. Agar upload karna hai to 'Choose Picture' par click kijiye, nahi to bas 'skip' ya 'aage badho' boliye."
+            nav_directive = {"action": None, "target": None, "query": None, "active_field": "pandit-avatar", "intent": "PANDIT_ONBOARDING", "fields": None}
+            return orchestrator._response_builder.build_response(
+                request_id=request.request_id,
+                text_override=question,
+                response_type=ResponseType.CHAT,
+                navigation_directive=nav_directive,
+                metadata=ResponseMetadata(fast_path=True, latency_ms=0.0)
+            )
+
     # Check for manual DOM input value first or voice confirmation ("fill kar diya", "aage badho", "done")
     manual_dom_val = dom_data.get(current_field) or dom_data.get(current_field.replace("pandit-", ""))
     
@@ -1184,8 +1295,11 @@ async def process_onboarding_step(
         existing_val = state["collected_data"].get(current_field) or manual_dom_val
         val = str(existing_val).strip() if existing_val and str(existing_val).strip() else "Confirmed"
     else:
+        llm_start_time = time.time()
         logger.info("[PANDIT-ONBOARDING] Extracting field value via LLM/Regex for active_field: %s | msg: %r", current_field, raw_msg)
         val = await extract_field_value(raw_msg, current_field, ai_service)
+        llm_elapsed_ms = int((time.time() - llm_start_time) * 1000)
+        logger.info(f"[TIMING-LLM] Field extraction completed in {llm_elapsed_ms}ms | field={current_field} | extracted={val!r}")
     
     is_valid, cleaned_val, err_msg = validate_and_process_field(
         current_field,

@@ -56,8 +56,7 @@ class GeminiProvider(BaseLLMProvider):
         else:
             self._client = genai.Client(api_key=api_key)
 
-        # We will map "gemini-flash" to "gemini-1.5-flash" if the user wants flash.
-        self._model = self._settings.model if "gemini" in self._settings.model else "gemini-3.5-flash-lite"
+        self._model = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
 
         logger.info(
             "Gemini provider initialized [provider=%s, model=%s]",
@@ -128,37 +127,46 @@ class GeminiProvider(BaseLLMProvider):
             system_instruction=system_instruction
         )
         
-        # Async wrapper for sync client call
+        # Async wrapper for sync client call with transient retry loop
         loop = asyncio.get_event_loop()
-        try:
-            response = await loop.run_in_executor(
-                None, 
-                lambda: self._client.models.generate_content(
-                    model=self._model, 
-                    contents=contents, 
-                    config=config
+        max_attempts = 5
+        last_error = None
+        for attempt in range(max_attempts):
+            try:
+                response = await loop.run_in_executor(
+                    None, 
+                    lambda: self._client.models.generate_content(
+                        model=self._model, 
+                        contents=contents, 
+                        config=config
+                    )
                 )
-            )
-            
-            duration_ms = (time.perf_counter() - start_time) * MS_PER_SECOND
-            
-            usage = TokenUsage(
-                prompt_tokens=response.usage_metadata.prompt_token_count if response.usage_metadata else 0,
-                completion_tokens=response.usage_metadata.candidates_token_count if response.usage_metadata else 0,
-                total_tokens=response.usage_metadata.total_token_count if response.usage_metadata else 0
-            )
+                
+                duration_ms = (time.perf_counter() - start_time) * MS_PER_SECOND
+                
+                usage = TokenUsage(
+                    prompt_tokens=response.usage_metadata.prompt_token_count if response.usage_metadata else 0,
+                    completion_tokens=response.usage_metadata.candidates_token_count if response.usage_metadata else 0,
+                    total_tokens=response.usage_metadata.total_token_count if response.usage_metadata else 0
+                )
 
-            return LLMResponse(
-                content=response.text,
-                model=self._model,
-                provider=self.provider_name,
-                usage=usage,
-                latency_ms=duration_ms,
-            )
+                return LLMResponse(
+                    content=response.text,
+                    model=self._model,
+                    provider=self.provider_name,
+                    usage=usage,
+                    latency_ms=duration_ms,
+                )
+            except Exception as e:
+                last_error = e
+                if ("503" in str(e) or "UNAVAILABLE" in str(e) or "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)) and attempt < max_attempts - 1:
+                    logger.warning("Gemini API transient error on attempt %d/%d: %s. Retrying in %ds...", attempt + 1, max_attempts, e, (attempt + 1) * 3)
+                    await asyncio.sleep(3.0 * (attempt + 1))
+                else:
+                    break
 
-        except Exception as e:
-            logger.error("Gemini generation failed: %s", str(e))
-            raise ExternalServiceError(f"Gemini API error: {str(e)}") from e
+        logger.error("Gemini generation failed: %s", str(last_error))
+        raise ExternalServiceError(f"Gemini API error: {str(last_error)}", provider=self.provider_name)
 
     async def stream_generate(self, request: LLMRequest) -> AsyncGenerator[str, None]:
         """Stream a response from Gemini."""

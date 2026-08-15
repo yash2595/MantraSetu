@@ -7,9 +7,9 @@ import { AuthProvider } from './contexts/AuthContext';
 
 import './index.css';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-if (!GOOGLE_CLIENT_ID) {
-  throw new Error("VITE_GOOGLE_CLIENT_ID is not defined in the environment.");
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'mock-google-client-id.apps.googleusercontent.com';
+if (!import.meta.env.VITE_GOOGLE_CLIENT_ID) {
+  console.warn("VITE_GOOGLE_CLIENT_ID is not defined in the environment. Using fallback client ID for local development.");
 }
 
 createRoot(document.getElementById('root')!).render(
