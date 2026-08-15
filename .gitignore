@@ -8,3 +8,7 @@ node_modules/
 data/
 *.wav
 
+# Uploads containing sensitive documents
+final backend mantrasetu/mantrasetu-saarthi-backend-main/uploads/aadhaar/
+final backend mantrasetu/mantrasetu-saarthi-backend-main/uploads/certificates/
+final backend mantrasetu/mantrasetu-saarthi-backend-main/uploads/gallery/
