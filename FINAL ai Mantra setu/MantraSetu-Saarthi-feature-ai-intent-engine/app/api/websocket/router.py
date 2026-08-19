@@ -55,6 +55,22 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
 
     sender_worker = asyncio.create_task(sender_task())
 
+    async def keepalive_task() -> None:
+        """Send background PING every 30 seconds to maintain open WebSocket connection."""
+        try:
+            while True:
+                await asyncio.sleep(30)
+                ping_frame = WebSocketEnvelope(type="PING", payload={})
+                await outbound_queue.put(ping_frame)
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
+
+    keepalive_worker = asyncio.create_task(keepalive_task())
+    consecutive_empty_count = 0
+
+
     try:
         while True:
             raw_text = await websocket.receive_text()
@@ -141,8 +157,8 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
 
                 # ── Send page-aware greeting AI_RESPONSE on connect ──
                 if connect_page and ("signup" in connect_page or "pandit" in connect_page):
-                    greeting_text = "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, aapka pehla naam (first name) kya hai?"
-                    initial_active_field = "pandit-first-name"
+                    greeting_text = "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi. Chaliye, ab hum aapka registration shuru karte hain. Namaste! Aap chahein to apni profile photo upload kar sakte hain, ye optional hai. Agar upload karna hai to 'Choose Picture' par click kijiye, nahi to bas 'skip' ya 'aage badho' boliye."
+                    initial_active_field = "pandit-avatar"
                 else:
                     greeting_text = "Namaste! MantraSetu mein aapka swagat hai. Aaj main aapki kya seva kar sakta hoon?"
                     initial_active_field = None
@@ -198,6 +214,8 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                         logger.error(f"[WS-ROUTER] Failed to generate TTS for greeting: {e}")
                 
                 asyncio.create_task(_send_greeting_tts())
+                logger.info(f"[SESSION-CHECK] active_session_id={active_session_id}")
+
 
             elif frame.type == ProtocolMessageType.AUDIO_FRAME:
                 if not active_session_id:
@@ -215,7 +233,7 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                 audio_b64 = frame.payload.get("data", "")
                 if audio_b64:
                     try:
-                        logger.info(f"Received AUDIO_FRAME for session {active_session_id}, length: {len(audio_b64)}")
+                        logger.info(f"[FRAME-RECEIVED] Got AUDIO_FRAME, session={active_session_id}, size={len(audio_b64)}")
                         chunk = base64.b64decode(audio_b64)
                         await voice_gateway.process_audio_chunk(active_session_id, chunk)
                     except Exception as e:
@@ -226,15 +244,18 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                     active_session_id = primary_session_id or frame.session_id
                 if active_session_id:
                     current_page_from_frame = frame.payload.get("current_page", None)
-                    logger.info(f"[WS-ROUTER] [DIAGNOSTIC] Received AUDIO_END for session {active_session_id}, current_page={current_page_from_frame!r}, finishing voice session")
+                    logger.info(f"[AUDIO-END-RECEIVED] Processing STT for session={active_session_id}, current_page={current_page_from_frame!r}")
                     try:
-                        logger.info(f"[WS-ROUTER] [DIAGNOSTIC] Calling voice_gateway.finish_voice_session()")
+                        logger.info(f"[STT-CALLING] Calling finish_voice_session for {active_session_id}")
                         resp, final_text = await voice_gateway.finish_voice_session(
                             active_session_id,
                             current_page=current_page_from_frame,
                             user_parameters=frame.payload if isinstance(frame.payload, dict) else None
                         )
-                        logger.info(f"[WS-ROUTER] [DIAGNOSTIC] finish_voice_session returned with text: {final_text}")
+                        logger.info(f"[FRESH-STT] '{final_text}'")
+                        logger.info(f"[STT-RESULT] text='{final_text}' confidence={getattr(resp, 'confidence', 1.0)}")
+
+
                         
                         # 🚨 INSTANT USER STT TRANSCRIPT: Send user's transcript immediately before AI processing!
                         if final_text and final_text.strip():
@@ -255,9 +276,44 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                                 pass
 
                         if not resp.text or not resp.text.strip():
-                            logger.info("[WS-ROUTER] [DIAGNOSTIC] Empty response text. Skipping AI_RESPONSE & TTS streaming to stay quiet.")
+                            consecutive_empty_count += 1
+                            logger.warning(
+                                f"[NO_RESPONSE_RISK:DANGLING_SESSION] Empty STT (attempt {consecutive_empty_count}) for session {active_session_id}. Resetting session status to STREAMING and clearing active_session_id."
+                            )
+                            # Reset voice session status in gateway so session isn't left stuck in PROCESSING
+                            try:
+                                sess = await voice_gateway.session_manager.get_session(active_session_id)
+                                if sess:
+                                    from app.voice.session import VoiceSessionStatus
+                                    sess.status = VoiceSessionStatus.STREAMING
+                            except Exception as reset_err:
+                                logger.warning(f"[WS-ROUTER] Failed to reset VoiceSessionStatus: {reset_err}")
+
+                            repeat_msg = "Kshama karein, main sun nahi paya. Kripya punah kahein."
+                            ai_reply = WebSocketEnvelope(
+                                request_id=frame.request_id,
+                                session_id=active_session_id,
+                                conversation_id=frame.conversation_id,
+                                type=ProtocolMessageType.AI_RESPONSE,
+                                payload={
+                                    "content": repeat_msg,
+                                    "intent": "REPEAT_PROMPT",
+                                    "action": None,
+                                    "target": None,
+                                    "active_field": None,
+                                },
+                            )
+                            try:
+                                outbound_queue.put_nowait(ai_reply)
+                            except asyncio.QueueFull:
+                                pass
                             active_session_id = None
                             continue
+
+
+                        consecutive_empty_count = 0
+
+
 
                         
                         _nav = resp.navigation_directive
