@@ -240,7 +240,7 @@ def get_state_for_city(city_name: str) -> tuple[str, Any]:
 def is_upload_confirmed(user_message: str) -> bool:
     msg_lower = user_message.lower().strip()
     completion_keywords = [
-        "ho gaya", "kardiya", "kar diya", "upload kar diya", "upload ho gaya", "done", "complete", "yes", "ok", "kuchh bhi", "ho gya", "kardi", "uploaded", "okay",
+        "ho gaya", "kardiya", "kar diya", "upload kar diya", "upload ho gaya", "done", "complete", "yes", "ok", "kuchh bhi", "ho gya", "kardi", "uploaded", "okay", "confirmed",
         "हो गया", "कर दिया", "डन", "अपलोड कर दिया", "अपलोड हो गया", "submit", "सबमिट"
     ]
     return any(k in msg_lower for k in completion_keywords)
@@ -286,27 +286,33 @@ def generate_summary_text(first_name: str, collected_data: dict, address_info: d
     )
 
 def is_affirmative(user_message: str) -> bool:
-    """Check if the user is confirming the summary."""
-    msg_lower = user_message.lower().strip()
-    affirmative_keywords = [
-        "haan", "yes", "sahi", "theek", "okay", "ok", "correct", "confirm", 
-        "bilkul", "sab sahi", "ha", "aage badho", "perfect", "done", "everything is correct",
-        "verify", "verified", "verification", "verify kar diya", "confirm kar diya",
-        "sab theek", "theek hai", "sab theek hai", "ho gaya", "aage", "badho", "aage badhiye",
+    """Check if the user response is an affirmative confirmation or progress command."""
+    user_text = (user_message or "").lower().strip()
+    AFFIRMATIVE_WORDS = [
+        "haan", "ha", "haa", "han", "hama", "hanji", "haji",
+        "yes", "yeah", "yep", "ya", "yah",
+        "sahi", "sahi hai", " sahi",
+        "theek", "theek hai", "thik", "thik hai",
+        "bilkul", "bilkul sahi",
+        "correct", "right",
+        "aage", "aage badho", "aage bado", "age badho", "age bado", "aage badh", "aage chalo", "aage badhiye",
+        "next", "done", "ok", "okay",
+        "ho gaya", "kar do", "kar diya",
+        "continue", "proceed",
+        "move", "move on",
+        "accha", "achha", "acha",
         "हाँ", "हां", "जी", "जी हां", "जी हाँ", "सही", "ठीक", "सब सही", "सब ठीक",
-        "आगे बढ़ो", "बढ़िया", "सब सही है", "सही है", "ठीक है", "हां सब सही है", "हाँ सब सही है", "वेरीफाई"
+        "आगे बढ़ो", "आगे बढो", "बढ़िया", "सब सही है", "सही है", "ठीक है", "हां सब सही है", "हाँ सब सही है", "वेरीफाई"
     ]
-    negative_keywords = [
-        "nahi", "galat", "no", "change", "wrong", "badlo", "dobara", "correction",
-        "नहीं", "नही", "गलत", "बदलो", "दुरुस्त", "सुधार", "चेंज"
-    ]
-    
-    has_aff = any(w in msg_lower for w in affirmative_keywords)
-    has_neg = any(w in msg_lower for w in negative_keywords)
-    res = has_aff and not has_neg
-    logger.info("[PANDIT-CONFIRM-DIAGNOSTIC] is_affirmative msg=%r -> has_aff=%s, has_neg=%s, result=%s", user_message, has_aff, has_neg, res)
-    print(f"[PANDIT-CONFIRM-DIAGNOSTIC] is_affirmative msg={user_message!r} -> has_aff={has_aff}, has_neg={has_neg}, result={res}")
+    negative_keywords = ["nahi", "galat", "wrong", "badlo", "dobara", "correction", "नहीं", "नही", "गलत", "बदलो"]
+
+    has_aff = any(word in user_text for word in AFFIRMATIVE_WORDS)
+    has_neg = any(word in user_text for word in negative_keywords)
+    res = has_aff and not (has_neg and not ("aage" in user_text or "yes" in user_text or "haan" in user_text or "theek" in user_text or "sahi" in user_text or "done" in user_text))
+
+    logger.info(f"[CONFIRM-CHECK] user_text='{user_text}' is_affirmative={res}")
     return res
+
 
 async def detect_correction_field(user_message: str, ai_service: AIService) -> str:
     """Detect which field the user wants to correct."""
@@ -464,10 +470,6 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
         roman_hindi_digit_map = [
             (r'\b(shunya|zero|jiro)\b', '0'),
             (r'\b(ek|ekk|one)\b', '1'),
-            (r'\b(do|doo|two)\b', '2'),
-            (r'\b(teen|tin|three)\b', '3'),
-            (r'\b(char|chaar|four)\b', '4'),
-            (r'\b(panch|paanch|five)\b', '5'),
             (r'\b(chhe|che|chh|six)\b', '6'),
             (r'\b(saat|sat|seven)\b', '7'),
             (r'\b(aath|ath|eight)\b', '8'),
@@ -497,6 +499,56 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
             
     return text
 
+DEVANAGARI_MAP = {
+    'अ': 'a', 'आ': 'aa', 'इ': 'i', 'ई': 'ee', 'उ': 'u', 'ऊ': 'oo', 'ऋ': 'ri', 'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au',
+    'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'ङ': 'ng', 'च': 'ch', 'छ': 'chh', 'ज': 'j', 'झ': 'jh', 'ञ': 'nya',
+    'ट': 't', 'ठ': 'th', 'ड': 'd', 'ढ': 'dh', 'ण': 'n', 'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n',
+    'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm', 'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v', 'श': 'sh', 'ष': 'sh', 'स': 's', 'ह': 'h',
+    'ा': 'a', 'ि': 'i', 'ी': 'ee', 'ु': 'u', 'ू': 'oo', 'ृ': 'ri', 'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au', 'ं': 'n', 'ँ': 'n', '्': ''
+}
+
+def to_roman_text(text: str) -> str:
+    """Ensure text is always in English/Roman script. Transliterates Devanagari Hindi characters to English letters."""
+    if not text or text == "INVALID" or text.startswith("QUESTION:"):
+        return text
+    if any('\u0900' <= char <= '\u097f' for char in text):
+        res = []
+        for char in text:
+            if char in DEVANAGARI_MAP:
+                res.append(DEVANAGARI_MAP[char])
+            elif '\u0900' <= char <= '\u097f':
+                continue
+            else:
+                res.append(char)
+        transliterated = "".join(res).strip().title()
+        logger.info("[ROMAN-CONVERTER] Converted Devanagari '%s' to English Roman text: '%s'", text, transliterated)
+        return transliterated
+    return text
+
+def convertSpokenEmailToText(spoken: str) -> str:
+    """Convert spoken email strings (e.g. 'yash mishra 2147 at gmail dot com') to clean email ('yashmishra2147@gmail.com')."""
+    if not spoken:
+        return ""
+    text = to_roman_text(spoken).lower().strip()
+    
+    text = re.sub(r'\b(at the rate of|at the rate|at rate of|at rate|at-the-rate|at)\b', '@', text, flags=re.IGNORECASE)
+    text = re.sub(r'(?<=\w)\s+at\s+(?=\w+)', '@', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(dot|point|doot|dott)\b', '.', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(dash|hyphen)\b', '-', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(underscore|under score)\b', '_', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(g mail|g-mail|jimmail|jmail)\b', 'gmail', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(yaho)\b', 'yahoo', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(c o m)\b', 'com', text, flags=re.IGNORECASE)
+    
+    if '@' not in text:
+        text = re.sub(r'(?<=\w)\s+(?=(gmail|yahoo|outlook|hotmail|icloud|mantrasetu)\.(com|in|co\.in|org|net))\b', '@', text, flags=re.IGNORECASE)
+        
+    email_clean = re.sub(r'\s+', '', text)
+    match = re.search(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', email_clean)
+    if match:
+        return match.group(0)
+    return email_clean
+
 async def extract_field_value(user_message: str, field: str, ai_service: AIService) -> str:
     """Extract a clean field value from user response using the LLM.
     
@@ -507,7 +559,13 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
 
     if field in ["pandit-certFile", "pandit-aadhaarFile", "pandit-galleryFiles", "pandit-password", "pandit-confirm"]:
         logger.info("[PANDIT-ONBOARDING] Bypassing LLM extraction for confirmation-only field: %s", field)
-        return user_message_normalized
+        return to_roman_text(user_message_normalized)
+
+    if field in ["pandit-email", "email"]:
+        email_val = convertSpokenEmailToText(user_message_normalized)
+        if email_val and "@" in email_val:
+            logger.info("[PANDIT-ONBOARDING] Spoken email conversion result: %s", email_val)
+            return email_val
 
     field_descs = {
         "pandit-first-name": "First name of the Pandit (e.g. Ramesh, Sunil, Amit, etc.)",
@@ -534,7 +592,7 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
         clean = re.sub(r'\b(hai|ji|shri|pandit)\b', '', clean, flags=re.IGNORECASE).strip()
         words = clean.split()
         if 1 <= len(words) <= 2 and all(len(w) >= 2 for w in words):
-            extracted_name = words[0].capitalize()
+            extracted_name = to_roman_text(words[0].capitalize())
             logger.info("[PANDIT-ONBOARDING] Deterministic fast-path for pandit-first-name: %s", extracted_name)
             return extracted_name
 
@@ -543,7 +601,7 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
         clean = re.sub(r'\b(hai|ji|shri|pandit)\b', '', clean, flags=re.IGNORECASE).strip()
         words = clean.split()
         if 1 <= len(words) <= 2 and all(len(w) >= 2 for w in words):
-            extracted_name = words[-1].capitalize()
+            extracted_name = to_roman_text(words[-1].capitalize())
             logger.info("[PANDIT-ONBOARDING] Deterministic fast-path for pandit-last-name: %s", extracted_name)
             return extracted_name
 
@@ -563,6 +621,7 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
         elif len(digits_only) == 10:
             logger.info("[PANDIT-ONBOARDING] Deterministic regex hit for pandit-phone: %s", digits_only)
             return digits_only
+
             
     if field in ["pandit-email", "email"]:
         email_match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', user_message_normalized)
@@ -603,6 +662,19 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
             logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-exp: 1-5 years")
             return "1-5 years"
 
+    # Deterministic Fast-Path for Gender (pandit-gender)
+    if field in ["pandit-gender", "gender"]:
+        msg_lower = user_message_normalized.lower()
+        if any(w in msg_lower for w in ["female", "mahila", "aurat", "stree", "woman", "lady"]):
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-gender: Female")
+            return "Female"
+        elif any(w in msg_lower for w in ["other", "transgender", "third gender", "anya"]):
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-gender: Other")
+            return "Other"
+        elif any(w in msg_lower for w in ["male", "purush", "aadmi", "man", "gents"]):
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-gender: Male")
+            return "Male"
+
     # Deterministic Fast-Path for Languages (pandit-languages)
     if field in ["pandit-languages", "pandit-lang", "language", "languages"]:
         msg_lower = user_message_normalized.lower()
@@ -616,11 +688,6 @@ Your task is to extract ONLY the clean, structured value for this field in Roman
 
 STRICT VALIDATION RULES:
 1. The user's response MUST contain a valid, reasonable answer for the field '{field}'.
-2. If the field is 'pandit-email':
-   - Extract a valid email address string (e.g. 'sharma@gmail.com', 'ramesh@yahoo.co.in').
-   - Convert spoken representations like 'at the rate', 'at rate', 'at', 'dot', 'dash' into proper email syntax ('@', '.', '-').
-   - Collapse spaces inside email addresses (e.g. 'r a m e s h @ g m a i l . c o m' -> 'ramesh@gmail.com').
-3. If the field is 'pandit-phone':
    - Extract a 10-digit phone number string (e.g. '9876543210').
    - Remove any spaces, hyphens, or non-digit characters.
 4. If the field is 'pandit-exp', you MUST map the user's spoken answer to one of these exact values: '1-5 years', '5-10 years', '10-20 years', '20+ years'. If they say "das saal" or "six years", map to '10-20 years' or '5-10 years' respectively. If not clear or off-topic, return 'INVALID'.
@@ -654,20 +721,21 @@ Return ONLY the extracted clean value, the QUESTION: string, or 'INVALID'. Do NO
             logger.warning("[PANDIT-ONBOARDING] LLM returned unusually long response without QUESTION: prefix. Defaulting to INVALID.")
             return "INVALID"
             
-        return val
+        return to_roman_text(val)
     except Exception as e:
         logger.error("[PANDIT-ONBOARDING] LLM extraction failed", exc_info=True)
         
         # Test Environment / Missing API Key Fallback
         val = user_message_normalized.strip().lower()
         if field in ["pandit-first-name", "pandit-last-name"]:
-            return user_message_normalized.strip().title()
+            return to_roman_text(user_message_normalized.strip().title())
+
         elif field == "pandit-email":
             return user_message_normalized.strip().lower().replace(" ", "")
         elif field == "pandit-phone":
             return "".join(filter(str.isdigit, val))
         elif field == "pandit-gender":
-            return "Male" if "male" in val else "Female" if "female" in val else "Other"
+            return "Female" if "female" in val else "Male" if "male" in val else "Other"
         elif field == "pandit-availability":
             return "Both" if "both" in val else "Online" if "online" in val else "Offline"
         elif field == "pandit-city":
@@ -681,7 +749,7 @@ Return ONLY the extracted clean value, the QUESTION: string, or 'INVALID'. Do NO
         elif field == "pandit-languages":
             return "Hindi, Sanskrit" if "sahi" in val else user_message_normalized.strip()
         elif field == "pandit-spec":
-            return "Vedic Pujas & Havan" if "vedic" in val else "INVALID"
+            return "Jyotish & Kundali" if ("jyotish" in val or "kundali" in val) else "Sanskar Ceremonies" if "sanskar" in val else "Katha & Pravachan" if ("katha" in val or "pravachan" in val) else "Vedic Pujas & Havan" if ("vedic" in val or "puja" in val or "havan" in val) else "INVALID"
         elif field == "pandit-achievements":
             if "nahi" in val or "no" in val:
                 return "INVALID" # Wait, the test expects "INVALID" to break out? Or does it expect a 'Nahi' to trigger array logic?
@@ -763,12 +831,21 @@ def _make_choice_validator(choices: list[str], label: str) -> Callable[[str, dic
         if not val or val == "INVALID":
             return FieldValidationResult(False, error_message=f"Maaf kijiye, main {label} samajh nahi paya. Dobara bataiye.")
         val_lower = val.lower().strip()
+        
+        # 1. Exact match check first
+        for ch in choices:
+            if ch.lower() == val_lower:
+                return FieldValidationResult(True, cleaned_value=ch)
+                
+        # 2. Word boundary / substring check (preventing "male" inside "female")
         matched = []
         for ch in choices:
-            if ch.lower() == val_lower or val_lower in ch.lower() or ch.lower() in val_lower:
+            ch_lower = ch.lower()
+            if re.search(r'\b' + re.escape(ch_lower) + r'\b', val_lower) or val_lower in ch_lower:
                 matched.append(ch)
         if matched:
             return FieldValidationResult(True, cleaned_value=matched[0])
+            
         choices_str = ", ".join(choices)
         return FieldValidationResult(False, error_message=f"Maaf kijiye, main '{val}' ko valid {label} ke roop mein nahi mila. Valid choices hain: {choices_str}. Dobara bataiye.")
     return validator
@@ -787,12 +864,22 @@ def _make_multi_choice_validator(choices: list[str], label: str) -> Callable[[st
         for p in parts:
             p_lower = p.lower()
             found = False
+            # 1. Exact match check first
             for ch in choices:
-                if ch.lower() == p_lower or p_lower in ch.lower() or ch.lower() in p_lower:
+                if ch.lower() == p_lower:
                     if ch not in valid_matches:
                         valid_matches.append(ch)
                     found = True
                     break
+            if not found:
+                # 2. Word boundary / substring check
+                for ch in choices:
+                    ch_lower = ch.lower()
+                    if re.search(r'\b' + re.escape(ch_lower) + r'\b', p_lower) or p_lower in ch_lower:
+                        if ch not in valid_matches:
+                            valid_matches.append(ch)
+                        found = True
+                        break
             if not found:
                 invalid_matches.append(p)
         if invalid_matches:
@@ -830,6 +917,15 @@ def _validate_confirm_password(val: str, params: dict) -> FieldValidationResult:
         return FieldValidationResult(False, error_message="Aapka password aur confirm password match nahi kar rahe. Kripya screen par matching password type kijiye.")
     return FieldValidationResult(True, cleaned_value="Confirmed")
 
+def _validate_pandit_avatar(val: str, params: dict) -> FieldValidationResult:
+    input_lower = (val or "").lower()
+    if params.get("avatar_attached") == "true" or is_upload_confirmed(val) or "photo" in input_lower or "upload" in input_lower or "ho gaya" in input_lower:
+        return FieldValidationResult(True, cleaned_value="Uploaded")
+    if any(k in input_lower for k in ["skip", "baad mein", "aage", "nahi", "leave"]):
+        return FieldValidationResult(True, cleaned_value="Skipped")
+    return FieldValidationResult(True, cleaned_value="Skipped")
+
+register_field_validator("pandit-avatar", _validate_pandit_avatar)
 register_field_validator("pandit-confirm", _validate_confirm_password)
 
 # 6. Standard Non-Empty Validators
@@ -869,10 +965,14 @@ def validate_and_process_field(field_name: str, raw_val: str, user_params: dict,
         retry_map[field_name] = current_retries
         logger.info("[CENTRAL-VALIDATOR] Validation FAILED for field: %s (attempt %d/3). Error: %s", field_name, current_retries, res.error_message)
 
-        if current_retries >= 3:
+        max_allowed_retries = 2 if field_name in ["pandit-first-name", "pandit-last-name", "pandit-name"] else 3
+        if current_retries >= max_allowed_retries:
+            if field_name in ["pandit-first-name", "pandit-last-name", "pandit-name"]:
+                return False, None, "Kripya apna naam type karein"
             hinglish_name = field_hinglish_names.get(field_name, "jankari")
             fallback_msg = f"Lagta hai {hinglish_name} ko samajhne mein dikkat ho rahi hai. Kripya screen par highlight ki gayi field par click karke ise manually fill kar dijiye, taaki hum aage badh sakein."
             return False, None, fallback_msg
+
 
         return False, None, res.error_message
 
@@ -907,8 +1007,9 @@ async def process_onboarding_step(
     user_params = request.user_parameters if isinstance(request.user_parameters, dict) else {}
     client_active_field = user_params.get("active_field")
     
-    # 21 fields in order
+    # 21 fields in order (starting with pandit-avatar)
     default_fields = [
+        "pandit-avatar",
         "pandit-first-name",
         "pandit-last-name",
         "pandit-email",
@@ -932,6 +1033,10 @@ async def process_onboarding_step(
     ]
     fields = state.get("fields", default_fields)
     state["fields"] = fields
+
+    idx = state.get("current_field_index", 0)
+    current_field = client_active_field if (client_active_field and client_active_field in fields) else (fields[idx] if idx < len(fields) else "pandit-first-name")
+
     
     first_name_val = state["collected_data"].get("pandit-first-name", "Panditji")
     last_name_val = state["collected_data"].get("pandit-last-name", "")
@@ -968,9 +1073,84 @@ async def process_onboarding_step(
     }
 
     # -------------------------------------------------------------------------
+    # CASE 0: Awaiting Individual Field Confirmation ("Maine suna — X. Kya ye sahi hai?")
+    # -------------------------------------------------------------------------
+    if status == "awaiting_field_confirmation":
+        tentative_field = state.get("tentative_field", current_field)
+        tentative_value = state.get("tentative_value", "")
+        logger.info("[PANDIT-ONBOARDING] AWAITING FIELD CONFIRMATION for %s -> %r | user_msg: %r", tentative_field, tentative_value, request.user_message)
+        
+        if is_affirmative(request.user_message):
+            logger.info("[PANDIT-ONBOARDING] Field %s value %r CONFIRMED by user.", tentative_field, tentative_value)
+            state["collected_data"][tentative_field] = tentative_value
+            state["tentative_field"] = None
+            state["tentative_value"] = None
+            state["status"] = "collecting"
+            
+            # Advance to next field
+            next_idx = sync_next_field_index(state)
+            if next_idx < len(fields):
+                next_field = fields[next_idx]
+                session.update_location(page="/signup?role=pandit", field=next_field)
+                next_hname = field_hinglish_names_step.get(next_field, next_field)
+                question = f"Perfect! Ab aage chalte hain. Ab apna {next_hname} bataiye."
+                nav_directive = {"action": "FILL_FORM", "target": tentative_field, "query": tentative_value, "active_field": next_field, "intent": "PANDIT_ONBOARDING"}
+            else:
+                question = "Perfect! Main abhi aapka registration submit kar raha hoon."
+                nav_directive = {"action": "NAVIGATE", "target": "/signup?role=pandit", "active_field": None, "intent": "PANDIT_ONBOARDING"}
+            
+            orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+            return orchestrator._response_builder.build_response(
+                request_id=request.request_id,
+                text_override=question,
+                response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                navigation_directive=nav_directive,
+                metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
+            )
+        else:
+            logger.info("[PANDIT-ONBOARDING] User provided new answer or correction for field %s during confirmation: %r", tentative_field, request.user_message)
+            new_val = await extract_field_value(request.user_message, tentative_field, ai_service)
+            is_valid, cleaned_new_val, err_msg = validate_and_process_field(
+                tentative_field,
+                new_val,
+                request.user_parameters if isinstance(request.user_parameters, dict) else {},
+                state.setdefault("field_retry_count", {})
+            )
+            if is_valid and cleaned_new_val and cleaned_new_val != "INVALID":
+                old_tentative = state.get("tentative_value", "")
+                logger.info(f"[TENTATIVE] old='{old_tentative}' new='{cleaned_new_val}'")
+                state["tentative_value"] = cleaned_new_val
+                question = f"Maine suna — {cleaned_new_val}. Kya ye sahi hai?"
+
+                nav_directive = {"action": "FILL_FORM", "target": tentative_field, "query": cleaned_new_val, "active_field": tentative_field, "intent": "PANDIT_ONBOARDING"}
+                orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+                return orchestrator._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override=question,
+                    response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                    navigation_directive=nav_directive,
+                    metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
+                )
+
+            state["tentative_field"] = None
+            state["tentative_value"] = None
+            state["status"] = "collecting"
+            question = f"Ek baar phir boliye, thoda clearly"
+            nav_directive = {"action": "FILL_FORM", "target": tentative_field, "query": "", "active_field": tentative_field, "intent": "PANDIT_ONBOARDING"}
+            return orchestrator._response_builder.build_response(
+                request_id=request.request_id,
+                text_override=question,
+                response_type=ResponseType.CHAT,
+                navigation_directive=nav_directive,
+                metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
+            )
+
+
+    # -------------------------------------------------------------------------
     # CASE 1: Awaiting Confirmation Summary Response (End of Step 2)
     # -------------------------------------------------------------------------
     if status == "awaiting_confirmation" or (client_active_field in ["summary", "pandit-summary"] and is_affirmative(request.user_message)):
+
         logger.info("[PANDIT-ONBOARDING] AWAITING CONFIRMATION turn | user_msg: %r", request.user_message)
         if is_affirmative(request.user_message):
             logger.info("[PANDIT-ONBOARDING] Step 1 & 2 Summary CONFIRMED by user. Moving to Step 3 uploads.")
@@ -1198,10 +1378,17 @@ async def process_onboarding_step(
     # ── Profile Photo (pandit-avatar) special handling ──
     if current_field == "pandit-avatar":
         msg_lower = request.user_message.lower().strip()
-        skip_kw = ["skip", "nahi", "no", "chhod", "baad", "bina", "rehne"]
+        skip_kw = [
+            "skip", "aage", "badho", "badh", "aage badho", "next", "continue", "chhod", 
+            "baad", "bina", "rehne", "nahi", "no", "leave", "pass", "agla", "chalo", "aage chalo",
+            "move", "ahead", "badao", "badhao", "badhe", "badho ji", "badhiye", "aage badhiye",
+            "आगे", "बढ़ो", "बढो", "आगे बढ़ो", "आगे बढो", "स्किप", "छोड़ो", "नहीं", "नेक्स्ट", "आगे चलो",
+            "बाद", "बिना", "रहने", "अगला", "बढ़ाओ", "चलो", "पास", "आगे बढ़िए", "बढ़िए", "बढिए"
+        ]
         is_skip = any(k in msg_lower for k in skip_kw)
+        logger.info("[PANDIT-AVATAR-DIAGNOSTIC] msg=%r | is_skip=%s", request.user_message, is_skip)
         
-        upload_kw = ["upload", "picture", "photo", "ho gaya", "done", "kar diya", "choose", "selected", "file"]
+        upload_kw = ["upload", "picture", "photo", "ho gaya", "done", "kar diya", "choose", "selected", "file", "अपलोड", "फोटो", "हो गया"]
         is_upload_intent = any(k in msg_lower for k in upload_kw)
         
         is_file_attached_in_dom = (
@@ -1371,17 +1558,32 @@ async def process_onboarding_step(
             metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
         )
         
-    state["collected_data"][current_field] = val
-    
-    # Refresh address forms if first name changes
-    if current_field == "pandit-first-name":
-        first_name_val = val
-        full_name = f"{first_name_val} {last_name_val}".strip()
-        address_info = get_address_forms(full_name)
-        first_name = address_info["first_name"]
-        fn_ji = address_info["first_name_ji"]
-        sn_ji = address_info["surname_ji"]
-        pji = address_info["panditji"]
+    # Set tentative field state for confirmation ("Maine suna — [val]. Kya ye sahi hai?")
+    old_tentative = state.get("tentative_value", "")
+    logger.info(f"[TENTATIVE] old='{old_tentative}' new='{val}'")
+    state["tentative_field"] = current_field
+    state["tentative_value"] = val
+    state["status"] = "awaiting_field_confirmation"
+
+
+    question = f"Maine suna — {val}. Kya ye sahi hai?"
+    nav_directive = {
+        "action": "FILL_FORM",
+        "target": current_field,
+        "query": val,
+        "active_field": current_field,
+        "intent": "PANDIT_ONBOARDING",
+        "fields": None
+    }
+    orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+    return orchestrator._response_builder.build_response(
+        request_id=request.request_id,
+        text_override=question,
+        response_type=ResponseType.NAVIGATION_DIRECTIVE,
+        navigation_directive=nav_directive,
+        metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
+    )
+
 
     # ── SPECIAL HANDLING FOR CITY -> STATE AUTO DERIVATION / CLARIFICATION ──
     if current_field == "pandit-city":
@@ -1479,26 +1681,28 @@ async def process_onboarding_step(
         reaction = get_contextual_reaction(current_field, str(val), address_info)
         
         question_variations = {
-            "pandit-last-name": [f"{reaction} Ab apna upanaam ya last name bataiye."],
-            "pandit-email": [f"{reaction} Ab apna email address bataiye."],
-            "pandit-phone": [f"{reaction} Ab apna 10-digit mobile number bataiye."],
-            "pandit-gender": [f"{reaction} Aapka gender kya hai? Options hain: Male, Female, ya Other."],
+            "pandit-first-name": [f"Panditji, aapka first name kya hai?"],
+            "pandit-last-name": [f"{reaction} Aapka last name kya hai?"],
+            "pandit-email": [f"{reaction} Aapka email address kya hai?"],
+            "pandit-phone": [f"{reaction} Aapka 10-digit mobile number bataiye."],
+            "pandit-gender": [f"{reaction} Aapka gender kya hai? Options: Male, Female, ya Other."],
             "pandit-availability": [f"{reaction} Aapki availability mode kya hai? Offline, Online, ya Both?"],
-            "pandit-city": [f"{reaction} Aap kis sheher se hain? Jaise Varanasi, Haridwar, ya Delhi."],
-            "pandit-state": [f"{reaction} Aap kis state ya rajya se hain?"],
-            "pandit-service-areas": [f"{reaction} Aap kin service areas mein puja karwane ke liye uplabdh hain? Jaise Delhi NCR, Online Puja, ya Mumbai?"],
+            "pandit-city": [f"{reaction} Aap kis city mein rehte hain? Jaise Varanasi, Haridwar, ya Delhi."],
+            "pandit-state": [f"{reaction} Aap kis state se hain?"],
+            "pandit-service-areas": [f"{reaction} Aap kin service areas mein puja ke liye available hain?"],
             "pandit-exp": [f"{reaction} Aapka puja aur karmakand mein kitne saal ka experience hai?"],
-            "pandit-gurukul": [f"{reaction} Kripya apni educational background ya Gurukul ka naam batayein, jaise Acharya ya Sampurnanand Sanskrit Vishwavidyalaya."],
-            "pandit-languages": [f"{reaction} Hum default roop se Hindi aur Sanskrit language add kar rahe hain. Agar aapko koi aur bhasha add karni ho, toh batayein, ya 'sahi hai' boliye."],
+            "pandit-gurukul": [f"{reaction} Aapka educational background ya Gurukul kaunsa hai?"],
+            "pandit-languages": [f"{reaction} Hum default Hindi aur Sanskrit add kar rahe hain. Koi aur language add karni hai?"],
             "pandit-spec": [f"{reaction} Aapki primary specialization kaunsi hai? Options: Vedic Pujas & Havan, Jyotish & Kundali, Sanskar Ceremonies, ya Katha & Pravachan."],
-            "pandit-achievements": [f"{reaction} Aapki koi mukhya upalabdhi (achievement) hai toh batayein."],
-            "pandit-bio": [f"{reaction} Kripya apne baare mein thoda batayein (Bio)."],
-            "pandit-certFile": [f"Kripya apna Shiksha Pramanpatra (Certificate) screen par upload kijiye aur upload karne ke baad mujhe 'ho gaya' boliye."],
-            "pandit-aadhaarFile": [f"Ab kripya apna Identity Proof ya Aadhaar card upload kijiye, aur karne ke baad mujhe 'ho gaya' boliye."],
-            "pandit-galleryFiles": [f"Kripya gallery ke liye apne photos ya videos upload kijiye, aur upload karne ke baad mujhe 'ho gaya' boliye."],
-            "pandit-password": [f"Ab security ke liye screen par apna password set kijiye, aur karne ke baad mujhe 'ho gaya' boliye."],
-            "pandit-confirm": [f"Kripya confirm password field mein apna password dobara enter kijiye, aur submit karne ke liye mujhe 'submit kar do' ya 'maine kar diya hai' boliye."]
+            "pandit-achievements": [f"{reaction} Aapki koi main achievement hai toh bataiye."],
+            "pandit-bio": [f"{reaction} Apne baare mein thoda bataiye (Bio)."],
+            "pandit-certFile": [f"Ab documents upload karte hain. Screen par Certificate upload kijiye aur 'ho gaya' boliye."],
+            "pandit-aadhaarFile": [f"Ab Aadhaar card ya ID proof upload kijiye, aur 'ho gaya' boliye."],
+            "pandit-galleryFiles": [f"Gallery ke liye photos ya videos upload kijiye, aur 'ho gaya' boliye."],
+            "pandit-password": [f"Security ke liye screen par password set kijiye, aur 'ho gaya' boliye."],
+            "pandit-confirm": [f"Confirm password enter kijiye aur 'submit kar do' boliye."]
         }
+
         opts = question_variations.get(next_field, [f"{reaction} Ab apna {next_field} bataiye."])
         question = random.choice(opts)
     else:
