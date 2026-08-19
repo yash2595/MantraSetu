@@ -25,6 +25,42 @@ logger = logging.getLogger(__name__)
 ws_router = APIRouter(tags=["WebSocket Stream"])
 
 
+async def safe_enqueue_outbound(
+    outbound_queue: asyncio.Queue, envelope: WebSocketEnvelope, label: str = "ENVELOPE"
+) -> bool:
+    """Safely enqueue outbound WebSocket envelope with retry on asyncio.QueueFull and tagged logging."""
+    try:
+        outbound_queue.put_nowait(envelope)
+        return True
+    except asyncio.QueueFull:
+        logger.warning(
+            f"[NO_RESPONSE_RISK:QUEUE_FULL] Outbound queue full on {label} (type={envelope.type}). Retrying after 50ms backoff..."
+        )
+        try:
+            await asyncio.sleep(0.05)
+            await asyncio.wait_for(outbound_queue.put(envelope), timeout=0.5)
+            logger.info(f"[WS-ROUTER] Successfully queued {label} on retry.")
+            return True
+        except (asyncio.QueueFull, asyncio.TimeoutError) as err:
+            logger.error(
+                f"[NO_RESPONSE_RISK:QUEUE_FULL] Persistent queue overflow on {label} (type={envelope.type}): {err}"
+            )
+            transport_metrics.record_dropped_frame()
+            if envelope.type == ProtocolMessageType.AI_RESPONSE:
+                try:
+                    fallback_reply = WebSocketEnvelope(
+                        request_id=envelope.request_id,
+                        session_id=envelope.session_id,
+                        conversation_id=envelope.conversation_id,
+                        type=ProtocolMessageType.ERROR,
+                        payload={"message": "System busy. Kripya punah koshish karein."},
+                    )
+                    outbound_queue.put_nowait(fallback_reply)
+                except Exception:
+                    pass
+            return False
+
+
 @ws_router.websocket("/ws/voice")
 async def voice_websocket_endpoint(websocket: WebSocket) -> None:
     """Enterprise bidirectional WebSocket streaming endpoint with state machine and atomic backpressure."""
@@ -343,10 +379,7 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                                 "active_field": _active_field,
                             },
                         )
-                        try:
-                            outbound_queue.put_nowait(ai_reply)
-                        except asyncio.QueueFull:
-                            pass
+                        await safe_enqueue_outbound(outbound_queue, ai_reply, "AI_RESPONSE")
                             
                         # Stream audio chunks from TTS pipeline
                         async for chunk in tts_pipeline.process_response(resp):
@@ -362,10 +395,7 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                                     "data": __import__('base64').b64encode(chunk.data).decode('utf-8')
                                 },
                             )
-                            try:
-                                outbound_queue.put_nowait(audio_reply)
-                            except asyncio.QueueFull:
-                                pass
+                            await safe_enqueue_outbound(outbound_queue, audio_reply, "AUDIO_CHUNK")
                                 
                         logger.info(f"[WS-ROUTER] [DIAGNOSTIC] Voice session {active_session_id} finished successfully, resetting active_session_id for next command.")
                         active_session_id = None
