@@ -397,8 +397,21 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                             )
                             await safe_enqueue_outbound(outbound_queue, audio_reply, "AUDIO_CHUNK")
                                 
-                        logger.info(f"[WS-ROUTER] [DIAGNOSTIC] Voice session {active_session_id} finished successfully, resetting active_session_id for next command.")
-                        active_session_id = None
+                        pending_buf = voice_gateway._buffers.get(active_session_id)
+                        if pending_buf and pending_buf.size > 0:
+                            logger.warning(
+                                f"[NO_RESPONSE_RISK:RACE_SESSION_RESET] Overlapping user speech detected during TTS for session {active_session_id} ({pending_buf.size} bytes buffered). Preserving active session."
+                            )
+                            try:
+                                sess = await voice_gateway.session_manager.get_session(active_session_id)
+                                if sess:
+                                    from app.voice.session import VoiceSessionStatus
+                                    sess.status = VoiceSessionStatus.STREAMING
+                            except Exception:
+                                pass
+                        else:
+                            logger.info(f"[WS-ROUTER] [DIAGNOSTIC] Voice session {active_session_id} finished successfully, resetting active_session_id for next command.")
+                            active_session_id = None
                                 
                     except Exception as e:
                         import traceback
