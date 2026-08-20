@@ -237,6 +237,33 @@ def get_state_for_city(city_name: str) -> tuple[str, Any]:
                 
     return ("UNKNOWN", None)
 
+def format_value_for_display(val: Any) -> str:
+    """Formats raw field values (strings, lists, list-strings) into natural speech/text without brackets or quotes."""
+    if val is None:
+        return ""
+    if isinstance(val, (list, tuple, set)):
+        items = [str(x).strip() for x in val if str(x).strip()]
+        if not items:
+            return ""
+        if len(items) == 1:
+            return items[0]
+        elif len(items) == 2:
+            return f"{items[0]} aur {items[1]}"
+        else:
+            return f"{', '.join(items[:-1])} aur {items[-1]}"
+    elif isinstance(val, str):
+        val_str = val.strip()
+        if val_str.startswith("[") and val_str.endswith("]"):
+            try:
+                import ast
+                parsed = ast.literal_eval(val_str)
+                if isinstance(parsed, (list, tuple, set)):
+                    return format_value_for_display(parsed)
+            except Exception:
+                pass
+        return val_str
+    return str(val)
+
 def is_upload_confirmed(user_message: str) -> bool:
     msg_lower = user_message.lower().strip()
     completion_keywords = [
@@ -260,19 +287,19 @@ def generate_summary_text(first_name: str, collected_data: dict, address_info: d
     state_val = collected_data.get("pandit-state", "Not provided")
     
     areas = collected_data.get("pandit-service-areas", [])
-    areas_str = ", ".join(areas) if isinstance(areas, list) else str(areas)
+    areas_str = format_value_for_display(areas)
     
     exp_val = collected_data.get("pandit-exp", "Not provided")
     gurukul_val = collected_data.get("pandit-gurukul", "Not provided")
     
     langs = collected_data.get("pandit-languages", [])
-    langs_str = ", ".join(langs) if isinstance(langs, list) else str(langs)
+    langs_str = format_value_for_display(langs)
     
     specs = collected_data.get("pandit-spec", [])
-    specs_str = ", ".join(specs) if isinstance(specs, list) else str(specs)
+    specs_str = format_value_for_display(specs)
     
     achvs = collected_data.get("pandit-achievements", [])
-    achvs_str = ", ".join(achvs) if isinstance(achvs, list) else str(achvs)
+    achvs_str = format_value_for_display(achvs)
     
     bio_val = collected_data.get("pandit-bio", "Not provided")
     address_label = address_info.get("first_name_ji", f"{first_name} ji") if address_info else f"{first_name} ji"
@@ -633,18 +660,19 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
     # Deterministic Fast-Path for Specialization (pandit-spec)
     if field in ["pandit-spec", "specialization"]:
         msg_lower = user_message_normalized.lower()
+        matched_specs = []
         if any(w in msg_lower for w in ["jyotish", "kundali", "kundli", "astrology", "horoscope", "grah", "rashifal", "milan"]):
-            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-spec: Jyotish & Kundali")
-            return "Jyotish & Kundali"
-        elif any(w in msg_lower for w in ["sanskar", "samskara", "shadi", "vivah", "namakaran", "janeu", "mundan", "ceremony"]):
-            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-spec: Sanskar Ceremonies")
-            return "Sanskar Ceremonies"
-        elif any(w in msg_lower for w in ["katha", "pravachan", "bhagwat", "ramayan", "satyanarayan", "kirtan", "gita"]):
-            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-spec: Katha & Pravachan")
-            return "Katha & Pravachan"
-        elif any(w in msg_lower for w in ["puja", "pujas", "pooja", "poojas", "havan", "hawan", "vedic", "karmakand", "karma kand", "anushthan", "anusthan", "purohit", "yagya", "yajna", "homam"]):
-            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-spec: Vedic Pujas & Havan")
-            return "Vedic Pujas & Havan"
+            matched_specs.append("Jyotish & Kundali")
+        if any(w in msg_lower for w in ["sanskar", "samskara", "shadi", "vivah", "namakaran", "janeu", "mundan", "ceremony"]):
+            matched_specs.append("Sanskar Ceremonies")
+        if any(w in msg_lower for w in ["katha", "pravachan", "bhagwat", "ramayan", "satyanarayan", "kirtan", "gita"]):
+            matched_specs.append("Katha & Pravachan")
+        if any(w in msg_lower for w in ["puja", "pujas", "pooja", "poojas", "havan", "hawan", "vedic", "karmakand", "karma kand", "anushthan", "anusthan", "purohit", "yagya", "yajna", "homam"]):
+            matched_specs.append("Vedic Pujas & Havan")
+        if matched_specs:
+            result_specs = ", ".join(matched_specs)
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-spec: %s", result_specs)
+            return result_specs
 
     # Deterministic Fast-Path for Experience (pandit-exp)
     if field in ["pandit-exp", "experience"]:
@@ -1120,7 +1148,8 @@ async def process_onboarding_step(
                 old_tentative = state.get("tentative_value", "")
                 logger.info(f"[TENTATIVE] old='{old_tentative}' new='{cleaned_new_val}'")
                 state["tentative_value"] = cleaned_new_val
-                question = f"Maine suna — {cleaned_new_val}. Kya ye sahi hai?"
+                disp_val = format_value_for_display(cleaned_new_val)
+                question = f"Maine suna — {disp_val}. Kya ye sahi hai?"
 
                 nav_directive = {"action": "FILL_FORM", "target": tentative_field, "query": cleaned_new_val, "active_field": tentative_field, "intent": "PANDIT_ONBOARDING"}
                 orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
@@ -1565,8 +1594,8 @@ async def process_onboarding_step(
     state["tentative_value"] = val
     state["status"] = "awaiting_field_confirmation"
 
-
-    question = f"Maine suna — {val}. Kya ye sahi hai?"
+    disp_val = format_value_for_display(val)
+    question = f"Maine suna — {disp_val}. Kya ye sahi hai?"
     nav_directive = {
         "action": "FILL_FORM",
         "target": current_field,
