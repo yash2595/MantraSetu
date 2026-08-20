@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import random
 import re
@@ -779,7 +780,10 @@ Return ONLY the extracted clean value, the QUESTION: string, or 'INVALID'. Do NO
     )
     
     try:
-        response = await ai_service.generate(request=llm_req)
+        response = await asyncio.wait_for(ai_service.generate(request=llm_req), timeout=10.0)
+        if not response or not response.content:
+            logger.warning("[PANDIT-ONBOARDING] LLM extraction returned empty/None response. Returning INVALID.")
+            return "INVALID"
         val = response.content.strip().replace('"', '').replace("'", "")
         logger.info("[PANDIT-ONBOARDING] LLM extraction result for %s: %s", field, val)
         
@@ -791,40 +795,7 @@ Return ONLY the extracted clean value, the QUESTION: string, or 'INVALID'. Do NO
             
         return to_roman_text(val)
     except Exception as e:
-        logger.error("[PANDIT-ONBOARDING] LLM extraction failed", exc_info=True)
-        
-        # Test Environment / Missing API Key Fallback
-        val = user_message_normalized.strip().lower()
-        if field in ["pandit-first-name", "pandit-last-name"]:
-            return to_roman_text(user_message_normalized.strip().title())
-
-        elif field == "pandit-email":
-            return user_message_normalized.strip().lower().replace(" ", "")
-        elif field == "pandit-phone":
-            return "".join(filter(str.isdigit, val))
-        elif field == "pandit-gender":
-            return "Female" if "female" in val else "Male" if "male" in val else "Other"
-        elif field == "pandit-availability":
-            return "Both" if "both" in val else "Online" if "online" in val else "Offline"
-        elif field == "pandit-city":
-            return "Varanasi" if "varanasi" in val else user_message_normalized.strip()
-        elif field == "pandit-service-areas":
-            return user_message_normalized.strip()
-        elif field == "pandit-exp":
-            return "10-20 years" if "10 saal" in val else "INVALID"
-        elif field == "pandit-gurukul":
-            return user_message_normalized.strip()
-        elif field == "pandit-languages":
-            return "Hindi, Sanskrit" if "sahi" in val else user_message_normalized.strip()
-        elif field == "pandit-spec":
-            return "Jyotish & Kundali" if ("jyotish" in val or "kundali" in val) else "Sanskar Ceremonies" if "sanskar" in val else "Katha & Pravachan" if ("katha" in val or "pravachan" in val) else "Vedic Pujas & Havan" if ("vedic" in val or "puja" in val or "havan" in val) else "INVALID"
-        elif field == "pandit-achievements":
-            if "nahi" in val or "no" in val:
-                return "INVALID" # Wait, the test expects "INVALID" to break out? Or does it expect a 'Nahi' to trigger array logic?
-            return user_message_normalized.strip()
-        elif field == "pandit-bio":
-            return user_message_normalized.strip()
-        
+        logger.error("[PANDIT-ONBOARDING] LLM extraction failed or timed out: %s. Returning INVALID.", e)
         return "INVALID"
 
 # ── CENTRALIZED FIELD VALIDATION REGISTRY ──
