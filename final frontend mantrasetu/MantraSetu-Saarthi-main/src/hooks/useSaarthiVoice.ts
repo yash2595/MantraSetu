@@ -26,16 +26,7 @@ function float32ToPCM16(buffer: Float32Array): Uint8Array {
   return result;
 }
 
-/** Resample an AudioBuffer to the target sample rate (16 kHz) */
-function resampleAudioBuffer(audioCtx: AudioContext, buffer: AudioBuffer, targetRate = 16000): Promise<AudioBuffer> {
-  if (buffer.sampleRate === targetRate) return Promise.resolve(buffer);
-  const offline = new OfflineAudioContext(buffer.numberOfChannels, Math.ceil(buffer.duration * targetRate), targetRate);
-  const source = offline.createBufferSource();
-  source.buffer = buffer;
-  source.connect(offline.destination);
-  source.start(0);
-  return offline.startRendering();
-}
+
 
 /** Encode Uint8Array (PCM16) to base64 string */
 function uint8ArrayToBase64(u8: Uint8Array): string {
@@ -146,7 +137,7 @@ export function getFormStateData(): Record<string, string> {
 }
 
 export function useSaarthiVoice() {
-  const { state, setDialogueText, setSaarthiState, minimizeSaarthi, forceMinimize, announceMessage } = useSaarthi();
+  const { state, setDialogueText, setSaarthiState, forceMinimize, announceMessage } = useSaarthi();
   const [isConnected, setIsConnected] = useState(false);
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -184,6 +175,16 @@ export function useSaarthiVoice() {
   }, []);
 
   useEffect(() => {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          console.log('[MIC] Permission granted, ready');
+        })
+        .catch(err => {
+          console.error('[MIC] Permission denied:', err);
+        });
+    }
+
     (window as any).simulateUserSpeech = (text: string) => {
       console.log(`[DEBUG-SIMULATION] Simulating user speech: "${text}"`);
       sendWsMessage({
@@ -199,8 +200,8 @@ export function useSaarthiVoice() {
     };
   }, [sendWsMessage]);
 
+
   const playNextAudioRef = useRef<(() => void) | undefined>(undefined);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const currentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const audioQueueRef = useRef<AudioBuffer[]>([]);
@@ -295,7 +296,7 @@ export function useSaarthiVoice() {
       cursor.style.boxShadow = '0 0 10px rgba(238, 124, 43, 0.5)';
       cursor.style.zIndex = '99999';
       cursor.style.pointerEvents = 'none';
-      cursor.style.transition = 'all 0.8s ease-in-out';
+      cursor.style.transition = 'all 0.45s ease-in-out';
       cursor.style.left = `${window.innerWidth / 2 - 12}px`;
       cursor.style.top = `${window.innerHeight / 2 - 12}px`;
       cursor.style.opacity = '0';
@@ -502,6 +503,11 @@ export function useSaarthiVoice() {
       const targetEl = document.querySelector(step.target) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
       console.log(`[FORM-FILL-EXEC] Action: TYPE. Target: "${step.target}". ElementFound: ${!!targetEl}. ValueToSet: "${step.text}"`);
       if (targetEl) {
+         if ((targetEl as HTMLInputElement).type === 'file') {
+            console.log('[FORM-FILL-EXEC] Target element is type="file". Skipping value typing.');
+            setTimeout(processNextStep, step.delay || 400);
+            return;
+         }
          const rect = targetEl.getBoundingClientRect();
          const targetX = rect.left + rect.width / 2;
          const targetY = rect.top + rect.height / 2;
@@ -541,9 +547,42 @@ export function useSaarthiVoice() {
            return;
          }
 
+         const convertSpokenEmailToText = (spoken: string) => {
+           if (!spoken) return '';
+           return spoken
+             .toLowerCase()
+             .replace(/\s+at\s+/g, '@')
+             .replace(/\b(at the rate|at rate)\b/g, '@')
+             .replace(/\s+dot\s+/g, '.')
+             .replace(/\s+underscore\s+/g, '_')
+             .replace(/\s+dash\s+/g, '-')
+             .replace(/\s+hyphen\s+/g, '-')
+             .replace(/\s+/g, '');
+         };
+
+         // Ensure typed text is ALWAYS in English/Roman letters (never Devanagari script)
+         const ensureRomanText = (str: string) => {
+           if (!str) return str;
+           if (/[\u0900-\u097F]/.test(str)) {
+             const devMap: Record<string, string> = {
+               'अ':'a', 'आ':'aa', 'इ':'i', 'ई':'ee', 'उ':'u', 'ऊ':'oo', 'ऋ':'ri', 'ए':'e', 'ऐ':'ai', 'ओ':'o', 'औ':'au',
+               'क':'k', 'ख':'kh', 'ग':'g', 'घ':'gh', 'ङ':'ng', 'च':'ch', 'छ':'chh', 'ज':'j', 'झ':'jh', 'ञ':'nya',
+               'ट':'t', 'ठ':'th', 'ड':'d', 'ढ':'dh', 'ण':'n', 'त':'t', 'थ':'th', 'द':'d', 'ध':'dh', 'न':'n',
+               'प':'p', 'फ':'ph', 'ब':'b', 'भ':'bh', 'म':'m', 'य':'y', 'र':'r', 'ल':'l', 'व':'v', 'श':'sh', 'ष':'sh', 'स':'s', 'ह':'h',
+               'ा':'a', 'ि':'i', 'ी':'ee', 'ु':'u', 'ू':'oo', 'ृ':'ri', 'े':'e', 'ै':'ai', 'ो':'o', 'ौ':'au', 'ं':'n', 'ँ':'n', '्':''
+             };
+             return str.split('').map(c => devMap[c] || (c >= '\u0900' && c <= '\u097F' ? '' : c)).join('').trim();
+           }
+           return str;
+         };
+
          // ── CHARACTER-BY-CHARACTER TYPING ANIMATION ──
-         // Clear field first, then type character by character with React-compatible events
-         const fullText = step.text as string;
+         let rawText = step.text as string;
+         if (step.target && step.target.includes('email')) {
+           rawText = convertSpokenEmailToText(rawText);
+         }
+         const fullText = ensureRomanText(rawText);
+
          const charDelay = Math.min(60, Math.max(30, 1200 / fullText.length)); // 30-60ms per char, total ~1-2s
          let charIndex = 0;
 
@@ -552,9 +591,16 @@ export function useSaarthiVoice() {
 
          const typeNextChar = () => {
             if (charIndex > fullText.length) {
-              // Typing complete: swap highlight → filled glow and advance sequence
+              // Typing complete: swap highlight → filled glow, clear any validation errors, and advance sequence
               targetEl.classList.remove('saarthi-highlight');
               targetEl.classList.add('saarthi-filled');
+              targetEl.removeAttribute('aria-invalid');
+              const fieldContainer = targetEl.closest('.form-field, .form-group, div');
+              if (fieldContainer) {
+                const fieldErrorMsg = fieldContainer.querySelector('.field-error, [role="alert"]');
+                if (fieldErrorMsg) fieldErrorMsg.remove();
+              }
+
               const tracker = (targetEl as any)._valueTracker;
               if (tracker) tracker.setValue('');
               targetEl.dispatchEvent(new Event('input', { bubbles: true }));
@@ -692,11 +738,16 @@ export function useSaarthiVoice() {
     ws.onmessage = async (event: MessageEvent) => {
         try {
           const msg = JSON.parse(event.data);
+          if (msg.type === 'PING') {
+            sendWsMessage({ type: 'PONG' });
+            return;
+          }
           // [DIAGNOSTIC] Log every single message type and AI_RESPONSE payload explicitly
           if (msg.type === 'AI_RESPONSE') {
              console.log('[DIAGNOSTIC] FULL RAW AI_RESPONSE PAYLOAD:', JSON.stringify(msg.payload));
           }
           if (!msg.type) return;
+
           console.log(`[Voice] Received message type: ${msg.type}`);
           if (msg.type === 'ERROR') {
              console.error('[Voice] [ERROR-PAYLOAD] Received ERROR envelope from backend:', JSON.stringify(msg.payload || msg));
@@ -766,7 +817,6 @@ export function useSaarthiVoice() {
             if (activeField) {
               activeFieldRef.current = activeField;
               // ── STEP MAPPING & UI STEP SYNCHRONIZATION ──
-              const step1Fields = ['pandit-first-name', 'pandit-last-name', 'pandit-email', 'pandit-phone', 'pandit-gender', 'pandit-availability', 'pandit-city', 'pandit-state', 'pandit-service-areas', 'pandit-name'];
               const step2Fields = ['pandit-exp', 'pandit-gurukul', 'pandit-education', 'pandit-languages', 'pandit-spec', 'pandit-achievements', 'pandit-bio'];
               const step3Fields = ['pandit-certFile', 'pandit-aadhaarFile', 'pandit-galleryFiles', 'pandit-password', 'pandit-confirm'];
 
@@ -836,9 +886,41 @@ export function useSaarthiVoice() {
 
               if (targetHighlightEl) {
                 targetHighlightEl.classList.add('saarthi-highlight');
-                targetHighlightEl.scrollIntoView({ behavior: 'auto', block: 'center' });
+                targetHighlightEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 const count = document.querySelectorAll('.saarthi-highlight').length;
                 console.log('[PROOF-FEATURE-A] activeFieldId:', activeField, '| Highlighted Element:', targetHighlightEl.id || targetHighlightEl.getAttribute('data-testid') || targetHighlightEl.tagName, '| Total .saarthi-highlight count in DOM:', count);
+
+                // ── CURSOR WALKER: Smoothly walk orange cursor dot to active field ──
+                let cursor = document.getElementById('saarthi-cursor');
+                if (!cursor) {
+                  cursor = document.createElement('div');
+                  cursor.id = 'saarthi-cursor';
+                  cursor.style.position = 'fixed';
+                  cursor.style.width = '24px';
+                  cursor.style.height = '24px';
+                  cursor.style.borderRadius = '50%';
+                  cursor.style.backgroundColor = 'rgba(238, 124, 43, 0.6)';
+                  cursor.style.border = '2px solid #ee7c2b';
+                  cursor.style.boxShadow = '0 0 12px rgba(238, 124, 43, 0.7)';
+                  cursor.style.zIndex = '99999';
+                  cursor.style.pointerEvents = 'none';
+                  cursor.style.transition = 'all 0.45s ease-in-out';
+                  cursor.style.left = `${window.innerWidth / 2 - 12}px`;
+                  cursor.style.top = `${window.innerHeight / 2 - 12}px`;
+                  cursor.style.opacity = '0';
+                  document.body.appendChild(cursor);
+                }
+                setTimeout(() => {
+                  if (targetHighlightEl && cursor) {
+                    const rect = targetHighlightEl.getBoundingClientRect();
+                    if (rect.width > 0 && rect.height > 0) {
+                      cursor.style.opacity = '1';
+                      cursor.style.transform = 'scale(1)';
+                      cursor.style.left = `${rect.left + rect.width / 2 - 12}px`;
+                      cursor.style.top = `${rect.top + rect.height / 2 - 12}px`;
+                    }
+                  }
+                }, 100);
 
                 // ── GENERALIZED DROPDOWN DETECTION & INLINE OPTIONS RENDERING ──
                 const selectEl = (targetHighlightEl.tagName === 'SELECT' ? targetHighlightEl : targetHighlightEl.querySelector('select')) as HTMLSelectElement | null;
@@ -908,16 +990,24 @@ export function useSaarthiVoice() {
               }, 1000);
             }
 
-            // ── GREETING GUARD: Initial connect greeting MUST NEVER navigate automatically ──
-            if (intent === 'GREETING' || msg.payload.intent === 'GREETING') {
-              console.log('[Voice] [CONNECT-DIAGNOSTIC] Initial Greeting response received. Forcing action & target to null. User remains on current page.');
+            // ── GREETING & CEREMONIAL VISUAL MOMENT: Trigger 'greeting' avatar animation ──
+            if (intent === 'GREETING' || msg.payload.intent === 'GREETING' || contentStr.toLowerCase().includes('namaste') || contentStr.toLowerCase().includes('om namah shivaya')) {
+              console.log('[Voice] [CONNECT-DIAGNOSTIC] Initial Greeting response received. Triggering greeting avatar animation.');
               action = null;
               target = null;
+              setSaarthiState('greeting' as any);
+              setTimeout(() => {
+                setSaarthiState('speaking');
+              }, 1200);
             }
 
-            // ── COMPLETION VISUAL MOMENT: Trigger 'namaste' avatar bow on onboarding handoff ──
-            if (contentStr.toLowerCase().includes('password') && contentStr.toLowerCase().includes('documents')) {
-              console.log('[Voice] [VISUAL-MOMENT] Onboarding completion handoff detected. Triggering Namaste bow animation on avatar!');
+            // ── COMPLETION VISUAL MOMENT: Trigger 'namaste' avatar bow on onboarding handoff / summary ──
+            const isSummaryOrCompletion = (contentStr.toLowerCase().includes('password') && contentStr.toLowerCase().includes('documents')) ||
+                                          contentStr.toLowerCase().includes('confirm kar lete hain') ||
+                                          contentStr.toLowerCase().includes('dhanyawad') ||
+                                          contentStr.toLowerCase().includes('complete ho gaya');
+            if (isSummaryOrCompletion) {
+              console.log('[Voice] [VISUAL-MOMENT] Onboarding summary/completion handoff detected. Triggering Namaste bow animation on avatar!');
               setSaarthiState('namaste' as any);
               setTimeout(() => {
                 setSaarthiState('speaking');
@@ -930,6 +1020,27 @@ export function useSaarthiVoice() {
             console.log('[Voice] Raw Action:', action);
             console.log('[Voice] Intent:', intent);
             console.log('[Voice] Query:', query);
+
+            // 🚨 PANDIT ONBOARDING ROUTE CHECK: Ensure frontend navigates to /signup?role=pandit
+            const isPanditOnboardingIntent = intent === 'PANDIT_ONBOARDING' ||
+              (typeof target === 'string' && (target.includes('/signup') || target.includes('/sign-up') || target.includes('pandit'))) ||
+              (typeof activeField === 'string' && activeField.startsWith('pandit-'));
+
+            if (isPanditOnboardingIntent && !window.location.pathname.startsWith('/signup') && !window.location.pathname.startsWith('/sign-up')) {
+              console.log(`[PANDIT-NAV] Auto-navigating to Pandit onboarding route (/signup?role=pandit) for intent: ${intent}`);
+              navigate('/signup?role=pandit');
+              setTimeout(() => {
+                const formSection = document.querySelector('.registration-form') 
+                || document.querySelector('form') 
+                || document.querySelector('[data-section="personal-info"]');
+                if (formSection) {
+                  formSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }, 500);
+            }
+
+
+
             if (activeField) {
               activeFieldRef.current = activeField;
               const step2Fields = ['exp', 'gurukul', 'education', 'spec', 'lang', 'achievements', 'bio'];
@@ -959,6 +1070,7 @@ export function useSaarthiVoice() {
             console.log('[NAV-DEBUG] RAW AI_RESPONSE Received. action=', action, 'target=', JSON.stringify(target));
 
             if (action === 'NAVIGATE' && target) {
+
               const cleanTarget = target.trim();
               const intentName = msg.payload?.intent || '';
               console.log(`[NAV-DEBUG] Routing for target: ${cleanTarget}, query: ${query}, intent: ${intentName}, currentPath: ${window.location.pathname}`);
@@ -1126,17 +1238,17 @@ export function useSaarthiVoice() {
                     if (matchedBtn) {
                       const btnIndex = buttons.indexOf(matchedBtn);
                       const targetBtnSel = `[data-field="${fTarget}"] button:nth-of-type(${btnIndex + 1}), [data-testid="pill-group-${fTarget}"] button:nth-of-type(${btnIndex + 1})`;
-                      seq.push({ action: 'move', target: targetBtnSel, delay: 150 });
-                      seq.push({ action: 'click', target: targetBtnSel, delay: 150 });
+                      seq.push({ action: 'move', target: targetBtnSel, delay: 450 });
+                      seq.push({ action: 'click', target: targetBtnSel, delay: 250 });
                     } else {
                       const fallbackSel = `[data-testid="pill-${fTarget}-${queryLower}"]`;
-                      seq.push({ action: 'move', target: fallbackSel, delay: 150 });
-                      seq.push({ action: 'click', target: fallbackSel, delay: 150 });
+                      seq.push({ action: 'move', target: fallbackSel, delay: 450 });
+                      seq.push({ action: 'click', target: fallbackSel, delay: 250 });
                     }
                   } else if (isSelectDropdown) {
-                    seq.push({ action: 'move', target: selector, delay: 200 });
-                    seq.push({ action: 'open_dropdown', target: selector, delay: 200 });
-                    seq.push({ action: 'select_option', target: selector, text: fQuery, delay: 300 });
+                    seq.push({ action: 'move', target: selector, delay: 450 });
+                    seq.push({ action: 'open_dropdown', target: selector, delay: 250 });
+                    seq.push({ action: 'select_option', target: selector, text: fQuery, delay: 350 });
                   } else if (isLangToggle) {
                     const queryLower = (fQuery || '').toLowerCase();
                     const allPossibleLangs = ['hindi', 'sanskrit', 'english', 'gujarati', 'marathi', 'bengali', 'tamil', 'telugu'];
@@ -1149,13 +1261,13 @@ export function useSaarthiVoice() {
                       const isActive = btnEl ? (btnEl.textContent || '').includes('✓') : false;
                       
                       if (isSpoken && !isActive) {
-                        seq.push({ action: 'move', target: btnSelector, delay: 150 });
-                        seq.push({ action: 'click', target: btnSelector, delay: 150 });
+                        seq.push({ action: 'move', target: btnSelector, delay: 450 });
+                        seq.push({ action: 'click', target: btnSelector, delay: 250 });
                       }
                     }
                   } else {
-                    seq.push({ action: 'move', target: selector, delay: 200 });
-                    seq.push({ action: 'type', target: selector, text: fQuery, delay: 300 });
+                    seq.push({ action: 'move', target: selector, delay: 450 });
+                    seq.push({ action: 'type', target: selector, text: fQuery, delay: 350 });
                   }
                 } else {
                   const element = document.querySelector(selector);
@@ -1214,35 +1326,21 @@ export function useSaarthiVoice() {
                   // Perform 5 Step 3 Checks
                   const pwdEl = document.querySelector<HTMLInputElement>('#pandit-password, [data-testid="input-pandit-password"]');
                   const cpwdEl = document.querySelector<HTMLInputElement>('#pandit-confirm, [data-testid="input-pandit-confirm"]');
-                  const aadhaarInput = document.querySelector<HTMLInputElement>('#pandit-aadhaar-input, [data-testid="input-aadhaar-file"]');
-                  const certInput = document.querySelector<HTMLInputElement>('#pandit-cert-input, [data-testid="input-cert-file"]');
-                  const termsEl = document.querySelector<HTMLInputElement>('#pandit-terms-accepted, [data-testid="checkbox-pandit-terms"]');
+                  const termsEl = document.querySelector<HTMLInputElement>('#pandit-terms-accepted, [data-testid="checkbox-pandit-terms"], [data-testid="checkbox-terms"], input[type="checkbox"]');
 
                   const pwdVal = pwdEl?.value?.trim() || '';
                   const cpwdVal = cpwdEl?.value?.trim() || '';
                   const hasPwd = pwdVal.length >= 8;
                   const pwdMatches = pwdVal === cpwdVal;
-                  const hasAadhaar = aadhaarInput && aadhaarInput.files && aadhaarInput.files.length > 0;
-                  const hasCert = certInput && certInput.files && certInput.files.length > 0;
-                  const hasTerms = termsEl && termsEl.checked;
+                  if (termsEl && !termsEl.checked) {
+                    termsEl.click();
+                  }
 
                   if (!hasPwd) {
                     announceMessage("Panditji, aapne abhi tak Password set nahi kiya hai. Kripya screen par Password set karke dobara 'maine kar diya' boliye.", false);
                     return;
                   } else if (!pwdMatches) {
                     announceMessage("Panditji, aapka password aur confirm password match nahi kar rahe. Kripya dono ek jaisa dobara set kijiye.", false);
-                    return;
-                  } else if (!hasAadhaar && !hasCert) {
-                    announceMessage("Panditji, aapne Aadhaar Identity Proof aur Vedic Certificate dono documents upload nahi kiye hain. Kripya dono upload karke dobara 'maine kar diya' boliye.", false);
-                    return;
-                  } else if (!hasAadhaar) {
-                    announceMessage("Panditji, aapka Aadhaar Identity Proof upload karna baki hai. Kripya Aadhaar upload karke dobara 'maine kar diya' boliye.", false);
-                    return;
-                  } else if (!hasCert) {
-                    announceMessage("Panditji, aapka Vedic Certificate document upload karna baki hai. Kripya Certificate upload karke dobara 'maine kar diya' boliye.", false);
-                    return;
-                  } else if (!hasTerms) {
-                    announceMessage("Panditji, aapne Terms & Conditions aur Code of Conduct accept nahi kiya hai. Kripya checkbox tick karke dobara 'maine kar diya' boliye.", false);
                     return;
                   }
 
@@ -1315,7 +1413,6 @@ export function useSaarthiVoice() {
 
           // ----------- AUDIO_CHUNK handling -----------------------------------
           if (msg.type === 'AUDIO_CHUNK') {
-            const dataLength = msg.payload.data_length || 0;
             const isFinal = msg.payload.is_final || false;
             console.log('[STATE]', 'AUDIO_CHUNK is_final:', isFinal);
             
@@ -1459,31 +1556,64 @@ export function useSaarthiVoice() {
   }, []);
 
   const playNextAudio = useCallback(() => {
+
     if (isPlayingRef.current || audioQueueRef.current.length === 0 || !audioContextRef.current) {
       if (audioQueueRef.current.length === 0 && !isPlayingRef.current) {
          console.log('[VERIFY-DIAGNOSTIC] (a) Audio playback complete (verification readout finished).');
          console.log('[VERIFY-DIAGNOSTIC] (b) Mic re-armed. Transitioning state: speaking -> listening.');
          isFinalChunkReceived.current = false;
+         userHasSpokenRef.current = false;
+         userRecordedBytesRef.current = 0;
+         stateRef.current = 'listening';
+         setSaarthiState('listening');
          if (fallbackTimeoutRef.current) {
              clearTimeout(fallbackTimeoutRef.current);
              fallbackTimeoutRef.current = null;
          }
-         setSaarthiState('listening');
+         if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+             audioContextRef.current.resume().catch(e => console.warn('[MIC] Resume error:', e));
+         }
+         console.log('[MIC-STATE]', stateRef.current);
+         console.log('[WS-STATE]', wsRef.current?.readyState);
+         console.log('[DIAGNOSTIC-1] TTS END -> stateRef:', stateRef.current, '| wsReadyState:', wsRef.current?.readyState, '| audioCtxState:', audioContextRef.current?.state);
+         console.log('[GREETING-DONE] State:', stateRef.current, 'WS:', wsRef.current?.readyState, 'SessionReady:', isSessionReadyRef.current);
+
+         // STEP 3: Safety timer - force AUDIO_END after 3 seconds if speech detected
+         setTimeout(() => {
+           if (userHasSpokenRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
+             console.log('[FORCE-AUDIO-END]');
+             sendWsMessage({
+               type: 'AUDIO_END',
+               payload: {
+                 current_page: window.location.pathname,
+                 active_field: activeFieldRef.current,
+                 dom_form_data: getFormStateData(),
+               }
+             });
+           }
+         }, 3000);
       }
       return;
     }
+
+
+
     
     const tryPlay = async () => {
-        console.log(`[Voice] Attempting to play greeting audio before playing chunk. Current AudioContext state: ${audioContextRef.current?.state}`);
-        if (audioContextRef.current?.state === 'suspended') {
+
+        const audioCtx = audioContextRef.current;
+        if (!audioCtx) return;
+
+        console.log(`[Voice] Attempting to play greeting audio before playing chunk. Current AudioContext state: ${audioCtx.state}`);
+        if (audioCtx.state === 'suspended') {
             try {
-                await audioContextRef.current.resume();
+                await audioCtx.resume();
             } catch (err: any) {
                 console.error('[Voice] Failed to resume AudioContext. FULL error object:', err);
             }
         }
         
-        if (audioContextRef.current?.state === 'suspended') {
+        if (audioCtx.state === 'suspended') {
              console.warn('[Voice] AudioContext is still suspended (autoplay policy block). Holding audio queue for user interaction.');
              if (!(window as any)._audioPlayClickListenerAdded) {
                   (window as any)._audioPlayClickListenerAdded = true;
@@ -1515,9 +1645,9 @@ export function useSaarthiVoice() {
         console.log('[Voice] Playing next audio chunk from queue');
         isPlayingRef.current = true;
         const buffer = audioQueueRef.current.shift()!;
-        const source = audioContextRef.current.createBufferSource();
+        const source = audioCtx.createBufferSource();
         source.buffer = buffer;
-        source.connect(audioContextRef.current.destination);
+        source.connect(audioCtx.destination);
         currentAudioSourceRef.current = source;
         
         source.onended = () => {
@@ -1528,7 +1658,7 @@ export function useSaarthiVoice() {
         };
         
         try {
-            console.log(`[Voice] Calling source.start(). AudioContext state is: ${audioContextRef.current.state}`);
+            console.log(`[Voice] Calling source.start(). AudioContext state is: ${audioCtx.state}`);
             source.start(0);
         } catch (err: any) {
             console.error('[Voice] source.start(0) threw an error! FULL error object:', err);
@@ -1610,11 +1740,14 @@ export function useSaarthiVoice() {
         const sourceNode = audioCtx.createMediaStreamSource(stream);
         const processor = audioCtx.createScriptProcessor(4096, 1, 1);
         processorRef.current = processor;
-
         let chunkCounter = 0;
 
         processor.onaudioprocess = (event) => {
-          // Stream AUDIO_FRAMEs ONLY when backend handshake is CONFIRMED READY and Saarthi is not speaking
+
+          if (chunkCounter % 20 === 0) {
+            console.log('[AUDIO-PROCESS]', stateRef.current, wsRef.current?.readyState, isSessionReadyRef.current);
+          }
+          // Stream AUDIO_FRAMEs ONLY when backend handshake is READY and Saarthi is not speaking
           if ((stateRef.current as string) !== 'speaking' && wsRef.current?.readyState === WebSocket.OPEN && isSessionReadyRef.current) {
             chunkCounter++;
             const inputData = event.inputBuffer.getChannelData(0);
@@ -1622,6 +1755,8 @@ export function useSaarthiVoice() {
             const base64data = uint8ArrayToBase64(pcm16);
 
             userRecordedBytesRef.current += pcm16.byteLength;
+            userHasSpokenRef.current = true; // Mark speech active as audio frames stream
+            console.log('[AUDIO-SEND]', pcm16.byteLength);
             if (chunkCounter % 10 === 0) {
               console.log(`[VAD-DIAGNOSTIC] Streaming AUDIO_FRAME (chunk ${chunkCounter}). Total user bytes: ${userRecordedBytesRef.current}`);
             }
@@ -1654,8 +1789,11 @@ export function useSaarthiVoice() {
         vadSource.connect(analyser);
 
         const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        silenceStart = Date.now();
-        const VAD_THRESHOLD = 3.0;
+        let lastSpeechTime = Date.now();
+        let audioEndSent = false;
+        let backgroundNoise = 0;
+        let calibrationTicks = 0;
+        let speechConsecutiveTicks = 0;
 
         vadIntervalRef.current = window.setInterval(() => {
           // Periodically attempt resume if suspended
@@ -1668,66 +1806,79 @@ export function useSaarthiVoice() {
 
           analyser.getByteFrequencyData(dataArray);
           let sum = 0;
-          for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+          for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+          }
           const average = sum / dataArray.length;
 
-          if (Date.now() % 500 < 100) {
-            console.log(`[VAD-DIAGNOSTIC] VAD Tick | State: ${stateRef.current} | Vol: ${average.toFixed(2)} | Thresh: ${VAD_THRESHOLD} | Vol>Thresh: ${average > VAD_THRESHOLD} | UserSpoken: ${userHasSpokenRef.current}`);
-          }
-
-          if (Date.now() < vadWarmupTime) {
-            silenceStart = Date.now();
-            return;
-          }
-
-          // Ignore VAD during Saarthi's own TTS playback ('speaking')
+          // When Saarthi is speaking TTS, keep noise baseline clean and reset calibration ticks
           if ((stateRef.current as string) === 'speaking') {
-            silenceStart = Date.now();
+            lastSpeechTime = Date.now();
+            audioEndSent = false;
+            calibrationTicks = 0;
+            backgroundNoise = 0;
+            speechConsecutiveTicks = 0;
             return;
           }
 
-          // VAD Logic whenever Saarthi is not speaking (during 'listening' or 'idle' state)
-          if ((stateRef.current as string) !== 'speaking') {
-            if (average > VAD_THRESHOLD) {
-              if (!userHasSpokenRef.current) {
-                console.log(`[VAD-DIAGNOSTIC] 🎯 User speech CONFIRMED started! (Vol: ${average.toFixed(2)} > ${VAD_THRESHOLD})`);
-                userHasSpokenRef.current = true;
-                userRecordedBytesRef.current = 0; // Clear noise bytes accumulated during silence!
-                if (stateRef.current !== 'listening') {
-                  setSaarthiState('listening');
-                }
-              }
-              silenceStart = Date.now();
-            } else {
-              if (userHasSpokenRef.current && (Date.now() - silenceStart > 1800)) {
-                console.log(`[VAD-DIAGNOSTIC] 🤫 Silence detected after 1.8s. User speech complete. Total bytes: ${userRecordedBytesRef.current}`);
-                userHasSpokenRef.current = false;
-                
-                // Send AUDIO_END only for genuine user speech when session handshake is READY
-                if (wsRef.current?.readyState === WebSocket.OPEN && isSessionReadyRef.current && userRecordedBytesRef.current > 0) {
-                  const domData = getFormStateData();
-                  console.log(`[VAD-DIAGNOSTIC] ✅ Sending AUDIO_END frame with activeField: "${activeFieldRef.current}", DOM data:`, domData);
-                  sendWsMessage({
-                    type: 'AUDIO_END',
-                    payload: {
-                      current_page: window.location.pathname,
-                      active_field: activeFieldRef.current,
-                      dom_form_data: domData,
-                    }
-                  });
-                }
-                userRecordedBytesRef.current = 0;
-                setSaarthiState('idle');
-
-                if (!(window as any)._hasMinimizedOnce) {
-                  console.log('[WIDGET] Triggering shrink-to-corner animation now (via VAD)');
-                  forceMinimize();
-                  (window as any)._hasMinimizedOnce = true;
-                }
-              }
+          // Calibrate ambient room noise in first 10 ticks (1 second) after TTS finishes
+          if (calibrationTicks < 10) {
+            backgroundNoise = Math.max(backgroundNoise, average);
+            calibrationTicks++;
+            lastSpeechTime = Date.now();
+            speechConsecutiveTicks = 0;
+            if (calibrationTicks % 5 === 0) {
+              console.log('[VAD-CALIBRATING] Ambient room noise baseline:', backgroundNoise.toFixed(2));
             }
+            return;
+          }
+
+          // Option 3 SNR Proximity VAD: Dynamic Threshold = backgroundNoise + 6.0 (or minimum 6.0)
+          const DYNAMIC_THRESHOLD = Math.max(6.0, backgroundNoise + 6.0);
+
+          // Proximity Speech Detection: Require average > DYNAMIC_THRESHOLD consistently for >300ms (3 ticks)
+          if (average >= DYNAMIC_THRESHOLD) {
+            speechConsecutiveTicks++;
+            lastSpeechTime = Date.now();
+            if (speechConsecutiveTicks >= 3) {
+              userHasSpokenRef.current = true;
+              audioEndSent = false;
+              console.log('[PROXIMITY-SPEECH-DETECTED]', 'avg:', average.toFixed(2), 'threshold:', DYNAMIC_THRESHOLD.toFixed(2), 'ticks:', speechConsecutiveTicks);
+            }
+          } else {
+            speechConsecutiveTicks = 0;
+          }
+
+          const silentFor = Date.now() - lastSpeechTime;
+
+          if (Date.now() % 500 < 100) {
+            console.log('[VAD-TICK]', 'avg:', average.toFixed(2), 'threshold:', DYNAMIC_THRESHOLD.toFixed(2), 'spoken:', userHasSpokenRef.current, 'bytes:', userRecordedBytesRef.current, 'silentFor:', silentFor);
+          }
+
+          // 2.2 seconds silence after proximity speech = send AUDIO_END
+          if (userHasSpokenRef.current && !audioEndSent && silentFor >= 2200) {
+            audioEndSent = true;
+            console.log('[AUDIO-END-SENT] Dispatching AUDIO_END for field:', activeFieldRef.current, 'recorded_bytes:', userRecordedBytesRef.current);
+
+            sendWsMessage({
+              type: 'AUDIO_END',
+              payload: {
+                current_page: window.location.pathname,
+                active_field: activeFieldRef.current,
+                dom_form_data: getFormStateData(),
+              }
+            });
+
+            userHasSpokenRef.current = false;
+            userRecordedBytesRef.current = 0;
+            setSaarthiState('idle');
+            lastSpeechTime = Date.now();
           }
         }, 100);
+
+
+
+
       })
       .catch(err => {
         console.error('[Voice] Persistent Microphone error', err);
