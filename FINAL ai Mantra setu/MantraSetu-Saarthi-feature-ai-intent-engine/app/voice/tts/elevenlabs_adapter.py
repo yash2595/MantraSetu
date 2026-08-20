@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 import httpx
 from typing import AsyncGenerator
@@ -21,11 +22,16 @@ logger = logging.getLogger(__name__)
 class ElevenLabsAdapter(ITTSProvider):
     """TTS adapter connecting to ElevenLabs Text-to-Speech API."""
 
-    def __init__(self, api_key: str | None = None, model: str = "eleven_multilingual_v2") -> None:
-        self._api_key = api_key
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str = "eleven_multilingual_v2",
+        default_voice_id: str | None = None,
+    ) -> None:
+        self._api_key = api_key or os.environ.get("ELEVENLABS_API_KEY", "")
         self._model = model
         self._active_requests: set[str] = set()
-        self._default_voice_id = "EXAVITQu4vr4xnSDxMaL"  # A solid default Hindi-capable voice (Bella or similar, or whatever is provided)
+        self._default_voice_id = default_voice_id or os.environ.get("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
 
     @property
     def provider_name(self) -> str:
@@ -55,7 +61,7 @@ class ElevenLabsAdapter(ITTSProvider):
         self._active_requests.add(req_id_str)
         logger.info("ElevenLabs TTS stream started", extra={"request_id": req_id_str})
 
-        voice_id = request.voice if request.voice else self._default_voice_id
+        voice_id = request.voice if request.voice and request.voice not in ("meera", "pandit", "default", "saarthi") else self._default_voice_id
         
         headers = {
             "Accept": "audio/mpeg",
@@ -74,8 +80,9 @@ class ElevenLabsAdapter(ITTSProvider):
         
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
         
+        timeout_config = httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0)
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=timeout_config) as client:
                 async with client.stream("POST", url, json=payload, headers=headers) as response:
                     response.raise_for_status()
                     async for chunk in response.aiter_bytes(chunk_size=4096):
@@ -105,8 +112,29 @@ class ElevenLabsAdapter(ITTSProvider):
                     metadata={"provider": self.provider_name, "status": "complete"},
                 )
         except Exception as e:
-            logger.error(f"ElevenLabs streaming failed: {e}")
-            # Fallback to an empty final chunk to close the stream gracefully
+            logger.error(f"[NO_RESPONSE_RISK:TTS_TIMEOUT] ElevenLabs streaming failed or timed out: {e}. Falling back to gTTS...")
+            try:
+                import io
+                from gtts import gTTS
+                tts = gTTS(text=request.text, lang='hi')
+                fp = io.BytesIO()
+                tts.write_to_fp(fp)
+                audio_bytes = fp.getvalue()
+                if req_id_str in self._active_requests:
+                    yield AudioChunk(
+                        request_id=request.request_id,
+                        session_id=request.session_id,
+                        conversation_id=request.conversation_id,
+                        sequence_number=0,
+                        data=audio_bytes,
+                        is_final=True,
+                        timestamp_ms=int(time.time() * 1000),
+                        metadata={"status": "gtts_fallback", "provider": self.provider_name},
+                    )
+                    return
+            except Exception as gtts_err:
+                logger.warning(f"gTTS fallback failed: {gtts_err}")
+
             if req_id_str in self._active_requests:
                 yield AudioChunk(
                     request_id=request.request_id,
