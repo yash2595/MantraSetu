@@ -766,6 +766,19 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
             logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-gender: Male")
             return "Male"
 
+    # Deterministic Fast-Path for Availability (pandit-availability)
+    if field in ["pandit-availability", "availability"]:
+        msg_lower = user_message_normalized.lower()
+        if any(w in msg_lower for w in ["both", "dono", "दोनों", "offline and online", "online and offline", "har jagah"]):
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-availability: Both")
+            return "Both"
+        elif any(w in msg_lower for w in ["offline", "ghar par", "site", "in person", "प्रत्यक्ष", "ऑफलाइन"]):
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-availability: Offline")
+            return "Offline"
+        elif any(w in msg_lower for w in ["online", "virtual", "video call", "zoom", "ऑनलाइन"]):
+            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-availability: Online")
+            return "Online"
+
     # Deterministic Fast-Path for Languages (pandit-languages)
     if field in ["pandit-languages", "pandit-lang", "language", "languages"]:
         msg_lower = user_message_normalized.lower()
