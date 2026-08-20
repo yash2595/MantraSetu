@@ -239,7 +239,7 @@ def get_state_for_city(city_name: str) -> tuple[str, Any]:
     return ("UNKNOWN", None)
 
 def format_value_for_display(val: Any) -> str:
-    """Formats raw field values (strings, lists, list-strings) into natural speech/text without brackets or quotes."""
+    """Formats raw field values (strings, lists, list-strings, comma-separated values) into natural speech/text without brackets, quotes, or raw commas."""
     if val is None:
         return ""
     if isinstance(val, (list, tuple, set)):
@@ -262,6 +262,10 @@ def format_value_for_display(val: Any) -> str:
                     return format_value_for_display(parsed)
             except Exception:
                 pass
+        if "," in val_str:
+            parts = [p.strip() for p in val_str.split(",") if p.strip()]
+            if len(parts) > 1:
+                return format_value_for_display(parts)
         return val_str
     return str(val)
 
