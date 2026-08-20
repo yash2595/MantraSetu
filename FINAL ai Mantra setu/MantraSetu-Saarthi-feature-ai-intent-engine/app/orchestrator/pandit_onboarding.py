@@ -519,6 +519,10 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
         roman_hindi_digit_map = [
             (r'\b(shunya|zero|jiro)\b', '0'),
             (r'\b(ek|ekk|one)\b', '1'),
+            (r'\b(do|doo|two)\b', '2'),
+            (r'\b(teen|tin|three)\b', '3'),
+            (r'\b(char|chaar|four)\b', '4'),
+            (r'\b(panch|paanch|five)\b', '5'),
             (r'\b(chhe|che|chh|six)\b', '6'),
             (r'\b(saat|sat|seven)\b', '7'),
             (r'\b(aath|ath|eight)\b', '8'),
@@ -538,13 +542,14 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
             digits_only = digits_only[2:]
             
         # 6. Find 10-digit Indian mobile number starting with 5-9
-        phone_match = re.search(r'[56789]\d{9}', digits_only)
-        if phone_match:
-            text = phone_match.group(0)
-        elif len(digits_only) == 10:
+        if len(digits_only) == 10 and re.match(r'^[56789]', digits_only):
             text = digits_only
         else:
-            text = digits_only
+            phone_match = re.search(r'\b[56789]\d{9}\b', text)
+            if phone_match:
+                text = phone_match.group(0)
+            else:
+                text = digits_only
             
     return text
 
@@ -668,14 +673,21 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
         elif len(digits_only) == 12 and digits_only.startswith('91'):
             digits_only = digits_only[2:]
             
-        phone_match = re.search(r'[56789]\d{9}', digits_only)
-        if phone_match:
-            phone_val = phone_match.group(0)
-            logger.info("[PANDIT-ONBOARDING] Deterministic regex hit for pandit-phone: %s", phone_val)
-            return phone_val
-        elif len(digits_only) == 10:
+        if len(digits_only) == 10 and re.match(r'^[56789]', digits_only):
             logger.info("[PANDIT-ONBOARDING] Deterministic regex hit for pandit-phone: %s", digits_only)
             return digits_only
+        elif len(digits_only) > 10:
+            logger.info("[PANDIT-ONBOARDING] Phone input contains too many digits (%d): %s", len(digits_only), digits_only)
+            return digits_only
+        else:
+            phone_match = re.search(r'\b[56789]\d{9}\b', user_message_normalized)
+            if phone_match:
+                phone_val = phone_match.group(0)
+                logger.info("[PANDIT-ONBOARDING] Deterministic regex hit for pandit-phone: %s", phone_val)
+                return phone_val
+            elif len(digits_only) > 0:
+                logger.info("[PANDIT-ONBOARDING] Invalid phone digits: %s", digits_only)
+                return digits_only
 
             
     if field in ["pandit-email", "email"]:
