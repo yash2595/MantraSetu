@@ -415,7 +415,24 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                                 
                     except Exception as e:
                         import traceback
-                        logger.error(f"[WS-ROUTER] [DIAGNOSTIC] Error finishing voice session: {e}\n{traceback.format_exc()}")
+                        logger.error(
+                            f"[NO_RESPONSE_RISK:UNCAUGHT_EXCEPTION] Exception in AUDIO_END processing for session {active_session_id}: {e}\n{traceback.format_exc()}"
+                        )
+                        fallback_msg = "Kshama karein, kuch takneeki samasya aayi. Kripya punah koshish karein."
+                        fallback_reply = WebSocketEnvelope(
+                            request_id=frame.request_id,
+                            session_id=active_session_id,
+                            conversation_id=frame.conversation_id,
+                            type=ProtocolMessageType.AI_RESPONSE,
+                            payload={
+                                "content": fallback_msg,
+                                "intent": "ERROR_FALLBACK",
+                                "action": None,
+                                "target": None,
+                                "active_field": None,
+                            },
+                        )
+                        await safe_enqueue_outbound(outbound_queue, fallback_reply, "EXCEPTION_FALLBACK_AI_RESPONSE")
                         active_session_id = None
 
             elif frame.type == ProtocolMessageType.TEXT:
