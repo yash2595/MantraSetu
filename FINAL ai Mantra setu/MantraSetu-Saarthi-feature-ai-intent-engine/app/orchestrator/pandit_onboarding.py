@@ -355,12 +355,13 @@ def is_negative(user_message: str) -> bool:
 def is_pure_negative(user_message: str) -> bool:
     """Check if user message is ONLY a rejection phrase without an inline replacement value."""
     user_text = (user_message or "").lower().strip()
-    # Remove common filler words and rejection phrases
+    text_no_apostrophe = re.sub(r"['’`]", "", user_text)
+    text_nopunct = re.sub(r"[^\w\s\u0900-\u097f]", " ", text_no_apostrophe)
     cleaned = re.sub(
-        r'\b(nahi|nahin|nhi|na|no|nope|not|galat|hai|is|wrong|incorrect|badlo|change|dobara|phir|se|re-enter|जी|नहीं|नही|ना|गलत|है|बदलो|दोबारा|फिर|से)\b',
-        '', user_text, flags=re.IGNORECASE
+        r'(?<![\w\u0900-\u097f])(nahi|nahin|nhi|na|no|nope|not|galat|hai|is|that|thats|wrong|incorrect|badlo|change|dobara|phir|se|re-enter|ji|jee|jiya|जी|नहीं|नही|ना|गलत|है|बदलो|दोबारा|फिर|से)(?![\w\u0900-\u097f])',
+        '', text_nopunct, flags=re.IGNORECASE
     ).strip()
-    cleaned = re.sub(r'[^\w\s]', '', cleaned).strip()
+    cleaned = re.sub(r'\s+', '', cleaned).strip()
     return is_negative(user_message) and len(cleaned) == 0
 
 
@@ -554,12 +555,18 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
             
     return text
 
-DEVANAGARI_MAP = {
-    'अ': 'a', 'आ': 'aa', 'इ': 'i', 'ई': 'ee', 'उ': 'u', 'ऊ': 'oo', 'ऋ': 'ri', 'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au',
+DEVANAGARI_CONSONANTS = {
     'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'ङ': 'ng', 'च': 'ch', 'छ': 'chh', 'ज': 'j', 'झ': 'jh', 'ञ': 'nya',
     'ट': 't', 'ठ': 'th', 'ड': 'd', 'ढ': 'dh', 'ण': 'n', 'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n',
-    'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm', 'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v', 'श': 'sh', 'ष': 'sh', 'स': 's', 'ह': 'h',
-    'ा': 'a', 'ि': 'i', 'ी': 'ee', 'ु': 'u', 'ू': 'oo', 'ृ': 'ri', 'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au', 'ं': 'n', 'ँ': 'n', '्': ''
+    'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm', 'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v', 'श': 'sh', 'ष': 'sh', 'स': 's', 'ह': 'h'
+}
+
+DEVANAGARI_VOWELS_INDEPENDENT = {
+    'अ': 'a', 'आ': 'aa', 'इ': 'i', 'ई': 'ee', 'उ': 'u', 'ऊ': 'oo', 'ऋ': 'ri', 'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au'
+}
+
+DEVANAGARI_MATRAS = {
+    'ा': 'a', 'ि': 'i', 'ी': 'ee', 'ु': 'u', 'ू': 'oo', 'ृ': 'ri', 'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au', 'ं': 'n', 'ँ': 'n'
 }
 
 def to_roman_text(text: str) -> str:
@@ -568,9 +575,24 @@ def to_roman_text(text: str) -> str:
         return text
     if any('\u0900' <= char <= '\u097f' for char in text):
         res = []
-        for char in text:
-            if char in DEVANAGARI_MAP:
-                res.append(DEVANAGARI_MAP[char])
+        n = len(text)
+        for i, char in enumerate(text):
+            if char in DEVANAGARI_CONSONANTS:
+                base = DEVANAGARI_CONSONANTS[char]
+                next_char = text[i+1] if i + 1 < n else None
+                if next_char and (next_char in DEVANAGARI_MATRAS or next_char == '्'):
+                    res.append(base)
+                else:
+                    if next_char is None and len(text) > 1:
+                        res.append(base)
+                    else:
+                        res.append(base + 'a')
+            elif char in DEVANAGARI_VOWELS_INDEPENDENT:
+                res.append(DEVANAGARI_VOWELS_INDEPENDENT[char])
+            elif char in DEVANAGARI_MATRAS:
+                res.append(DEVANAGARI_MATRAS[char])
+            elif char == '्':
+                continue
             elif '\u0900' <= char <= '\u097f':
                 continue
             else:
@@ -647,21 +669,21 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
 
     # Deterministic Fast-Path for First Name & Last Name (0ms Latency)
     if field in ["pandit-first-name", "first-name"]:
-        clean = re.sub(r'^(mera|my|apna)\s+(naam|name)\s+(hai|is)\s*', '', user_message_normalized, flags=re.IGNORECASE).strip()
-        clean = re.sub(r'\b(hai|ji|shri|pandit)\b', '', clean, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'^(mera|my|apna|मेरा|अपना)\s+(naam|name|नाम)\s+(hai|is|है)\s*', '', user_message_normalized, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'\b(hai|is|है|जी|shri|pandit|पंडित|श्री)\b', '', clean, flags=re.IGNORECASE).strip()
         words = clean.split()
         if 1 <= len(words) <= 2 and all(len(w) >= 2 for w in words):
-            if words[0].lower() not in ["nahi", "nahin", "galat", "no", "wrong", "nhi"]:
+            if words[0].lower() not in ["nahi", "nahin", "galat", "no", "wrong", "nhi", "नहीं", "नही", "गलत"]:
                 extracted_name = to_roman_text(words[0].capitalize())
                 logger.info("[PANDIT-ONBOARDING] Deterministic fast-path for pandit-first-name: %s", extracted_name)
                 return extracted_name
 
     if field in ["pandit-last-name", "last-name"]:
-        clean = re.sub(r'^(mera|my|apna)\s+(upnaam|last name|surname)\s+(hai|is)\s*', '', user_message_normalized, flags=re.IGNORECASE).strip()
-        clean = re.sub(r'\b(hai|ji|shri|pandit)\b', '', clean, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'^(mera|my|apna|मेरा|अपना)\s+(upnaam|last name|surname|उपनाम|सरनेम)\s+(hai|is|है)\s*', '', user_message_normalized, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'\b(hai|is|है|जी|shri|pandit|पंडित|श्री)\b', '', clean, flags=re.IGNORECASE).strip()
         words = clean.split()
         if 1 <= len(words) <= 2 and all(len(w) >= 2 for w in words):
-            if words[-1].lower() not in ["nahi", "nahin", "galat", "no", "wrong", "nhi"]:
+            if words[-1].lower() not in ["nahi", "nahin", "galat", "no", "wrong", "nhi", "नहीं", "नही", "गलत"]:
                 extracted_name = to_roman_text(words[-1].capitalize())
                 logger.info("[PANDIT-ONBOARDING] Deterministic fast-path for pandit-last-name: %s", extracted_name)
                 return extracted_name
@@ -734,13 +756,13 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
     # Deterministic Fast-Path for Gender (pandit-gender)
     if field in ["pandit-gender", "gender"]:
         msg_lower = user_message_normalized.lower()
-        if any(w in msg_lower for w in ["female", "mahila", "aurat", "stree", "woman", "lady"]):
+        if any(w in msg_lower for w in ["female", "mahila", "aurat", "stree", "woman", "lady", "महिला", "औरत", "स्त्री"]):
             logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-gender: Female")
             return "Female"
-        elif any(w in msg_lower for w in ["other", "transgender", "third gender", "anya"]):
+        elif any(w in msg_lower for w in ["other", "transgender", "third gender", "anya", "अन्य"]):
             logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-gender: Other")
             return "Other"
-        elif any(w in msg_lower for w in ["male", "purush", "aadmi", "man", "gents"]):
+        elif any(w in msg_lower for w in ["male", "purush", "aadmi", "man", "gents", "पुरुष", "आदमी"]):
             logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-gender: Male")
             return "Male"
 
