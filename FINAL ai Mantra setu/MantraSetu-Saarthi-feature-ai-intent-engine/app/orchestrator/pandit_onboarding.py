@@ -626,6 +626,52 @@ def convertSpokenEmailToText(spoken: str) -> str:
         return match.group(0)
     return email_clean
 
+def is_fragmented_digit_transcript(text: str) -> bool:
+    """Check if digits in transcript are fragmented by non-digit, non-filler background words."""
+    if not text:
+        return False
+    t_lower = text.lower().strip()
+    VALID_PHONE_WORDS = {
+        "double", "triple", "zero", "shunya", "jiro", "ek", "do", "teen", "char", "panch",
+        "chhe", "che", "saat", "sat", "aath", "ath", "nau", "now", "plus", "ninety", "one",
+        "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+        "mera", "my", "number", "mobile", "phone", "hai", "is", "ji", "jee", "ha", "haan"
+    }
+    tokens = re.findall(r'\d+|[^\d\s]+', t_lower)
+    digit_indices = [i for i, tok in enumerate(tokens) if re.match(r'^\d+$', tok)]
+    if len(digit_indices) > 1:
+        for i in range(digit_indices[0] + 1, digit_indices[-1]):
+            tok = tokens[i]
+            if not re.match(r'^\d+$', tok) and tok not in VALID_PHONE_WORDS:
+                logger.warning("[PHONE-GUARD] Fragmented digits detected due to intervening word '%s' in transcript '%s'", tok, text)
+                return True
+    return False
+
+def check_text_contamination_ratio(user_message: str, extracted_value: str, field_name: str) -> bool:
+    """Return True if background chatter dominates the transcript (contamination detected)."""
+    if not user_message or not extracted_value or extracted_value == "INVALID" or extracted_value.startswith("QUESTION:"):
+        return False
+    
+    FRAMING_WORDS = {
+        "mera", "meri", "my", "naam", "name", "hai", "is", "sheher", "city", "shahar",
+        "state", "rajya", "gurukul", "education", "padhai", "vishwavidyalaya", "college",
+        "se", "mein", "in", "hoon", "am", "apna", "apni", "ji", "jee", "sir", "pandit"
+    }
+    
+    raw_words = [w.strip(".,?!;:\"'()") for w in user_message.lower().split() if w.strip(".,?!;:\"'()")]
+    meaningful_words = [w for w in raw_words if w not in FRAMING_WORDS]
+    extracted_words = [w.strip(".,?!;:\"'()") for w in extracted_value.lower().split() if w.strip(".,?!;:\"'()")]
+    
+    if len(meaningful_words) >= 4 and len(extracted_words) > 0:
+        ratio = len(extracted_words) / len(meaningful_words)
+        if ratio < 0.40:
+            logger.warning(
+                "[TEXT-CONTAMINATION-GUARD] Extracted '%s' represents only %.1f%% of transcript meaningful words in '%s' for field %s. Rejecting as background chatter contamination.",
+                extracted_value, ratio * 100, user_message, field_name
+            )
+            return True
+    return False
+
 async def extract_field_value(user_message: str, field: str, ai_service: AIService) -> str:
     """Extract a clean field value from user response using the LLM.
     
@@ -690,6 +736,9 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
 
     # Deterministic Fast-Path for Phone and Email (0ms Latency & 100% Deterministic Reliability)
     if field in ["pandit-phone", "phone"]:
+        if is_fragmented_digit_transcript(user_message):
+            logger.info("[PANDIT-ONBOARDING] Phone fast-path rejected fragmented digit transcript: %s", user_message)
+            return "INVALID"
         digits_only = re.sub(r'\D', '', user_message_normalized)
         if len(digits_only) == 11 and digits_only.startswith('0'):
             digits_only = digits_only[1:]
@@ -828,7 +877,10 @@ Return ONLY the extracted clean value, the QUESTION: string, or 'INVALID'. Do NO
             logger.warning("[PANDIT-ONBOARDING] LLM returned unusually long response without QUESTION: prefix. Defaulting to INVALID.")
             return "INVALID"
             
-        return to_roman_text(val)
+        res_val = to_roman_text(val)
+        if check_text_contamination_ratio(user_message_normalized, res_val, field):
+            return "INVALID"
+        return res_val
     except Exception as e:
         logger.error("[PANDIT-ONBOARDING] LLM extraction failed or timed out: %s. Returning INVALID.", e)
         return "INVALID"
@@ -868,8 +920,60 @@ FIELD_VALIDATION_REGISTRY: dict[str, Callable[[str, dict], FieldValidationResult
 def register_field_validator(field_name: str, validator_fn: Callable[[str, dict], FieldValidationResult]):
     FIELD_VALIDATION_REGISTRY[field_name] = validator_fn
 
+def is_fragmented_digit_transcript(text: str) -> bool:
+    """Check if digits in transcript are fragmented by non-digit, non-filler background words."""
+    if not text:
+        return False
+    t_lower = text.lower().strip()
+    VALID_PHONE_WORDS = {
+        "double", "triple", "zero", "shunya", "jiro", "ek", "do", "teen", "char", "panch",
+        "chhe", "che", "saat", "sat", "aath", "ath", "nau", "now", "plus", "ninety", "one",
+        "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+        "mera", "my", "number", "mobile", "phone", "hai", "is", "ji", "jee", "ha", "haan"
+    }
+    tokens = re.findall(r'\d+|[^\d\s]+', t_lower)
+    digit_indices = [i for i, tok in enumerate(tokens) if re.match(r'^\d+$', tok)]
+    if len(digit_indices) > 1:
+        for i in range(digit_indices[0] + 1, digit_indices[-1]):
+            tok = tokens[i]
+            if not re.match(r'^\d+$', tok) and tok not in VALID_PHONE_WORDS:
+                logger.warning("[PHONE-GUARD] Fragmented digits detected due to intervening word '%s' in transcript '%s'", tok, text)
+                return True
+    return False
+
+def check_text_contamination_ratio(user_message: str, extracted_value: str, field_name: str) -> bool:
+    """Return True if background chatter dominates the transcript (contamination detected)."""
+    if not user_message or not extracted_value or extracted_value == "INVALID" or extracted_value.startswith("QUESTION:"):
+        return False
+    
+    FRAMING_WORDS = {
+        "mera", "meri", "my", "naam", "name", "hai", "is", "sheher", "city", "shahar",
+        "state", "rajya", "gurukul", "education", "padhai", "vishwavidyalaya", "college",
+        "se", "mein", "in", "hoon", "am", "apna", "apni", "ji", "jee", "sir", "pandit"
+    }
+    
+    raw_words = [w.strip(".,?!;:\"'()") for w in user_message.lower().split() if w.strip(".,?!;:\"'()")]
+    meaningful_words = [w for w in raw_words if w not in FRAMING_WORDS]
+    extracted_words = [w.strip(".,?!;:\"'()") for w in extracted_value.lower().split() if w.strip(".,?!;:\"'()")]
+    
+    if len(meaningful_words) >= 4 and len(extracted_words) > 0:
+        ratio = len(extracted_words) / len(meaningful_words)
+        if ratio < 0.40:
+            logger.warning(
+                "[TEXT-CONTAMINATION-GUARD] Extracted '%s' represents only %.1f%% of transcript meaningful words in '%s' for field %s. Rejecting as background chatter contamination.",
+                extracted_value, ratio * 100, user_message, field_name
+            )
+            return True
+    return False
+
 # 1. Phone Validator Entry
 def _validate_phone(val: str, params: dict) -> FieldValidationResult:
+    if is_fragmented_digit_transcript(val):
+        digits = re.sub(r'\D', '', val)
+        formatted = format_phone_for_speech(digits) if digits else ""
+        err = f"Maine suna: '{formatted}', lekin phone number ke beech mein shor tha. Kripya bina rukavat 10-digit mobile number dobara boliye."
+        return FieldValidationResult(False, error_message=err)
+
     digits = re.sub(r'\D', '', val)
     if len(digits) == 11 and digits.startswith('0'):
         digits = digits[1:]
