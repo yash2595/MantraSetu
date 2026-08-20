@@ -340,6 +340,28 @@ def is_affirmative(user_message: str) -> bool:
     logger.info(f"[CONFIRM-CHECK] user_text='{user_text}' is_affirmative={res}")
     return res
 
+def is_negative(user_message: str) -> bool:
+    """Check if the user response contains a negative confirmation or rejection phrase."""
+    user_text = (user_message or "").lower().strip()
+    REJECTION_PHRASES = [
+        "nahi", "nahin", "nhi", "na", "no", "nope", "not",
+        "galat", "galat hai", "wrong", "incorrect", "badlo", "change",
+        "dobara", "phir se", "re-enter", "nahi galat hai", "no wrong", "galat hai nahi",
+        "नहीं", "नही", "ना", "गलत", "गलत है", "बदलो", "दोबारा", "फिर से"
+    ]
+    return any(phrase in user_text for phrase in REJECTION_PHRASES)
+
+def is_pure_negative(user_message: str) -> bool:
+    """Check if user message is ONLY a rejection phrase without an inline replacement value."""
+    user_text = (user_message or "").lower().strip()
+    # Remove common filler words and rejection phrases
+    cleaned = re.sub(
+        r'\b(nahi|nahin|nhi|na|no|nope|not|galat|hai|is|wrong|incorrect|badlo|change|dobara|phir|se|re-enter|जी|नहीं|नही|ना|गलत|है|बदलो|दोबारा|फिर|से)\b',
+        '', user_text, flags=re.IGNORECASE
+    ).strip()
+    cleaned = re.sub(r'[^\w\s]', '', cleaned).strip()
+    return is_negative(user_message) and len(cleaned) == 0
+
 
 async def detect_correction_field(user_message: str, ai_service: AIService) -> str:
     """Detect which field the user wants to correct."""
@@ -584,6 +606,10 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
     user_message_normalized = normalize_spoken_input(user_message, field)
     logger.info("[PANDIT-ONBOARDING] extract_field_value | field: %s | raw: %r | normalized: %r", field, user_message, user_message_normalized)
 
+    if is_pure_negative(user_message):
+        logger.info("[PANDIT-ONBOARDING] extract_field_value received pure negative rejection message %r. Returning INVALID.", user_message)
+        return "INVALID"
+
     if field in ["pandit-certFile", "pandit-aadhaarFile", "pandit-galleryFiles", "pandit-password", "pandit-confirm"]:
         logger.info("[PANDIT-ONBOARDING] Bypassing LLM extraction for confirmation-only field: %s", field)
         return to_roman_text(user_message_normalized)
@@ -619,18 +645,20 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
         clean = re.sub(r'\b(hai|ji|shri|pandit)\b', '', clean, flags=re.IGNORECASE).strip()
         words = clean.split()
         if 1 <= len(words) <= 2 and all(len(w) >= 2 for w in words):
-            extracted_name = to_roman_text(words[0].capitalize())
-            logger.info("[PANDIT-ONBOARDING] Deterministic fast-path for pandit-first-name: %s", extracted_name)
-            return extracted_name
+            if words[0].lower() not in ["nahi", "nahin", "galat", "no", "wrong", "nhi"]:
+                extracted_name = to_roman_text(words[0].capitalize())
+                logger.info("[PANDIT-ONBOARDING] Deterministic fast-path for pandit-first-name: %s", extracted_name)
+                return extracted_name
 
     if field in ["pandit-last-name", "last-name"]:
         clean = re.sub(r'^(mera|my|apna)\s+(upnaam|last name|surname)\s+(hai|is)\s*', '', user_message_normalized, flags=re.IGNORECASE).strip()
         clean = re.sub(r'\b(hai|ji|shri|pandit)\b', '', clean, flags=re.IGNORECASE).strip()
         words = clean.split()
         if 1 <= len(words) <= 2 and all(len(w) >= 2 for w in words):
-            extracted_name = to_roman_text(words[-1].capitalize())
-            logger.info("[PANDIT-ONBOARDING] Deterministic fast-path for pandit-last-name: %s", extracted_name)
-            return extracted_name
+            if words[-1].lower() not in ["nahi", "nahin", "galat", "no", "wrong", "nhi"]:
+                extracted_name = to_roman_text(words[-1].capitalize())
+                logger.info("[PANDIT-ONBOARDING] Deterministic fast-path for pandit-last-name: %s", extracted_name)
+                return extracted_name
 
     # Deterministic Fast-Path for Phone and Email (0ms Latency & 100% Deterministic Reliability)
     if field in ["pandit-phone", "phone"]:
@@ -1132,6 +1160,23 @@ async def process_onboarding_step(
                 request_id=request.request_id,
                 text_override=question,
                 response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                navigation_directive=nav_directive,
+                metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
+            )
+        elif is_pure_negative(request.user_message):
+            logger.info("[PANDIT-ONBOARDING] User REJECTED tentative value for field %s without inline correction: %r", tentative_field, request.user_message)
+            state["tentative_field"] = None
+            state["tentative_value"] = None
+            state["status"] = "collecting"
+            
+            field_hname = field_hinglish_names_step.get(tentative_field, tentative_field)
+            question = f"Maaf kijiye! Kripya apna sahi {field_hname} dobara bataiye."
+            nav_directive = {"action": None, "target": None, "query": None, "active_field": tentative_field, "intent": "PANDIT_ONBOARDING", "fields": None}
+            session.update_location(page="/signup?role=pandit", field=tentative_field)
+            return orchestrator._response_builder.build_response(
+                request_id=request.request_id,
+                text_override=question,
+                response_type=ResponseType.CHAT,
                 navigation_directive=nav_directive,
                 metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
             )
