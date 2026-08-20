@@ -142,27 +142,50 @@ class VoiceGateway:
         session.status = VoiceSessionStatus.PROCESSING
         session.touch()
 
-        buffer = self._buffers.get(session_id) or AudioBuffer()
+        buffer = self._buffers.pop(session_id, None) or AudioBuffer()
+        self._aggregators.pop(session_id, None)
+
+        # ── Pre-STT VAD Gate: Verify minimum 0.8s active human speech ──
+        raw_pcm_bytes = buffer.flush()
+        from app.voice.vad import VoiceActivityDetector
+        vad = VoiceActivityDetector(min_speech_duration_sec=0.8, sample_rate=session.sample_rate or 16000)
+        vad_analysis = vad.analyze_audio_buffer(raw_pcm_bytes)
+        
+        if not vad_analysis["is_valid_speech"]:
+            logger.warning(
+                "[VAD-GATE-DISCARD] Pre-STT VAD Gate rejected audio buffer for session %s (speech_duration=%.2fs, total=%.2fs, reason=%s). Discarding buffer without calling STT/LLM.",
+                session.session_id, vad_analysis["speech_duration_sec"], vad_analysis["total_duration_sec"], vad_analysis["reason"]
+            )
+            from app.orchestrator.orchestrator_models import OrchestratorResponse, ResponseType
+            current_field = None
+            if hasattr(session, "onboarding_state") and session.onboarding_state:
+                idx = session.onboarding_state.get("current_field_index", 0)
+                fields = session.onboarding_state.get("fields", [])
+                if idx < len(fields):
+                    current_field = fields[idx]
+
+            repeat_msg = "Kshama karein, main sun nahi paya. Kripya apna jawab dobara boliye."
+            vad_discard_response = OrchestratorResponse(
+                response_id=f"resp_vad_discard_{session_id[:8]}",
+                request_id=session_id,
+                text=repeat_msg,
+                response_type=ResponseType.CHAT,
+                navigation_directive={
+                    "action": None,
+                    "target": None,
+                    "query": None,
+                    "active_field": current_field,
+                    "intent": "REPEAT_PROMPT"
+                }
+            )
+            return vad_discard_response, ""
+
         stt_result = await self._speech_recognizer.finish_session(session, buffer)
         logger.info(f"[DIAGNOSTIC] RAW STT TRANSCRIPT before LLM extraction: {stt_result.text!r}")
 
-        aggregator = self._aggregators.get(session_id)
-        if aggregator:
-            aggregator.add_chunk(
-                TranscriptChunk(
-                    session_id=session_id,
-                    text=stt_result.text,
-                    is_final=True,
-                    confidence=stt_result.confidence,
-                    timestamp_ms=int(time.time() * 1000),
-                ),
-                session_id=session_id,
-            )
-            final_text = aggregator.get_final_transcript(session_id=session_id)
-        else:
-            final_text = stt_result.text
+        final_text = (stt_result.text or "").strip()
 
-        final_text = (final_text or "").strip()
+
         logger.info(
             "[STT-DIAGNOSTIC] Session %s | Raw STT Transcript: %r | Confidence: %.2f | Provider: %s",
             session.session_id, final_text, stt_result.confidence, stt_result.provider
@@ -181,8 +204,7 @@ class VoiceGateway:
         # 2. Filler words check
         fillers = {
             "uh", "um", "ah", "eh", "oh", "hm", "hmm", "hmmm", "oops", "mhm", "uh-huh",
-            "aa", "aaa", "ummm", "ehh", "err", "uhh", "aur", "toh", "like", "actually",
-            "basically", "ya", "yea", "yeah", "ok", "okay"
+            "ummm", "ehh", "err", "uhh", "like", "actually", "basically"
         }
         words = [w.strip(".,?!;:") for w in clean_marker.split() if w.strip(".,?!;:")]
         remaining_words = [w for w in words if w not in fillers]
@@ -193,37 +215,91 @@ class VoiceGateway:
         if not remaining_words or is_low_confidence or clean_marker == "":
             is_noise = True
             
+        current_field = None
+        if hasattr(session, "onboarding_state") and session.onboarding_state:
+            idx = session.onboarding_state.get("current_field_index", 0)
+            fields = session.onboarding_state.get("fields", [])
+            if idx < len(fields):
+                current_field = fields[idx]
+        
+        is_name_field = current_field in ["pandit-first-name", "pandit-last-name", "pandit-name"]
+
         if is_noise:
-            logger.info(
-                "[STT-GUARD] Noise/Low confidence transcript detected: %r (confidence: %.2f). Asking to repeat.",
-                final_text, stt_result.confidence
-            )
-            repeat_msg = "Kshama karein, main sun nahi paya. Kripya apna jawab dobara boliye."
+            stt_fail_count = getattr(session, "stt_fail_count", 0) + 1
+            session.stt_fail_count = stt_fail_count
             
+            if is_name_field and hasattr(session, "onboarding_state") and session.onboarding_state:
+                name_fails = session.onboarding_state.get("name_stt_fail_count", 0) + 1
+                session.onboarding_state["name_stt_fail_count"] = name_fails
+
             from app.orchestrator.orchestrator_models import OrchestratorResponse, ResponseType
-            current_field = None
-            if hasattr(session, "onboarding_state") and session.onboarding_state:
-                idx = session.onboarding_state.get("current_field_index", 0)
-                fields = session.onboarding_state.get("fields", [])
-                if idx < len(fields):
-                    current_field = fields[idx]
-                    
-            repeat_response = OrchestratorResponse(
-                response_id=f"resp_repeat_{session_id[:8]}",
-                request_id=session_id,
-                text=repeat_msg,
-                response_type=ResponseType.CHAT,
-                navigation_directive={
-                    "action": None, 
-                    "target": None, 
-                    "query": None, 
-                    "active_field": current_field, 
-                    "intent": "REPEAT_PROMPT"
-                }
-            )
+
+            if is_name_field and session.onboarding_state.get("name_stt_fail_count", 0) >= 2:
+                logger.info(
+                    "[STT-FALLBACK] STT failed 2+ times on name field (%s). Asking user to type name manually.",
+                    current_field
+                )
+                repeat_msg = "Kripya apna naam type karein"
+                repeat_response = OrchestratorResponse(
+                    response_id=f"resp_type_name_{session_id[:8]}",
+                    request_id=session_id,
+                    text=repeat_msg,
+                    response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                    navigation_directive={
+                        "action": "FILL_FORM", 
+                        "target": current_field or "pandit-first-name", 
+                        "query": None, 
+                        "active_field": current_field or "pandit-first-name", 
+                        "intent": "PANDIT_ONBOARDING"
+                    }
+                )
+            elif stt_fail_count == 1:
+                logger.info(
+                    "[STT-GUARD] First STT noise/empty failure for session %s. Retrying ONCE silently without prompting user.",
+                    session_id
+                )
+                repeat_response = OrchestratorResponse(
+                    response_id=f"resp_silent_{session_id[:8]}",
+                    request_id=session_id,
+                    text="",  # Empty text stays silent!
+                    response_type=ResponseType.CHAT,
+                    navigation_directive={
+                        "action": None, 
+                        "target": None, 
+                        "query": None, 
+                        "active_field": current_field, 
+                        "intent": "SILENT_RETRY"
+                    }
+                )
+            else:
+                logger.info(
+                    "[STT-GUARD] 2nd STT noise failure for session %s. Prompting user to repeat.", session_id
+                )
+                session.stt_fail_count = 0  # Reset counter
+                repeat_msg = "Kshama karein, main sun nahi paya. Kripya apna jawab dobara boliye."
+                repeat_response = OrchestratorResponse(
+                    response_id=f"resp_repeat_{session_id[:8]}",
+                    request_id=session_id,
+                    text=repeat_msg,
+                    response_type=ResponseType.CHAT,
+                    navigation_directive={
+                        "action": None, 
+                        "target": None, 
+                        "query": None, 
+                        "active_field": current_field, 
+                        "intent": "REPEAT_PROMPT"
+                    }
+                )
             self._buffers.pop(session_id, None)
             self._aggregators.pop(session_id, None)
             return repeat_response, ""
+        else:
+            session.stt_fail_count = 0  # Reset fail count on clean transcript
+
+
+        if is_name_field and hasattr(session, "onboarding_state") and session.onboarding_state:
+            session.onboarding_state["name_stt_fail_count"] = 0
+
 
         if not final_text:
             logger.info("[STT-DIAGNOSTIC] Session %s | Empty transcript detected (silence/background noise). Suppressing AI response.", session.session_id)
@@ -276,8 +352,10 @@ class VoiceGateway:
 
         # Keep session alive for multi-turn voice interaction
         session.status = VoiceSessionStatus.CONNECTED
-        self._buffers[session_id] = AudioBuffer()
-        self._aggregators[session_id] = TranscriptAggregator()
+        if session_id not in self._buffers:
+            self._buffers[session_id] = AudioBuffer()
+        if session_id not in self._aggregators:
+            self._aggregators[session_id] = TranscriptAggregator()
 
         return response, final_text
 
