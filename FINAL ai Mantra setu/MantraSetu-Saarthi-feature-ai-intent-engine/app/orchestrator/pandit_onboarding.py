@@ -985,7 +985,7 @@ def _validate_phone(val: str, params: dict) -> FieldValidationResult:
     if digits:
         err = f"Maine suna: '{formatted}', lekin mobile number 10 digits ka hona chahiye. Kripya apna 10-digit mobile number dobara bataiye."
     else:
-        err = "Maaf kijiye, main mobile number samajh nahi paya. Kripya apna 10-digit mobile number dobara bataiye."
+        err = "Maaf kijiye, valid 10-digit mobile number nahi mila. Kripya apna 10-digit mobile number dobara bataiye."
     return FieldValidationResult(False, error_message=err)
 
 register_field_validator("pandit-phone", _validate_phone)
@@ -998,7 +998,7 @@ def _validate_email(val: str, params: dict) -> FieldValidationResult:
     if val and val != "INVALID" and "@" in val:
         err = f"Maine suna: '{val}', lekin email address mein '@' aur domain (jaise name@gmail.com) hona zaroori hai. Kripya valid email address dobara bataiye."
     else:
-        err = "Maaf kijiye, main email address samajh nahi paya. Kripya apna email address (jaise ramesh@gmail.com) dobara bataiye."
+        err = "Maaf kijiye, valid email address nahi mila. Kripya apna email address (jaise ramesh@gmail.com) dobara bataiye."
     return FieldValidationResult(False, error_message=err)
 
 register_field_validator("pandit-email", _validate_email)
@@ -1007,7 +1007,7 @@ register_field_validator("pandit-email", _validate_email)
 def _make_choice_validator(choices: list[str], label: str) -> Callable[[str, dict], FieldValidationResult]:
     def validator(val: str, params: dict) -> FieldValidationResult:
         if not val or val == "INVALID":
-            return FieldValidationResult(False, error_message=f"Maaf kijiye, main {label} samajh nahi paya. Dobara bataiye.")
+            return FieldValidationResult(False, error_message=f"Kripya valid {label} dobara bataiye.")
         val_lower = val.lower().strip()
         
         # 1. Exact match check first
@@ -1035,7 +1035,7 @@ register_field_validator("pandit-availability", _make_choice_validator(["Offline
 def _make_multi_choice_validator(choices: list[str], label: str) -> Callable[[str, dict], FieldValidationResult]:
     def validator(val: str, params: dict) -> FieldValidationResult:
         if not val or val == "INVALID":
-            return FieldValidationResult(False, error_message=f"Maaf kijiye, main {label} samajh nahi paya. Dobara bataiye.")
+            return FieldValidationResult(False, error_message=f"Kripya valid {label} dobara bataiye.")
         parts = [p.strip() for p in val.split(",") if p.strip()]
         valid_matches = []
         invalid_matches = []
@@ -1065,7 +1065,7 @@ def _make_multi_choice_validator(choices: list[str], label: str) -> Callable[[st
             return FieldValidationResult(False, error_message=f"Maaf kijiye, main '{invalid_matches[0]}' ko valid {label} ke roop mein nahi mila. Valid options hain: {choices_str}. Kripya dobara batayein.")
         if valid_matches:
             return FieldValidationResult(True, cleaned_value=valid_matches)
-        return FieldValidationResult(False, error_message=f"Maaf kijiye, main {label} samajh nahi paya. Dobara bataiye.")
+        return FieldValidationResult(False, error_message=f"Kripya valid {label} dobara bataiye.")
     return validator
 
 register_field_validator("pandit-languages", _make_multi_choice_validator(["Hindi", "Sanskrit", "English", "Gujarati", "Marathi", "Bengali", "Tamil", "Telugu"], "languages"))
@@ -1111,7 +1111,7 @@ def _make_non_empty_validator(hinglish_label: str) -> Callable[[str, dict], Fiel
     def validator(val: str, params: dict) -> FieldValidationResult:
         if val and val != "INVALID" and val.strip():
             return FieldValidationResult(True, cleaned_value=val.strip())
-        return FieldValidationResult(False, error_message=f"Maaf kijiye, main {hinglish_label} samajh nahi paya. Dobara bataiye.")
+        return FieldValidationResult(False, error_message=f"Kripya apna {hinglish_label} dobara bataiye.")
     return validator
 
 register_field_validator("pandit-first-name", _make_non_empty_validator("pehla naam"))
@@ -1537,6 +1537,25 @@ async def process_onboarding_step(
     idx = state["current_field_index"]
     current_field = fields[idx]
     retry_map = state.setdefault("field_retry_count", {})
+
+    # ── Mid-Flow Past Field Correction Guard ──
+    user_msg_lower = request.user_message.lower()
+    CHANGE_KEYWORDS = ["badal", "change", "correct", "modify", "sahi kar", "edit", "wapas", "pichla", "previous"]
+    if any(k in user_msg_lower for k in CHANGE_KEYWORDS):
+        for past_field in state.get("collected_data", {}).keys():
+            if past_field != current_field and state["collected_data"][past_field]:
+                h_name = field_hinglish_names_step.get(past_field, past_field)
+                if h_name in user_msg_lower or past_field.replace("pandit-", "") in user_msg_lower:
+                    logger.info("[PANDIT-ONBOARDING] User attempted mid-flow correction of past field '%s'", past_field)
+                    current_hname = field_hinglish_names_step.get(current_field, current_field)
+                    msg = f"Abhi hum pichla field change nahi kar sakte. Pehle kripya current field ({current_hname}) poora karein, aage summary screen par aap ise change kar sakte hain."
+                    return orchestrator._response_builder.build_response(
+                        request_id=request.request_id,
+                        text_override=msg,
+                        response_type=ResponseType.CHAT,
+                        navigation_directive={"action": None, "target": None, "query": None, "active_field": current_field, "intent": "PANDIT_ONBOARDING"},
+                        metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
+                    )
     
     # ── Achievements loop Haan/Nahi sub-state check ──
     if current_field == "pandit-achievements" and state.get("awaiting_more_achievements"):
