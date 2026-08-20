@@ -133,13 +133,16 @@ class GeminiProvider(BaseLLMProvider):
         last_error = None
         for attempt in range(max_attempts):
             try:
-                response = await loop.run_in_executor(
-                    None, 
-                    lambda: self._client.models.generate_content(
-                        model=self._model, 
-                        contents=contents, 
-                        config=config
-                    )
+                response = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None, 
+                        lambda: self._client.models.generate_content(
+                            model=self._model, 
+                            contents=contents, 
+                            config=config
+                        )
+                    ),
+                    timeout=10.0
                 )
                 
                 duration_ms = (time.perf_counter() - start_time) * MS_PER_SECOND
@@ -157,6 +160,9 @@ class GeminiProvider(BaseLLMProvider):
                     usage=usage,
                     latency_ms=duration_ms,
                 )
+            except asyncio.TimeoutError:
+                logger.error("[NO_RESPONSE_RISK:LLM_TIMEOUT] Gemini generation timed out after 10.0s")
+                raise ExternalServiceError("Gemini generation timed out after 10.0s", provider=self.provider_name)
             except Exception as e:
                 last_error = e
                 if ("503" in str(e) or "UNAVAILABLE" in str(e) or "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)) and attempt < max_attempts - 1:
