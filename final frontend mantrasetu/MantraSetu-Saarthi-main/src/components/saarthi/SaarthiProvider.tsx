@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   SaarthiContext,
   type SaarthiState,
@@ -27,8 +27,6 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
   React.useEffect(() => {
     console.log('[Provider] onboardingPhase changed to', onboardingPhase);
   }, [onboardingPhase]);
-
-  const isInitialMount = useRef(true);
 
   // ── FULL PAGE REFRESH (F5) ALWAYS REPLAYS ONBOARDING ───────────────────
   // Because SaarthiProvider is mounted at top level of App, React Router navigation
@@ -131,17 +129,6 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
       }, 1500);
     } else {
       setState('speaking');
-    }
-
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'hi-IN';
-      utterance.rate = 0.95;
-      utterance.onend = () => {
-        setState('idle');
-      };
-      window.speechSynthesis.speak(utterance);
     }
 
     setTimeout(() => {

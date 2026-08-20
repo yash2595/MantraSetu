@@ -36,6 +36,7 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
             session_id=self.session_id,
             conversation_id=self.conv_id,
             user_message="mujhe pandit ke roop mein register karna hai",
+            current_page="/signup?role=pandit",
         )
         
         resp = await self.orchestrator.process_request(req)
@@ -320,6 +321,7 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
             session_id=self.session_id,
             conversation_id=self.conv_id,
             user_message="mujhe pandit ke roop mein register karna hai",
+            current_page="/signup?role=pandit",
         )
         await self.orchestrator.process_request(req)
         
@@ -360,6 +362,7 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
             session_id=self.session_id,
             conversation_id=self.conv_id,
             user_message="register as a pandit",
+            current_page="/signup?role=pandit",
         )
         await self.orchestrator.process_request(req)
         
@@ -421,6 +424,7 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
             session_id=self.session_id,
             conversation_id=self.conv_id,
             user_message="register as a pandit",
+            current_page="/signup?role=pandit",
         )
         await self.orchestrator.process_request(req)
 
@@ -443,6 +447,7 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
             session_id=self.session_id,
             conversation_id=self.conv_id,
             user_message="register as a pandit",
+            current_page="/signup?role=pandit",
         )
         await self.orchestrator.process_request(req)
         
@@ -491,6 +496,7 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
             session_id=self.session_id,
             conversation_id=self.conv_id,
             user_message="register as a pandit",
+            current_page="/signup?role=pandit",
         )
         await self.orchestrator.process_request(req)
 

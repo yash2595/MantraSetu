@@ -423,6 +423,7 @@ class AIOrchestrator:
                 "current_field_index": 0,
                 "collected_data": {},
                 "fields": [
+                    "pandit-avatar",
                     "pandit-first-name",
                     "pandit-last-name",
                     "pandit-email",
@@ -583,6 +584,7 @@ class AIOrchestrator:
                     "active": True,
                     "current_field_index": 0,
                     "fields": [
+                        "pandit-avatar",
                         "pandit-first-name",
                         "pandit-last-name",
                         "pandit-email",
@@ -616,10 +618,11 @@ class AIOrchestrator:
                     },
                     "collected_data": {},
                 }
-                ceremonial_text = "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi aur sirf verification ke liye upyog hogi. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, apna pehla naam (First Name) bataiye."
+                ceremonial_text = "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi aur sirf verification ke liye upyog hogi. Chaliye, ab hum aapka registration shuru karte hain. Namaste! Aap chahein to apni profile photo upload kar sakte hain, ye optional hai. Agar upload karna hai to 'Choose Picture' par click kijiye, nahi to bas 'skip' ya 'aage badho' boliye."
                 nav_directive = {
                     "action": "NAVIGATE",
                     "target": "/signup?role=pandit",
+                    "active_field": "pandit-avatar",
                     "intent": "OPEN_SIGNUP"
                 }
                 self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
@@ -686,6 +689,7 @@ class AIOrchestrator:
                     "active": True,
                     "current_field_index": 0,
                     "fields": [
+                        "pandit-avatar",
                         "pandit-first-name",
                         "pandit-last-name",
                         "pandit-email",
@@ -719,11 +723,11 @@ class AIOrchestrator:
                     },
                     "collected_data": {},
                 }
-                response_text = "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, aapka pehla naam (first name) kya hai?"
+                response_text = "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi aur sirf verification ke liye upyog hogi. Chaliye, ab hum aapka registration shuru karte hain. Namaste! Aap chahein to apni profile photo upload kar sakte hain, ye optional hai. Agar upload karna hai to 'Choose Picture' par click kijiye, nahi to bas 'skip' ya 'aage badho' boliye."
                 nav_directive = {
                     "action": "NAVIGATE",
                     "target": "/signup?role=pandit",
-                    "active_field": "pandit-first-name",
+                    "active_field": "pandit-avatar",
                     "intent": "OPEN_SIGNUP"
                 }
                 self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
@@ -886,6 +890,7 @@ class AIOrchestrator:
                 "active": True,
                 "current_field_index": 0,
                 "fields": [
+                        "pandit-avatar",
                         "pandit-first-name",
                         "pandit-last-name",
                         "pandit-email",
@@ -919,11 +924,11 @@ class AIOrchestrator:
                 },
                 "collected_data": {},
             }
-            response_text = "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, aapka pehla naam (first name) kya hai?"
+            response_text = "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi aur sirf verification ke liye upyog hogi. Chaliye, ab hum aapka registration shuru karte hain. Namaste! Aap chahein to apni profile photo upload kar sakte hain, ye optional hai. Agar upload karna hai to 'Choose Picture' par click kijiye, nahi to bas 'skip' ya 'aage badho' boliye."
             nav_directive = {
                 "action": "NAVIGATE",
                 "target": "/signup?role=pandit",
-                "active_field": "pandit-first-name",
+                "active_field": "pandit-avatar",
                 "intent": "OPEN_SIGNUP"
             }
             self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)

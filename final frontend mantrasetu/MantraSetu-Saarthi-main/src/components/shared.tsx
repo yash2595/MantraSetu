@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   ChevronDown,
@@ -7,8 +7,6 @@ import {
   CircleHelp,
   Menu,
   Search,
-  ShieldCheck,
-  User,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';

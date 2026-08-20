@@ -1987,7 +1987,26 @@ input, select, textarea {
 
 .saarthi-highlight {
   outline: 3px solid #ee7c2b !important;
-  box-shadow: 0 0 16px rgba(238, 124, 43, 0.6) !important;
+  outline-offset: 2px !important;
   border-color: #ee7c2b !important;
+  box-shadow: 0 0 20px rgba(238, 124, 43, 0.75), 0 0 40px rgba(238, 124, 43, 0.35) !important;
   transition: all 0.3s ease-in-out !important;
+  animation: saarthiPulseGlow 1.4s infinite alternate ease-in-out !important;
+}
+
+.saarthi-filled {
+  border-color: #22c55e !important;
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.55), 0 0 32px rgba(34, 197, 94, 0.25) !important;
+  transition: all 0.4s ease-in-out !important;
+}
+
+@keyframes saarthiPulseGlow {
+  0% {
+    box-shadow: 0 0 12px rgba(238, 124, 43, 0.5), 0 0 24px rgba(238, 124, 43, 0.25);
+    border-color: #ee7c2b;
+  }
+  100% {
+    box-shadow: 0 0 24px rgba(238, 124, 43, 0.9), 0 0 48px rgba(238, 124, 43, 0.5);
+    border-color: #f97316;
+  }
 }

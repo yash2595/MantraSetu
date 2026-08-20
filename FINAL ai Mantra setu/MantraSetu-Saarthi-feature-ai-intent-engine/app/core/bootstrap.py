@@ -225,6 +225,17 @@ class ApplicationBootstrap:
                 orchestrator = get_orchestrator_service()
                 await orchestrator.initialize()
                 logger.info("OrchestratorService async initialization completed successfully.")
+
+                # Pre-generate & warm TTS audio cache for all static prompts on backend startup
+                try:
+                    from app.api.dependencies.voice import get_tts_pipeline, get_tts_cache_manager
+                    tts_pipe = get_tts_pipeline()
+                    cache_mgr = get_tts_cache_manager()
+                    await cache_mgr.pregenerate_prompts(tts_provider=tts_pipe.tts_provider, voice="pandit")
+                    logger.info("TTS static prompts automatic startup cache warmup complete for Pandit voice.")
+                except Exception as tts_cache_err:
+                    logger.warning("TTS static cache warmup warning on startup: %s", tts_cache_err)
+
                 return self._report
             except Exception as exc:
                 self._report.validation_status = "FAILED"

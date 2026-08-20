@@ -37,6 +37,7 @@ export interface PanditApplyPayload {
   // Step 2 qualifications
   languages?: string[];
   experience?: string;
+  specialization?: string;
   specializations?: string[];   // List[str] – multi-select
   education?: string;
   gurukul?: string;
@@ -49,7 +50,7 @@ export interface PanditApplyPayload {
 }
 
 export interface AuthResponse {
-  access_token: string;
+  access_token?: string;
   token_type?: string;
   user?: {
     id?: string;
@@ -58,6 +59,10 @@ export interface AuthResponse {
     user_type?: string;
   };
   message?: string;
+  status?: string;
+  application_id?: string;
+  application_status?: string;
+  user_id?: string;
 }
 
 export const authService = {

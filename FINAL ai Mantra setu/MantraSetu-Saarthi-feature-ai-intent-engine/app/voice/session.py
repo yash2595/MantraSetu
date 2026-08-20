@@ -36,6 +36,9 @@ class VoiceSession:
     started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     context_data: dict[str, Any] = field(default_factory=dict)
+    stt_fail_count: int = 0
+    onboarding_state: dict[str, Any] = field(default_factory=dict)
+
 
     @property
     def config(self) -> AudioConfig:

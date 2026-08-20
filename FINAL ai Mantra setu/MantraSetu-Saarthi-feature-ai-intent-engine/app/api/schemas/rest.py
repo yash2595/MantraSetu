@@ -102,3 +102,12 @@ class RESTVoiceSessionResponse(SchemaModel):
     conversation_id: UUID = Field(description="Conversation identifier.")
     status: str = Field(default="active", description="Voice session status.")
     created_at_ms: int = Field(default_factory=lambda: int(time.time() * 1000))
+
+
+class RESTTTSRequest(SchemaModel):
+    """Request payload for REST TTS endpoint."""
+
+    text: str = Field(min_length=1, description="Text string to synthesize into speech.")
+    language: str = Field(default="hi", description="ISO language code ('hi', 'en').")
+    voice: str | None = Field(default="pandit", description="Optional voice identifier.")
+

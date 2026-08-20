@@ -102,7 +102,20 @@ export default function SignUp() {
     } else if (roleParam === 'devotee') {
       setUserType('devotee');
     }
-  }, [location.search, location.pathname, location.key]);
+
+    if (roleParam === 'pandit' || userType === 'pandit') {
+      setTimeout(() => {
+        const formSection = document.querySelector('.registration-form') 
+        || document.querySelector('form') 
+        || document.querySelector('[data-section="personal-info"]');
+        if (formSection) {
+          formSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 500);
+    }
+  }, [location.search, location.pathname, location.key, userType]);
+
+
 
   // Devotee fields
   const [name, setName] = useState('');
@@ -157,22 +170,40 @@ export default function SignUp() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  const ensureRomanText = (str: string) => {
+    if (!str) return str;
+    if (/[\u0900-\u097F]/.test(str)) {
+      const devMap: Record<string, string> = {
+        'अ':'a', 'आ':'aa', 'इ':'i', 'ई':'ee', 'उ':'u', 'ऊ':'oo', 'ऋ':'ri', 'ए':'e', 'ऐ':'ai', 'ओ':'o', 'औ':'au',
+        'क':'k', 'ख':'kh', 'ग':'g', 'घ':'gh', 'ङ':'ng', 'च':'ch', 'छ':'chh', 'ज':'j', 'झ':'jh', 'ञ':'nya',
+        'ट':'t', 'ठ':'th', 'ड':'d', 'ढ':'dh', 'ण':'n', 'त':'t', 'थ':'th', 'द':'d', 'ध':'dh', 'न':'n',
+        'प':'p', 'फ':'ph', 'ब':'b', 'भ':'bh', 'म':'m', 'य':'y', 'र':'r', 'ल':'l', 'व':'v', 'श':'sh', 'ष':'sh', 'स':'s', 'ह':'h',
+        'ा':'a', 'ि':'i', 'ी':'ee', 'ु':'u', 'ू':'oo', 'ृ':'ri', 'े':'e', 'ै':'ai', 'ो':'o', 'ौ':'au', 'ं':'n', 'ँ':'n', '्':''
+      };
+      return str.split('').map(c => devMap[c] || (c >= '\u0900' && c <= '\u097F' ? '' : c)).join('').trim();
+    }
+    return str;
+  };
+
   // Sync first and last name into panditName
   const handleFirstNameChange = (val: string) => {
-    setPanditFirstName(val);
-    const combined = `${val} ${panditLastName}`.trim();
+    const roman = ensureRomanText(val);
+    setPanditFirstName(roman);
+    const combined = `${roman} ${panditLastName}`.trim();
     setPanditName(combined);
     if (errors.panditFirstName) clearError('panditFirstName');
     if (errors.panditName) clearError('panditName');
   };
 
   const handleLastNameChange = (val: string) => {
-    setPanditLastName(val);
-    const combined = `${panditFirstName} ${val}`.trim();
+    const roman = ensureRomanText(val);
+    setPanditLastName(roman);
+    const combined = `${panditFirstName} ${roman}`.trim();
     setPanditName(combined);
     if (errors.panditLastName) clearError('panditLastName');
     if (errors.panditName) clearError('panditName');
   };
+
 
   // ── SESSION STORAGE PERSISTENCE & RELOAD RESTORATION ──
   // Smart detection: only restore draft if an active voice session exists (mid-fill F5 refresh).
@@ -719,7 +750,7 @@ export default function SignUp() {
             </Link>
           </div>
 
-          <div className="auth-card" data-testid="card-signup">
+          <div className="auth-card registration-form" data-testid="card-signup" data-section="personal-info">
             <span className="section-kicker">Join MantraSetu</span>
             <h1>
               {userType === 'pandit'

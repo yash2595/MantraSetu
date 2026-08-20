@@ -38,3 +38,21 @@ class InteractionResponse(SchemaModel):
     finish_reason: str | None = Field(default=None, description="Reason generation finished.")
     execution_time_ms: float | None = Field(default=None, description="Total execution latency in milliseconds.")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Response metadata.")
+
+    @property
+    def text(self) -> str:
+        """Alias property matching OrchestratorResponse.text contract."""
+        return self.content
+
+    def to_orchestrator_response(self) -> Any:
+        """Convert transport InteractionResponse to domain OrchestratorResponse."""
+        from app.orchestrator.orchestrator_models import OrchestratorResponse, ResponseType
+        return OrchestratorResponse(
+            response_id=str(self.response_id),
+            request_id=str(self.request_id) if self.request_id else str(uuid4()),
+            text=self.content,
+            response_type=ResponseType.CHAT,
+            navigation_directive=self.navigation_state.model_dump() if self.navigation_state else None,
+            metadata=self.metadata,
+        )
+

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import asyncio
 from unittest import IsolatedAsyncioTestCase
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
-from app.schemas.api.interaction import InteractionResponse
+from app.orchestrator.orchestrator_models import OrchestratorResponse
 from app.voice.schemas import AudioEncoding
 from app.voice.tts.audio_stream import AudioStream
 from app.voice.tts.base import ITTSProvider
@@ -47,7 +47,11 @@ class TestTTSPipelineEnterprise(IsolatedAsyncioTestCase):
                 )
 
         self.mock_tts_provider.stream = dummy_stream_gen
-        self.pipeline = VoiceResponsePipeline(tts_provider=self.mock_tts_provider)
+        mock_cache = MagicMock()
+        mock_cache.get_cache_key.return_value = "mock_key"
+        mock_cache.get.return_value = None
+        self.pipeline = VoiceResponsePipeline(tts_provider=self.mock_tts_provider, cache_manager=mock_cache)
+
 
     def test_factory_registry_lookup(self) -> None:
         """Verify build_tts_provider constructs registered provider adapters dynamically."""
@@ -74,7 +78,8 @@ class TestTTSPipelineEnterprise(IsolatedAsyncioTestCase):
 
         self.assertEqual(len(chunks), 1)
         self.assertTrue(chunks[0].is_final)
-        self.assertEqual(chunks[0].metadata["status"], "provider_not_configured")
+        self.assertIn(chunks[0].metadata["status"], ("provider_not_configured", "gtts_fallback"))
+
 
     async def test_openai_adapter_synthesis_and_streaming(self) -> None:
         """Verify OpenAIAdapter synthesis and streaming audio chunks with unconfigured metadata."""
@@ -110,32 +115,29 @@ class TestTTSPipelineEnterprise(IsolatedAsyncioTestCase):
         self.assertTrue(collected[1].is_final)
 
     async def test_voice_response_pipeline_stream_coordination(self) -> None:
-        """Verify VoiceResponsePipeline transforms InteractionResponse into AudioChunk sequence."""
-        interaction_response = InteractionResponse(
-            request_id=uuid4(),
-            session_id="sess-tts-01",
-            conversation_id=uuid4(),
-            success=True,
-            content="Kashi me Mahadev ki aarti 7 baje shuru hoti hai.",
-            metadata={"voice": "divya", "language": "hi"},
+        """Verify VoiceResponsePipeline transforms OrchestratorResponse into AudioChunk sequence."""
+        response = OrchestratorResponse(
+            response_id="resp-01",
+            request_id=str(uuid4()),
+            text="Kashi me Mahadev ki aarti 7 baje shuru hoti hai.",
         )
 
         chunks: list[AudioChunk] = []
-        async for chunk in self.pipeline.process_response(interaction_response):
+        async for chunk in self.pipeline.process_response(response):
             chunks.append(chunk)
 
         self.assertEqual(len(chunks), 3)
         self.assertEqual(chunks[0].sequence_number, 0)
         self.assertEqual(chunks[1].sequence_number, 1)
         self.assertEqual(chunks[2].sequence_number, 2)
-        self.assertEqual(chunks[0].session_id, "sess-tts-01")
         self.assertTrue(chunks[2].is_final)
 
-    async def test_empty_interaction_response_handling(self) -> None:
+    async def test_empty_orchestrator_response_handling(self) -> None:
         """Verify VoiceResponsePipeline handles empty content gracefully by substituting default text."""
-        empty_response = InteractionResponse(
-            request_id=uuid4(),
-            content="",
+        empty_response = OrchestratorResponse(
+            response_id="resp-empty",
+            request_id=str(uuid4()),
+            text="",
         )
 
         chunks: list[AudioChunk] = []
@@ -158,9 +160,10 @@ class TestTTSPipelineEnterprise(IsolatedAsyncioTestCase):
 
         self.mock_tts_provider.stream = large_stream_gen
 
-        response = InteractionResponse(
-            request_id=uuid4(),
-            content="Long multi-page text content...",
+        response = OrchestratorResponse(
+            response_id="resp-large",
+            request_id=str(uuid4()),
+            text="Long multi-page text content...",
         )
 
         chunks = [c async for c in self.pipeline.process_response(response)]
@@ -172,11 +175,15 @@ class TestTTSPipelineEnterprise(IsolatedAsyncioTestCase):
     async def test_concurrent_synthesis_requests(self) -> None:
         """Verify VoiceResponsePipeline handles multiple concurrent synthesis streams safely."""
         responses = [
-            InteractionResponse(request_id=uuid4(), content=f"Message {i}")
+            OrchestratorResponse(
+                response_id=f"resp-{i}",
+                request_id=str(uuid4()),
+                text=f"Message {i}",
+            )
             for i in range(10)
         ]
 
-        async def process_req(resp: InteractionResponse):
+        async def process_req(resp: OrchestratorResponse):
             return [c async for c in self.pipeline.process_response(resp)]
 
         results = await asyncio.gather(*(process_req(r) for r in responses))
@@ -199,9 +206,10 @@ class TestTTSPipelineEnterprise(IsolatedAsyncioTestCase):
 
         self.mock_tts_provider.stream = failing_stream_gen
 
-        response = InteractionResponse(
-            request_id=uuid4(),
-            content="Timeout test text",
+        response = OrchestratorResponse(
+            response_id="resp-timeout",
+            request_id=str(uuid4()),
+            text="Timeout test text",
         )
 
         with self.assertRaises(VoiceSynthesisTimeout):

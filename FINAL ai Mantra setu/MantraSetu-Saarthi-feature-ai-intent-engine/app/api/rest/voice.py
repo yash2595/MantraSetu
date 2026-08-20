@@ -13,10 +13,11 @@ from app.api.dependencies.voice import (
     get_voice_session_manager,
 )
 from app.api.schemas.rest import (
+    RESTTTSRequest,
     RESTVoiceSessionRequest,
     RESTVoiceSessionResponse,
 )
-from app.schemas.api.interaction import InteractionResponse
+from app.orchestrator.orchestrator_models import OrchestratorResponse, ResponseType
 from app.voice.gateway import VoiceGateway
 from app.voice.session_manager import VoiceSessionManager
 from app.voice.tts.voice_response_pipeline import VoiceResponsePipeline
@@ -62,22 +63,39 @@ async def terminate_voice_session(
 
 @router.post("/text")
 async def text_to_speech(
-    text: str,
+    body: RESTTTSRequest | None = None,
+    text: str | None = None,
     language: str = "hi",
     tts_pipeline: VoiceResponsePipeline = Depends(get_tts_pipeline),
 ) -> StreamingResponse:
     """Submit text content and receive streaming audio response."""
-    interaction_resp = InteractionResponse(
-        request_id=uuid4(),
-        content=text,
-        metadata={"language": language},
+    resolved_text = body.text if (body and body.text) else (text or "")
+    resolved_lang = body.language if (body and body.language) else language
+    resolved_voice = body.voice if (body and body.voice) else "pandit"
+
+    if not resolved_text:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Field 'text' is required for text-to-speech synthesis.",
+        )
+
+    orchestrator_resp = OrchestratorResponse(
+        response_id=f"resp_{uuid4().hex[:8]}",
+        request_id=str(uuid4()),
+        text=resolved_text,
+        response_type=ResponseType.CHAT,
     )
 
     async def audio_generator():
-        async for chunk in tts_pipeline.process_response(interaction_resp):
+        async for chunk in tts_pipeline.process_response(
+            orchestrator_resp,
+            voice=resolved_voice,
+            language=resolved_lang,
+        ):
             yield chunk.data
 
     return StreamingResponse(audio_generator(), media_type="audio/mpeg")
+
 
 
 @router.post("/stop")

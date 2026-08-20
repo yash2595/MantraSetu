@@ -4,7 +4,11 @@ from typing import List, Dict
 
 from rapidfuzz import fuzz, process
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
+
+_API_BASE = settings.api_base_url.rstrip("/")
 
 
 class CatalogRetriever:
@@ -15,8 +19,8 @@ class CatalogRetriever:
     records using ``rapidfuzz``.
     """
 
-    PUJA_ENDPOINT = "http://localhost:8000/api/puja/list"
-    PANDIT_ENDPOINT = "http://localhost:8000/api/pandit/list"
+    PUJA_ENDPOINT = f"{_API_BASE}/api/puja/list"
+    PANDIT_ENDPOINT = f"{_API_BASE}/api/pandit/list"
 
     def __init__(self) -> None:
         self.puja_catalog: List[Dict] = []

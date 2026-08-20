@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     app_version: str = Field(default="0.1.0")
     debug: bool = Field(default=False)
     api_v1_prefix: str = Field(default="/api/v1")
+    api_base_url: str = Field(default="http://localhost:8000")
     log_level: str = Field(default="INFO")
 
     application: ApplicationSettings = Field(default_factory=ApplicationSettings)

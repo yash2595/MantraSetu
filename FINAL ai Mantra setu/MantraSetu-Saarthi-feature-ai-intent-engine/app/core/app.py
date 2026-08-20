@@ -64,7 +64,9 @@ def create_app() -> FastAPI:
     
     from app.api.v1.routes.auth import router as auth_router
     from app.api.v1.routes.stubs import router as stubs_router
+    from app.api.v1.routes.health import health_check
     application.include_router(auth_router)
     application.include_router(stubs_router)
+    application.get("/health")(health_check)
 
     return application

@@ -59,59 +59,90 @@ class WhisperAdapter(ISpeechRecognizer):
                 wav_file.writeframes(raw_pcm)
             
             wav_data = wav_io.getvalue()
-            text = ""
-            stt_model_used = "gemini-1.5-flash"
+            if len(wav_data) < 6000:
+                logger.warning("[STT] Audio too short (%d bytes < 6000), skipping STT processing", len(wav_data))
+                return TranscriptResult(
+                    text="",
+                    confidence=0.0,
+                    language=session.language,
+                    provider=self.provider_name,
+                    duration_seconds=round(buffer.size / (session.sample_rate * 2), 2) if session.sample_rate else 0.0,
+                    metadata={"model": "short_audio_skip", "status": "skipped"}
+                )
 
-            # ── Tier 1: High-Accuracy Gemini Multimodal Audio STT ──
-            gemini_key = os.environ.get("GEMINI_API_KEY", "")
-            if gemini_key:
-                stt_start_time = time.time()
+            text = ""
+            stt_model_used = "google_web_speech_hi-IN"
+
+            # ── Tier 1: Fast Google Web Speech Recognizer (hi-IN) ──
+            stt_start_time = time.time()
+
+            try:
+                import speech_recognition as sr
+                recognizer = sr.Recognizer()
+                recognizer.interim_results = True
+                setattr(recognizer, 'interimResults', True)
+                
+                audio_file = sr.AudioFile(io.BytesIO(wav_data))
+                with audio_file as source:
+                    audio = recognizer.record(source)
+
+                current_field = None
+                if hasattr(session, "onboarding_state") and session.onboarding_state:
+                    idx = session.onboarding_state.get("current_field_index", 0)
+                    fields = session.onboarding_state.get("fields", [])
+                    if idx < len(fields):
+                        current_field = fields[idx]
+
+                lang = "hi-IN"
                 try:
-                    from google import genai
-                    from google.genai import types
-                    client = genai.Client(api_key=gemini_key)
-                    
-                    max_attempts = 5
-                    resp = None
-                    for attempt in range(max_attempts):
+                    text = recognizer.recognize_google(audio, language=lang, show_all=False)
+                except Exception as first_attempt_err:
+                    logger.info(f"[STT-WEBSPEECH] First attempt error ({first_attempt_err}), retrying Google WebSpeech once more...")
+                    text = recognizer.recognize_google(audio, language=lang, show_all=False)
+
+                stt_model_used = f"google_web_speech_{lang}"
+                stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
+                logger.info(f"[TIMING-STT] Google WebSpeech STT ({lang}) completed in {stt_elapsed_ms}ms | field={current_field} | Transcribed: '{text}'")
+            except Exception as ws_err:
+                logger.warning(f"[STT-WEBSPEECH] WebSpeech primary attempt failed: {ws_err}, trying Gemini fallback...")
+
+
+
+            # ── Tier 2: Gemini Multimodal Audio STT Fallback ──
+            if not text:
+                gemini_key = os.environ.get("GEMINI_API_KEY", "")
+                if gemini_key:
+                    try:
+                        from google import genai
+                        from google.genai import types
+                        client = genai.Client(api_key=gemini_key)
                         try:
+                            resp = client.models.generate_content(
+                                model="gemini-3.6-flash",
+                                contents=[
+                                    types.Part.from_bytes(data=wav_data, mime_type="audio/wav"),
+                                    "Transcribe this audio with 100% precision using hi-IN locale. Return ONLY the exact spoken transcript text in Hindi, Hinglish, or English (especially Indian/Hindi names like Ramesh, Rahul, Acharya, Sharma, Anand, Dev, etc.). If there is no clear human speech, return empty string."
+                                ]
+                            )
+                        except Exception:
                             resp = client.models.generate_content(
                                 model="gemini-flash-lite-latest",
                                 contents=[
                                     types.Part.from_bytes(data=wav_data, mime_type="audio/wav"),
-                                    "Transcribe this audio with 100% precision. Return ONLY the exact spoken transcript text in Hindi, Hinglish, or English. If there is no clear human speech, return empty string."
+                                    "Transcribe this audio with 100% precision using hi-IN locale. Return ONLY the exact spoken transcript text in Hindi, Hinglish, or English (especially Indian/Hindi names like Ramesh, Rahul, Acharya, Sharma, Anand, Dev, etc.). If there is no clear human speech, return empty string."
                                 ]
                             )
-                            if resp:
-                                break
-                        except Exception as try_err:
-                            if ("503" in str(try_err) or "429" in str(try_err) or "UNAVAILABLE" in str(try_err) or "RESOURCE_EXHAUSTED" in str(try_err)) and attempt < max_attempts - 1:
-                                logger.warning(f"[TIMING-STT] Gemini Audio STT rate limit/503 on attempt {attempt+1}/{max_attempts}: {try_err}. Retrying in {(attempt+1)*3}s...")
-                                time.sleep(3.0 * (attempt + 1))
-                            else:
-                                raise try_err
+                        stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
+                        if resp and resp.text:
+                            text = resp.text.strip()
+                            stt_model_used = "gemini-3.6-flash"
+                            logger.info(f"[TIMING-STT] Gemini Audio STT completed in {stt_elapsed_ms}ms | Transcribed: '{text}'")
 
-                    stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
-                    if resp and resp.text:
-                        text = resp.text.strip()
-                        logger.info(f"[TIMING-STT] Gemini Audio STT completed in {stt_elapsed_ms}ms | Transcribed: '{text}'")
-                except Exception as g_err:
-                    stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
-                    logger.warning(f"[TIMING-STT] Gemini Audio STT failed in {stt_elapsed_ms}ms: {g_err}, falling back to WebSpeech")
 
-            # ── Tier 2: Fallback to Google Web Speech API ──
-            if not text:
-                try:
-                    import speech_recognition as sr
-                    recognizer = sr.Recognizer()
-                    audio_file = sr.AudioFile(io.BytesIO(wav_data))
-                    with audio_file as source:
-                        audio = recognizer.record(source)
-                    lang = "hi-IN" if (session.language and session.language.startswith("hi")) else "en-US"
-                    text = recognizer.recognize_google(audio, language=lang)
-                    stt_model_used = "google_web_speech"
-                except Exception as ws_err:
-                    logger.warning(f"[STT-WEBSPEECH] WebSpeech fallback error: {ws_err}")
+                    except Exception as g_err:
+                        stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
+                        logger.warning(f"[TIMING-STT] Gemini Audio STT failed in {stt_elapsed_ms}ms ({g_err})")
+
 
             # ── Hallucination Filter: Remove repetitive garbled tokens (e.g., "जिन जिनजिन", "पानी पानी") ──
             clean_text = text.strip()
@@ -122,8 +153,9 @@ class WhisperAdapter(ISpeechRecognizer):
                     clean_text = ""
 
             logger.info("================================================")
-            logger.info(f"FINAL STT TRANSCRIPT [{stt_model_used}]: '{clean_text}'")
+            logger.info(f"[STT-RAW-DEBUG] STT Raw Transcript received: '{clean_text}' | confidence: {1.0 if clean_text else 0.0:.2f} | model: {stt_model_used}")
             logger.info("================================================")
+
             
             return TranscriptResult(
                 text=clean_text,
