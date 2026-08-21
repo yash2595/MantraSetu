@@ -340,6 +340,7 @@ class VoiceGateway:
                 logger.info(
                     "[STT-GUARD] 2nd STT noise failure for session %s. Prompting user to repeat.", session_id
                 )
+                session.stt_fail_count = 0  # Reset counter
                 repeat_msg = "Kshama karein, main sun nahi paya. Kripya apna jawab dobara boliye."
                 repeat_response = OrchestratorResponse(
                     response_id=f"resp_repeat_{session_id[:8]}",

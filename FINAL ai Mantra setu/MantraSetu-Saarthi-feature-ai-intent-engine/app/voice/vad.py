@@ -57,7 +57,7 @@ class VoiceActivityDetector:
             zcr = sum(1 for j in range(1, frame_samples) if (samples[j] >= 0) != (samples[j-1] >= 0)) / frame_samples
             
             # Speech frame classification (Voiced / Unvoiced human speech envelope)
-            if rms >= 200 and zcr < 0.45:
+            if rms >= 450 and zcr < 0.45:
                 speech_frames += 1
 
         speech_duration_sec = round(speech_frames * 0.03, 2)
