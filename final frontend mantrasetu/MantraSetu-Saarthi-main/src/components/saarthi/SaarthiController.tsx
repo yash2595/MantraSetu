@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { X, Mic } from 'lucide-react';
 import { useSaarthi } from './SaarthiContext';
 import { SaarthiAvatar } from './SaarthiAvatar';
 import { SaarthiSpeechBubble } from './SaarthiSpeechBubble';
@@ -8,7 +8,7 @@ import { ChoicePopup } from './ChoicePopup';
 import { useSaarthiVoice } from '../../hooks/useSaarthiVoice';
 
 export const SaarthiController: React.FC = () => {
-  useSaarthiVoice();
+  const { } = useSaarthiVoice();
 
   const {
     state,
@@ -62,6 +62,8 @@ export const SaarthiController: React.FC = () => {
                 </div>
               )}
 
+
+
               {/* Spoken Dialogue Text Bubble */}
               <AnimatePresence>
                 {showSpeechBubble && dialogueText && (
@@ -100,6 +102,7 @@ export const SaarthiController: React.FC = () => {
             minimized={true}
             onClick={toggleMinimized}
           />
+
         </motion.div>
       )}
     </>

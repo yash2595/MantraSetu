@@ -148,9 +148,23 @@ class VoiceGateway:
         # ── Pre-STT VAD Gate: Verify minimum 0.25s active human speech ──
         raw_pcm_bytes = buffer.flush()
         from app.voice.vad import VoiceActivityDetector
-        vad = VoiceActivityDetector(min_speech_duration_sec=0.25, sample_rate=session.sample_rate or 16000)
+        vad = VoiceActivityDetector(min_speech_duration_sec=0.15, sample_rate=session.sample_rate or 16000)
         vad_analysis = vad.analyze_audio_buffer(raw_pcm_bytes)
-        
+
+        # ── [DIAG-INVESTIGATION] VAD Gate Decision ──
+        logger.info(
+            "[DIAG-INVESTIGATION][VAD] session=%s | pcm_bytes=%d | wav_would_be=%d | "
+            "speech_dur=%.3fs | total_dur=%.3fs | min_required=0.15s | "
+            "vad_valid=%s | reason=%s",
+            session_id,
+            len(raw_pcm_bytes),
+            len(raw_pcm_bytes) + 44,   # WAV header is 44 bytes
+            vad_analysis["speech_duration_sec"],
+            vad_analysis["total_duration_sec"],
+            vad_analysis["is_valid_speech"],
+            vad_analysis["reason"],
+        )
+
         if not vad_analysis["is_valid_speech"]:
             logger.warning(
                 "[VAD-GATE-DISCARD] Pre-STT VAD Gate rejected audio buffer for session %s (speech_duration=%.2fs, total=%.2fs, reason=%s). Discarding buffer without calling STT/LLM.",
@@ -181,6 +195,7 @@ class VoiceGateway:
             return vad_discard_response, ""
 
         buffer_size_bytes = buffer.size
+        session.context_data["client_active_field"] = user_parameters.get("active_field") if user_parameters else None
         stt_result = await self._speech_recognizer.finish_session(session, buffer)
         logger.info(f"[DIAGNOSTIC] RAW STT TRANSCRIPT before LLM extraction: {stt_result.text!r}")
 
@@ -215,7 +230,27 @@ class VoiceGateway:
         # 3. Confidence threshold
         is_low_confidence = stt_result.confidence is not None and stt_result.confidence < 0.40
 
-        # Detailed Investigation Logging right before confidence evaluation
+        # ── [DIAG-INVESTIGATION] Full STT gate breakdown ──
+        logger.info(
+            "[DIAG-INVESTIGATION][STT-GATE] session=%s | raw_transcript=%r | "
+            "confidence=%.4f | threshold=0.40 | is_low_conf=%s | "
+            "tier=%s | model=%s | audio_dur=%.3fs | buffer_bytes=%d | "
+            "words_after_filler_strip=%r | remaining_word_count=%d | "
+            "clean_marker_empty=%s | noise_markers_removed=%s",
+            session.session_id,
+            final_text,
+            stt_result.confidence if stt_result.confidence is not None else -1.0,
+            is_low_confidence,
+            stt_tier_label,
+            stt_engine_model,
+            stt_result.duration_seconds,
+            buffer_size_bytes,
+            remaining_words,
+            len(remaining_words),
+            clean_marker == "",
+            msg_lower != clean_marker,   # True means markers/brackets were stripped
+        )
+        # ── [DIAG-INVESTIGATION] Legacy alias kept for backward grep ──
         logger.info(
             "[STT-INVESTIGATION-LOG] Session: %s | Raw Transcript: %r | Exact Confidence: %.4f | STT Tier Used: %s | Model: %s | Audio Duration: %.2fs (Buffer: %d bytes) | Low Confidence (<0.40): %s | Remaining Words: %r",
             session.session_id,
@@ -232,6 +267,18 @@ class VoiceGateway:
         
         if not remaining_words or is_low_confidence or clean_marker == "":
             is_noise = True
+            # ── [DIAG-INVESTIGATION] Log which exact sub-condition triggered noise gate ──
+            logger.warning(
+                "[DIAG-INVESTIGATION][NOISE-GATE] session=%s | IS_NOISE=True | "
+                "trigger_no_remaining_words=%s | trigger_low_confidence=%s | trigger_empty_marker=%s | "
+                "raw=%r | confidence=%.4f",
+                session.session_id,
+                not remaining_words,
+                is_low_confidence,
+                clean_marker == "",
+                final_text,
+                stt_result.confidence if stt_result.confidence is not None else -1.0,
+            )
             
         current_field = None
         if hasattr(session, "onboarding_state") and session.onboarding_state:
@@ -289,14 +336,31 @@ class VoiceGateway:
                         "intent": "SILENT_RETRY"
                     }
                 )
-            else:
+            elif stt_fail_count == 2:
                 logger.info(
                     "[STT-GUARD] 2nd STT noise failure for session %s. Prompting user to repeat.", session_id
                 )
-                session.stt_fail_count = 0  # Reset counter
                 repeat_msg = "Kshama karein, main sun nahi paya. Kripya apna jawab dobara boliye."
                 repeat_response = OrchestratorResponse(
                     response_id=f"resp_repeat_{session_id[:8]}",
+                    request_id=session_id,
+                    text=repeat_msg,
+                    response_type=ResponseType.CHAT,
+                    navigation_directive={
+                        "action": None, 
+                        "target": None, 
+                        "query": None, 
+                        "active_field": current_field, 
+                        "intent": "RETRY"
+                    }
+                )
+            else:
+                logger.info(
+                    "[STT-GUARD] 3rd+ STT noise failure for session %s. Suggesting typing.", session_id
+                )
+                repeat_msg = "Kshama karein, lagta hai mic se aawaz nahi aa rahi. Kripya apna mic check karein, ya screen par apna jawab type kar dein."
+                repeat_response = OrchestratorResponse(
+                    response_id=f"resp_repeat_type_{session_id[:8]}",
                     request_id=session_id,
                     text=repeat_msg,
                     response_type=ResponseType.CHAT,

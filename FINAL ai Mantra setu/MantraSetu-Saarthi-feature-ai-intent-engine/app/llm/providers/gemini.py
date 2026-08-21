@@ -6,6 +6,8 @@ Communicates with Google Gemini API using google-genai. Completely isolated prov
 import asyncio
 import logging
 import os
+import queue
+import threading
 import time
 from collections.abc import AsyncGenerator, Sequence
 from typing import Any
@@ -128,7 +130,7 @@ class GeminiProvider(BaseLLMProvider):
         )
         
         # Async wrapper for sync client call with transient retry loop
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         max_attempts = 5
         last_error = None
         for attempt in range(max_attempts):
@@ -195,30 +197,33 @@ class GeminiProvider(BaseLLMProvider):
             system_instruction=system_instruction
         )
         
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
+        cancelled = threading.Event()
         try:
-            # We use a thread to yield items from the sync stream generator
-            import queue
-            import threading
-            
-            q = queue.Queue()
-            
-            def _stream_runner():
+            # We use a daemon thread to yield items from the sync stream generator.
+            # daemon=True ensures the thread does not outlive the process if the
+            # generator is abandoned. The `cancelled` event signals early exit.
+
+            q: queue.Queue = queue.Queue()
+
+            def _stream_runner() -> None:
                 try:
                     response_stream = self._client.models.generate_content_stream(
                         model=self._model,
                         contents=contents,
-                        config=config
+                        config=config,
                     )
                     for chunk in response_stream:
+                        if cancelled.is_set():
+                            break  # generator was abandoned; stop iterating
                         q.put(chunk.text)
                     q.put(None)
                 except Exception as e:
                     q.put(e)
-            
-            thread = threading.Thread(target=_stream_runner)
+
+            thread = threading.Thread(target=_stream_runner, daemon=True)
             thread.start()
-            
+
             while True:
                 # wait async for queue item
                 item = await loop.run_in_executor(None, q.get)
@@ -228,6 +233,9 @@ class GeminiProvider(BaseLLMProvider):
                     raise item
                 yield item
 
+        except GeneratorExit:
+            # Caller abandoned the async generator; signal the thread to stop.
+            cancelled.set()
         except Exception as e:
             logger.error("Gemini streaming failed: %s", str(e))
             raise ExternalServiceError(f"Gemini API streaming error: {str(e)}") from e

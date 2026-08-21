@@ -32,6 +32,7 @@ class VoiceActivityDetector:
         frame_bytes = frame_samples * 2  # 960 bytes
         
         speech_frames = 0
+        max_rms = 0.0
         total_frames = len(pcm_bytes) // frame_bytes
 
         if total_frames == 0:
@@ -49,25 +50,31 @@ class VoiceActivityDetector:
             # Calculate RMS Energy
             sum_sq = sum(s * s for s in samples)
             rms = math.sqrt(sum_sq / frame_samples)
+            if rms > max_rms:
+                max_rms = rms
             
             # Calculate Zero-Crossing Rate (ZCR)
             zcr = sum(1 for j in range(1, frame_samples) if (samples[j] >= 0) != (samples[j-1] >= 0)) / frame_samples
             
             # Speech frame classification (Voiced / Unvoiced human speech envelope)
-            if rms >= 450 and zcr < 0.45:
+            if rms >= 200 and zcr < 0.45:
                 speech_frames += 1
 
         speech_duration_sec = round(speech_frames * 0.03, 2)
         is_valid = speech_duration_sec >= self.min_speech_duration_sec
 
         logger.info(
-            "[VAD-GATE] Total Duration: %.2fs | Verified Speech Duration: %.2fs (min req: %.2fs) | Valid Speech: %s",
-            total_duration_sec, speech_duration_sec, self.min_speech_duration_sec, is_valid
+            "[VAD-GATE] Total Duration: %.2fs | Verified Speech Duration: %.2fs (min req: %.2fs) | Valid Speech: %s | Max RMS: %.2f",
+            total_duration_sec, speech_duration_sec, self.min_speech_duration_sec, is_valid, max_rms
         )
+        
+        if not is_valid:
+            logger.info("[DIAG-INVESTIGATION][VAD-REJECTED] utterance rejected. Max RMS computed: %.2f", max_rms)
 
         return {
             "is_valid_speech": is_valid,
             "speech_duration_sec": speech_duration_sec,
             "total_duration_sec": total_duration_sec,
-            "reason": "OK" if is_valid else "INSUFFICIENT_HUMAN_SPEECH"
+            "reason": "OK" if is_valid else "INSUFFICIENT_HUMAN_SPEECH",
+            "max_rms": max_rms
         }

@@ -627,6 +627,7 @@ def convertSpokenEmailToText(spoken: str) -> str:
         text = re.sub(r'(?<=\w)\s+(?=(gmail|yahoo|outlook|hotmail|icloud|mantrasetu)\.(com|in|co\.in|org|net))\b', '@', text, flags=re.IGNORECASE)
         
     email_clean = re.sub(r'\s+', '', text)
+    email_clean = email_clean.replace(',', '')
     match = re.search(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', email_clean)
     if match:
         return match.group(0)
@@ -721,20 +722,20 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
 
     # Deterministic Fast-Path for First Name & Last Name (0ms Latency)
     if field in ["pandit-first-name", "first-name"]:
-        clean = re.sub(r'^(mera|my|apna|मेरा|अपना)\s+(naam|name|नाम)\s+(hai|is|है)\s*', '', user_message_normalized, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'^((mera|my|apna|मेरा|अपना)\s+)?(first\s+|pehla\s+|पहला\s+)?(naam|name|नाम)(\s+(hai|is|है))?\s*', '', user_message_normalized, flags=re.IGNORECASE).strip()
         clean = re.sub(r'\b(hai|is|है|जी|shri|pandit|पंडित|श्री)\b', '', clean, flags=re.IGNORECASE).strip()
         words = clean.split()
-        if 1 <= len(words) <= 2 and all(len(w) >= 2 for w in words):
+        if 1 <= len(words) <= 2 and all(len(w) >= 2 and w.replace('-', '').isalpha() for w in words):
             if words[0].lower() not in ["nahi", "nahin", "galat", "no", "wrong", "nhi", "नहीं", "नही", "गलत"]:
                 extracted_name = to_roman_text(words[0].capitalize())
                 logger.info("[PANDIT-ONBOARDING] Deterministic fast-path for pandit-first-name: %s", extracted_name)
                 return extracted_name
 
     if field in ["pandit-last-name", "last-name"]:
-        clean = re.sub(r'^(mera|my|apna|मेरा|अपना)\s+(upnaam|last name|surname|उपनाम|सरनेम)\s+(hai|is|है)\s*', '', user_message_normalized, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'^((mera|my|apna|मेरा|अपना)\s+)?(last\s+|akhiri\s+|आखरी\s+)?(upnaam|last name|surname|naam|name|उपनाम|सरनेम|नाम)(\s+(hai|is|है))?\s*', '', user_message_normalized, flags=re.IGNORECASE).strip()
         clean = re.sub(r'\b(hai|is|है|जी|shri|pandit|पंडित|श्री)\b', '', clean, flags=re.IGNORECASE).strip()
         words = clean.split()
-        if 1 <= len(words) <= 2 and all(len(w) >= 2 for w in words):
+        if 1 <= len(words) <= 2 and all(len(w) >= 2 and w.replace('-', '').isalpha() for w in words):
             if words[-1].lower() not in ["nahi", "nahin", "galat", "no", "wrong", "nhi", "नहीं", "नही", "गलत"]:
                 extracted_name = to_roman_text(words[-1].capitalize())
                 logger.info("[PANDIT-ONBOARDING] Deterministic fast-path for pandit-last-name: %s", extracted_name)
