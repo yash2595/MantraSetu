@@ -57,6 +57,11 @@ async def run_verification():
         # Wait 5s for the sign-up page wizard to mount and focus
         await page.wait_for_timeout(5000)
         
+        # Simulate User speech: "skip" for avatar
+        print("\n>>> Simulating User speech: 'skip' (for profile photo)...")
+        await page.evaluate("window.simulateUserSpeech('skip')")
+        await page.wait_for_timeout(5000)
+        
         # Simulate User speech: "Ramesh"
         print("\n>>> Simulating User speech: 'Ramesh'...")
         await page.evaluate("window.simulateUserSpeech('Ramesh')")
@@ -78,7 +83,7 @@ async def run_verification():
             print(f"Failed to find or read first name input field: {e}")
             
         # Take a screenshot and save it to the conversation brain directory
-        screenshot_path = "C:/Users/Lenovo/.gemini/antigravity-ide/brain/f2a94311-aeeb-484b-8de5-603b6e3c4a33/form_screenshot.png"
+        screenshot_path = "C:/Users/hp/.gemini/antigravity-ide/brain/ff5ad215-9344-4149-8063-20cc001e680e/form_screenshot.png"
         try:
             await page.screenshot(path=screenshot_path)
             print(f"Form screenshot saved to {screenshot_path}")

@@ -17,3 +17,10 @@ uploads/aadhaar/
 final backend mantrasetu/mantrasetu-saarthi-backend-main/uploads/aadhaar/
 final backend mantrasetu/mantrasetu-saarthi-backend-main/uploads/certificates/
 final backend mantrasetu/mantrasetu-saarthi-backend-main/uploads/gallery/
+
+# TTS audio cache (binary, generated at runtime)
+**/tts/.cache/*.mp3
+*.mp3
+
+# Test/generated output files
+voice_pipeline_e2e_results.txt

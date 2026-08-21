@@ -13,6 +13,8 @@ from app.orchestrator.orchestrator_models import (
     ResponseType,
 )
 
+from app.orchestrator.navigation_intent_detector import is_navigation_command, resolve_navigation_target
+
 logger = logging.getLogger(__name__)
 
 def get_address_forms(full_name: str) -> dict:
@@ -1182,6 +1184,20 @@ async def process_onboarding_step(
     if not state:
         logger.warning("[PANDIT-ONBOARDING] process_onboarding_step called but no onboarding_state found.")
         return None
+
+    # Check if user is attempting to navigate away mid-onboarding
+    from app.orchestrator.navigation_intent_detector import is_navigation_command, resolve_navigation_target
+    if is_navigation_command(request.user_message):
+        nav_res = resolve_navigation_target(request.user_message)
+        target_route = nav_res.get("target") or "/dashboard"
+        session.pending_nav_target = target_route
+        return orchestrator._response_builder.build_response(
+            request_id=request.request_id,
+            text_override="Aapka form abhi poora nahi hua hai. Kya aap isko chhod kar naye page par jana chahte hain?",
+            response_type=ResponseType.CHAT,
+            navigation_directive={"action": None, "target": None, "query": None, "active_field": None, "intent": "NAVIGATE_CONFIRMATION"},
+            metadata=ResponseMetadata(fast_path=True, latency_ms=0.0),
+        )
 
     ai_service = orchestrator._llm_intent_detector._ai
     status = state.get("status", "collecting")

@@ -146,7 +146,7 @@ class FastPathIntentRouter:
                 "pooja karwani hai": ("BOOK_PUJA", "/puja", puja_resps),
                 "mandir ki puja": ("BOOK_PUJA", "/puja", puja_resps),
                 "mandir": ("BOOK_PUJA", "/puja", puja_resps),
-                "durga puja": ("BOOK_PUJA", "/puja", puja_resps),
+                "durga puja": ("BOOK_PUJA", "/puja", "Durga Puja", puja_resps),
                 "puja kara do": ("BOOK_PUJA", "/puja", puja_resps),
                 "book a puja": ("BOOK_PUJA", "/puja", puja_resps),
                 "puja karwao": ("BOOK_PUJA", "/puja", puja_resps),
@@ -225,6 +225,8 @@ class FastPathIntentRouter:
             # Dynamic Puja Intent & Query Detection
             detected_puja_query = None
             puja_keywords = [
+                ("durga puja", "Durga Puja"),
+                ("durga", "Durga Puja"),
                 ("satyanarayan", "Satyanarayan"),
                 ("griha pravesh", "Griha Pravesh"),
                 ("ghar ki puja", "Griha Pravesh"),
@@ -247,7 +249,7 @@ class FastPathIntentRouter:
                     break
 
             if detected_puja_query or any(w in msg_clean for w in ["puja", "pooja"]):
-                if not any(w in msg_clean for w in ["pandit", "login", "signup", "kundali", "muhurat"]):
+                if not any(w in msg_clean for w in ["login", "signup", "kundali", "muhurat"]):
                     self._fast_path_hits_count += 1
                     puja_name_display = detected_puja_query or "Puja"
                     resp = f"Ji, main aapke liye {puja_name_display} ki booking open kar raha hoon."

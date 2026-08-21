@@ -145,10 +145,10 @@ class VoiceGateway:
         buffer = self._buffers.pop(session_id, None) or AudioBuffer()
         self._aggregators.pop(session_id, None)
 
-        # ── Pre-STT VAD Gate: Verify minimum 0.8s active human speech ──
+        # ── Pre-STT VAD Gate: Verify minimum 0.25s active human speech ──
         raw_pcm_bytes = buffer.flush()
         from app.voice.vad import VoiceActivityDetector
-        vad = VoiceActivityDetector(min_speech_duration_sec=0.8, sample_rate=session.sample_rate or 16000)
+        vad = VoiceActivityDetector(min_speech_duration_sec=0.25, sample_rate=session.sample_rate or 16000)
         vad_analysis = vad.analyze_audio_buffer(raw_pcm_bytes)
         
         if not vad_analysis["is_valid_speech"]:
@@ -180,16 +180,19 @@ class VoiceGateway:
             )
             return vad_discard_response, ""
 
+        buffer_size_bytes = buffer.size
         stt_result = await self._speech_recognizer.finish_session(session, buffer)
         logger.info(f"[DIAGNOSTIC] RAW STT TRANSCRIPT before LLM extraction: {stt_result.text!r}")
 
         final_text = (stt_result.text or "").strip()
-
-
-        logger.info(
-            "[STT-DIAGNOSTIC] Session %s | Raw STT Transcript: %r | Confidence: %.2f | Provider: %s",
-            session.session_id, final_text, stt_result.confidence, stt_result.provider
-        )
+        stt_engine_model = stt_result.metadata.get("model", stt_result.provider)
+        
+        if "gemini" in stt_engine_model.lower():
+            stt_tier_label = "Tier 1 (Gemini Audio API)"
+        elif "google_web_speech" in stt_engine_model.lower():
+            stt_tier_label = "Tier 2 (Google WebSpeech fallback)"
+        else:
+            stt_tier_label = f"Unknown ({stt_engine_model})"
 
         # ── Noise & Low Confidence Guard ──
         is_noise = False
@@ -211,6 +214,21 @@ class VoiceGateway:
         
         # 3. Confidence threshold
         is_low_confidence = stt_result.confidence is not None and stt_result.confidence < 0.40
+
+        # Detailed Investigation Logging right before confidence evaluation
+        logger.info(
+            "[STT-INVESTIGATION-LOG] Session: %s | Raw Transcript: %r | Exact Confidence: %.4f | STT Tier Used: %s | Model: %s | Audio Duration: %.2fs (Buffer: %d bytes) | Low Confidence (<0.40): %s | Remaining Words: %r",
+            session.session_id,
+            final_text,
+            stt_result.confidence if stt_result.confidence is not None else -1.0,
+            stt_tier_label,
+            stt_engine_model,
+            stt_result.duration_seconds,
+            buffer_size_bytes,
+            is_low_confidence,
+            remaining_words
+        )
+
         
         if not remaining_words or is_low_confidence or clean_marker == "":
             is_noise = True

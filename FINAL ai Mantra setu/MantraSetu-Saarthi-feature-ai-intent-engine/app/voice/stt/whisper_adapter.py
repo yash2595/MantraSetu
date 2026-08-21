@@ -116,32 +116,45 @@ class WhisperAdapter(ISpeechRecognizer):
                         from google import genai
                         from google.genai import types
                         client = genai.Client(api_key=gemini_key)
-                        try:
-                            resp = client.models.generate_content(
-                                model="gemini-3.6-flash",
-                                contents=[
-                                    types.Part.from_bytes(data=wav_data, mime_type="audio/wav"),
-                                    "Transcribe this audio with 100% precision using hi-IN locale. Return ONLY the exact spoken transcript text in Hindi, Hinglish, or English (especially Indian/Hindi names like Ramesh, Rahul, Acharya, Sharma, Anand, Dev, etc.). If there is no clear human speech, return empty string."
-                                ]
-                            )
-                        except Exception:
-                            resp = client.models.generate_content(
-                                model="gemini-flash-lite-latest",
-                                contents=[
-                                    types.Part.from_bytes(data=wav_data, mime_type="audio/wav"),
-                                    "Transcribe this audio with 100% precision using hi-IN locale. Return ONLY the exact spoken transcript text in Hindi, Hinglish, or English (especially Indian/Hindi names like Ramesh, Rahul, Acharya, Sharma, Anand, Dev, etc.). If there is no clear human speech, return empty string."
-                                ]
-                            )
+                        
+                        prompt_msg = (
+                            "Transcribe this audio with 100% precision using hi-IN locale. "
+                            "Return ONLY the exact spoken transcript text in Hindi, Hinglish, or English "
+                            "(especially Indian/Hindi names like Ramesh, Rahul, Acharya, Sharma, Anand, Dev, etc.). "
+                            "If there is no clear human speech, return empty string."
+                        )
+                        contents = [
+                            types.Part.from_bytes(data=wav_data, mime_type="audio/wav"),
+                            prompt_msg
+                        ]
+                        
+                        candidate_models = ["gemini-3.6-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"]
+                        
+                        for model_name in candidate_models:
+                            try:
+                                resp = client.models.generate_content(
+                                    model=model_name,
+                                    contents=contents
+                                )
+                                if resp and resp.text:
+                                    text = resp.text.strip()
+                                    stt_model_used = model_name
+                                    stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
+                                    logger.info(f"[TIMING-STT] Gemini Audio STT ({model_name}) completed in {stt_elapsed_ms}ms | Transcribed: '{text}'")
+                                    break
+                            except Exception as g_err:
+                                err_str = str(g_err)
+                                is_rate_limit = "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "Too Many Requests" in err_str
+                                logger.warning(
+                                    f"[STT-GEMINI-RETRY] Model '{model_name}' failed ({err_str}). "
+                                    f"Rate limited: {is_rate_limit}. Trying next candidate..."
+                                )
+                                if is_rate_limit:
+                                    import asyncio
+                                    await asyncio.sleep(0.3)
+                    except Exception as g_outer_err:
                         stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
-                        if resp and resp.text:
-                            text = resp.text.strip()
-                            stt_model_used = "gemini-3.6-flash"
-                            logger.info(f"[TIMING-STT] Gemini Audio STT completed in {stt_elapsed_ms}ms | Transcribed: '{text}'")
-
-
-                    except Exception as g_err:
-                        stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
-                        logger.warning(f"[TIMING-STT] Gemini Audio STT failed in {stt_elapsed_ms}ms ({g_err})")
+                        logger.warning(f"[TIMING-STT] Gemini Audio STT failed completely in {stt_elapsed_ms}ms ({g_outer_err})")
 
 
             # ── Hallucination Filter: Remove repetitive garbled tokens (e.g., "जिन जिनजिन", "पानी पानी") ──

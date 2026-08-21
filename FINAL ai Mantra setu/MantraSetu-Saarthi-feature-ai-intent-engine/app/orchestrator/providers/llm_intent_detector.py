@@ -75,10 +75,10 @@ Your goal is to understand the user's TRUE INTENT naturally, just like a human a
 75: 
 76: ═══ SPECIFIC RULES ═══
 77: • SEARCH/FILTER QUERIES: If the user mentions a SPECIFIC puja, pandit, or item for search/filtering, extract that specific name into the `query` field. 🚨 You MUST ALWAYS return the `query` field in pure English/Roman script ONLY (e.g. "Satyanarayan", "Griha Pravesh"), NEVER in Devanagari script, regardless of the user's spoken language. Leave `query` as null if no specific item is mentioned.
-78: • FORM FILLING & EXTRACTING MULTIPLE FIELDS: If the user provides details to fill a form (e.g. name, phone, city, date, time), classify as FILL_FORM. Extract the field name as 'target' (must be one of: 'name', 'phone', 'city', 'date', 'time', 'email', 'pandit-name', 'pandit-phone', 'pandit-city', 'pandit-state', 'pandit-email') and the extracted value as 'query'. 
+78: • FORM FILLING & EXTRACTING MULTIPLE FIELDS: If the user provides details to fill a form (e.g. name, phone, city, date, time, location, birth details), classify as FILL_FORM. Extract the field name as 'target' (must be one of: 'name', 'phone', 'city', 'date', 'time', 'email', 'location', 'address', 'birth-date', 'birth-time', 'birth-place', 'pandit-name', 'pandit-phone', 'pandit-city', 'pandit-state', 'pandit-email') and the extracted value as 'query'. 
 79:    - If MULTIPLE details are provided in one utterance, return a 'fields' array containing objects with 'target' and 'query' keys for each field, and leave the top-level 'target' and 'query' as null. 
 80:    - If the user explicitly mentions being a Pandit (e.g. "Main pandit hoon"), you MUST use the 'pandit-*' targets. For pandit form fills, the response_text MUST politely confirm basic details and ask them to manually complete registration.
-81:    - 🚨 DATES & TIMES: You MUST convert spoken dates/times into strict machine-readable formats. For dates, return strictly "YYYY-MM-DD" (assume current year and month if missing). For times, return "hh:mm AM/PM".
+81:    - 🚨 DATES & TIMES: You MUST convert spoken dates/times into strict machine-readable formats. For dates, return strictly "YYYY-MM-DD" (assume current year and month if missing, or roll forward to next occurrence if past date in booking context). For times, return strictly "hh:mm AM/PM" (2-digit hour with leading zero if single-digit). Interpret vernacular indicators carefully: "subah" -> AM, "dopahar" -> PM (dopahar 12 baje = 12:00 PM), "shaam" -> PM, "raat" -> PM (except raat 12 baje = 12:00 AM). Convert 24-hr times (14:30 -> 02:30 PM). For bare numbers like "9 baje" without morning/evening markers, infer the most plausible puja timing (e.g. 09:00 AM). When the user provides a standalone date or time (e.g. "kal", "parso", "15 September", "subah 9 baje"), classify as FILL_FORM with target "date" or "time".
 82: 
 83: ═══ RESPONSE LANGUAGE ═══
 84: • DEFAULT: response_text MUST be in Hinglish (Roman-script Hindi mixed with casual English).
@@ -194,6 +194,16 @@ class LLMIntentDetector(BaseIntentDetector):
                 f"If it's completely missing from the list, leave query as null.\n"
             )
             system_prompt += dynamic_context
+
+        # Add dynamic current date reference anchor for relative date calculations
+        from datetime import datetime
+        today_ref = datetime.now()
+        date_context = (
+            f"\n\n═══ CURRENT DATE REFERENCE ═══\n"
+            f"Today's date is strictly: {today_ref.strftime('%Y-%m-%d')} ({today_ref.strftime('%A')}). "
+            f"Use this anchor for all relative date calculations ('kal', 'parso', 'agle somvar', 'agle hafte', etc.).\n"
+        )
+        system_prompt += date_context
 
         llm_req = LLMRequest(
             messages=[

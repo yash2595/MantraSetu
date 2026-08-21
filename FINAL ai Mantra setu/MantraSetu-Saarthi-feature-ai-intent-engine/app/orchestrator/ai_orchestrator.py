@@ -169,7 +169,9 @@ _ROUTE_MAP = {
     "/kundali": "/kundali-creation",
     "/muhurat": "/muhurat-finder",
     "/pandit": "/puja",
+    "/booking": "/puja",
     "/sign-up": "/signup",
+    "/contact": "/#contact",
 }
 
 class AIOrchestrator:
@@ -400,7 +402,8 @@ class AIOrchestrator:
                 else:
                     session.onboarding_state = {}
                     elapsed_ms = (time.perf_counter() - t_start) * 1000.0
-                    nav_directive = {"action": "NAVIGATE", "target": target_route, "intent": "NAVIGATE"}
+                    mapped_target = _ROUTE_MAP.get(target_route, target_route)
+                    nav_directive = {"action": "NAVIGATE", "target": mapped_target, "query": nav_result.get("query"), "intent": "NAVIGATE"}
                     self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
                     return self._response_builder.build_response(
                         request_id=request.request_id,
@@ -492,44 +495,55 @@ class AIOrchestrator:
             logger.info("[SITE-TOUR-TRACE] Answering tour clarification: msg=%r", sanitized_req.user_message)
             print(f"[SITE-TOUR-TRACE] Answering tour clarification: msg={sanitized_req.user_message!r}")
 
-            if any(w in msg_lower for w in ["pandit", "priest", "panditji", "purohit"]):
+            # Check if user issued a new explicit navigation command (e.g. "book puja", "go home")
+            if is_navigation_command(sanitized_req.user_message) and not any(w in msg_lower for w in ["tour", "visit", "explore"]):
                 session.pending_tour_clarification = False
-                nav_directive = {
-                    "action": "START_TOUR",
-                    "target": "pandit_tour",
-                    "intent": "START_TOUR"
-                }
-                self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
-                elapsed_ms = (time.perf_counter() - t_start) * 1000.0
-                self._telemetry_manager.record_request(is_success=True, latency_ms=elapsed_ms)
-                self._lifecycle_manager.complete_request_lifecycle(request.request_id)
-                self._scheduler.complete_request(request.request_id)
-                return self._response_builder.build_response(
-                    request_id=request.request_id,
-                    text_override="Uttam Panditji! Main aapko Pandit onboarding aur service listing ka guided tour karwata hoon.",
-                    response_type=ResponseType.NAVIGATION_DIRECTIVE,
-                    navigation_directive=nav_directive,
-                    metadata=ResponseMetadata(fast_path=True, latency_ms=round(elapsed_ms, 2)),
-                )
             else:
-                session.pending_tour_clarification = False
-                nav_directive = {
-                    "action": "START_TOUR",
-                    "target": "devotee_tour",
-                    "intent": "START_TOUR"
-                }
-                self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
-                elapsed_ms = (time.perf_counter() - t_start) * 1000.0
-                self._telemetry_manager.record_request(is_success=True, latency_ms=elapsed_ms)
-                self._lifecycle_manager.complete_request_lifecycle(request.request_id)
-                self._scheduler.complete_request(request.request_id)
-                return self._response_builder.build_response(
-                    request_id=request.request_id,
-                    text_override="Namaste! Main aapko MantraSetu ki sabhi mukhya services ka guided tour karwata hoon.",
-                    response_type=ResponseType.NAVIGATION_DIRECTIVE,
-                    navigation_directive=nav_directive,
-                    metadata=ResponseMetadata(fast_path=True, latency_ms=round(elapsed_ms, 2)),
-                )
+                is_pandit = any(w in msg_lower for w in ["pandit", "priest", "panditji", "purohit"])
+                is_devotee = any(w in msg_lower for w in ["devotee", "bhakt", "user", "normal", "guest", "general"])
+
+                if is_pandit:
+                    session.pending_tour_clarification = False
+                    nav_directive = {"action": "START_TOUR", "target": "pandit_tour", "intent": "START_TOUR"}
+                    self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+                    elapsed_ms = (time.perf_counter() - t_start) * 1000.0
+                    self._telemetry_manager.record_request(is_success=True, latency_ms=elapsed_ms)
+                    self._lifecycle_manager.complete_request_lifecycle(request.request_id)
+                    self._scheduler.complete_request(request.request_id)
+                    return self._response_builder.build_response(
+                        request_id=request.request_id,
+                        text_override="Uttam Panditji! Main aapko Pandit onboarding aur service listing ka guided tour karwata hoon.",
+                        response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                        navigation_directive=nav_directive,
+                        metadata=ResponseMetadata(fast_path=True, latency_ms=round(elapsed_ms, 2)),
+                    )
+                elif is_devotee:
+                    session.pending_tour_clarification = False
+                    nav_directive = {"action": "START_TOUR", "target": "devotee_tour", "intent": "START_TOUR"}
+                    self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+                    elapsed_ms = (time.perf_counter() - t_start) * 1000.0
+                    self._telemetry_manager.record_request(is_success=True, latency_ms=elapsed_ms)
+                    self._lifecycle_manager.complete_request_lifecycle(request.request_id)
+                    self._scheduler.complete_request(request.request_id)
+                    return self._response_builder.build_response(
+                        request_id=request.request_id,
+                        text_override="Namaste! Main aapko MantraSetu ki sabhi mukhya services ka guided tour karwata hoon.",
+                        response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                        navigation_directive=nav_directive,
+                        metadata=ResponseMetadata(fast_path=True, latency_ms=round(elapsed_ms, 2)),
+                    )
+                else:
+                    # Unmatched / ambiguous input -> Re-prompt clarification
+                    elapsed_ms = (time.perf_counter() - t_start) * 1000.0
+                    self._telemetry_manager.record_request(is_success=True, latency_ms=elapsed_ms)
+                    self._lifecycle_manager.complete_request_lifecycle(request.request_id)
+                    self._scheduler.complete_request(request.request_id)
+                    return self._response_builder.build_response(
+                        request_id=request.request_id,
+                        text_override="Namaste! Kya aap ek Panditji hain ya ek devotee jo humari services dekhna chahte hain?",
+                        response_type=ResponseType.CHAT,
+                        metadata=ResponseMetadata(fast_path=True, latency_ms=round(elapsed_ms, 2)),
+                    )
 
         # Check if we are waiting for a Pandit account clarification (existing vs new)
         pending_clarification = getattr(session, "pending_pandit_clarification", False)
@@ -537,6 +551,12 @@ class AIOrchestrator:
             msg_raw = sanitized_req.user_message.strip()
             msg_lower = msg_raw.lower()
             
+            # Check if user issued a new explicit navigation command (abandoning clarification)
+            if is_navigation_command(sanitized_req.user_message) and not any(w in msg_lower for w in ["pandit", "account", "login", "signup", "haan", "yes", "nahi", "no"]):
+                session.pending_pandit_clarification = False
+                pending_clarification = False
+
+        if pending_clarification:
             logger.info("[PANDIT-CLARIFY-TRACE] Session: %s | Raw transcript: %r", request.session_id, msg_raw)
             print(f"[PANDIT-CLARIFY-TRACE] Session: {request.session_id} | Raw transcript: {msg_raw!r}")
 
@@ -656,7 +676,8 @@ class AIOrchestrator:
         has_pandit_kw = any(w in msg_lower_trigger for w in ["pandit", "priest", "purohit", "panditji"])
         
         is_devotee_booking_pandit = has_pandit_kw and any(p in msg_lower_trigger for p in [
-            "book pandit", "pandit book", "pandit chahiye", "pandit bulao", "pandit arrange", "priest book", "puja ke liye"
+            "book pandit", "pandit book", "pandit chahiye", "pandit bulao", "pandit arrange", "priest book", "puja ke liye",
+            "pandit dikhao", "pandit list", "pandit search", "pandit khojo", "pandit dekho", "pandits"
         ])
         
         if has_pandit_kw and not is_devotee_booking_pandit:

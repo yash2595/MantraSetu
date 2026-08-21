@@ -9,13 +9,14 @@ _NAV_KEYWORDS = {
     "/kundali-creation": ["kundali", "janam patri", "patrika", "birth chart", "kundli"],
     "/puja": ["puja", "pooja", "pandit book", "pandit bulao", "book pandit"],
     "/muhurat-finder": ["muhurat", "shubh samay", "auspicious time", "shubh muhurat", "muhurth"],
+    "/login?role=pandit": ["pandit login", "panditji login", "login as pandit", "login as a pandit", "pandit pehle se"],
     "/login": ["login", "sign in", "andar aao", "log in"],
     "/dashboard": ["dashboard", "mera profile", "meri jankari", "meri jaankari", "meri details"],
     "/profile": ["profile"],
     "/about": ["about us", "hamare bare mein", "aapke bare mein"],
     "/contact": ["contact", "sampark", "call karo", "help", "madad"],
     # Signups
-    "/signup?role=pandit": ["pandit banna", "pandit registration", "pandit sign up", "pandit signup", "pandit join", "join as pandit", "register as pandit"],
+    "/signup?role=pandit": ["pandit banna", "pandit registration", "pandit sign up", "pandit signup", "pandit join", "join as pandit", "register as pandit", "register as a pandit", "panditji register", "pandit account"],
     "/signup": ["devotee banna", "bhakt banna", "devotee sign up", "devotee registration", "register as devotee", "devotee signup", "devotee join", "open signup"]
 }
 
@@ -59,6 +60,16 @@ def resolve_navigation_target(msg: str) -> dict:
         
     msg_lower = msg.lower()
     
+    # Multi-intent check (e.g. both puja and kundali)
+    has_puja = any(kw in msg_lower for kw in _NAV_KEYWORDS["/puja"])
+    has_kundali = any(kw in msg_lower for kw in _NAV_KEYWORDS["/kundali-creation"])
+    if has_puja and has_kundali:
+        return {
+            "target": None,
+            "needs_clarification": True,
+            "clarification_msg": "Aap pehle Puja book karna chahenge ya Kundali banwana chahenge? Main dono mein sahayata kar sakta hoon."
+        }
+
     # Priority for specific signups over generic signup
     for target in ["/signup?role=pandit", "/signup"]:
         if any(kw in msg_lower for kw in _NAV_KEYWORDS[target]):
@@ -73,9 +84,23 @@ def resolve_navigation_target(msg: str) -> dict:
                 "clarification_msg": "Aap Panditji ke roop mein judna chahte hain ya Bhakt (Devotee) ke roop mein?"
             }
             
+    query = None
+    query_entity_map = {
+        "durga": "Durga Puja",
+        "satyanarayan": "Satyanarayan",
+        "varanasi": "Varanasi",
+        "shaadi": "Marriage",
+        "marriage": "Marriage",
+        "griha pravesh": "Griha Pravesh",
+    }
+    for kw, val in query_entity_map.items():
+        if kw in msg_lower:
+            query = val
+            break
+
     # Check other targets
     for target, keywords in _NAV_KEYWORDS.items():
         if any(kw in msg_lower for kw in keywords):
-            return {"target": target, "needs_clarification": False}
+            return {"target": target, "query": query, "needs_clarification": False}
             
-    return {"target": None, "needs_clarification": False}
+    return {"target": None, "query": None, "needs_clarification": False}

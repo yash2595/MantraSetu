@@ -18,9 +18,10 @@ React keys must be passed directly to JSX without using spread:
 [Console - log] [Voice] mic useEffect triggered | isConnected: false | micStreamActive: false
 [Console - log] [Provider] state changed to idle
 [Console - log] [Provider] onboardingPhase changed to saarthi_listening
+[Console - error] [MIC] Permission denied: NotSupportedError: Not supported
 [Console - log] [Voice] WebSocket Connected successfully.
 [Console - log] [Voice] Session ready state updated: false
-[Console - log] [Voice] Sending CONNECT with session_id: vsession_f5mkax87g9iu current_page: /
+[Console - log] [Voice] Sending CONNECT with session_id: vsession_fr84voihmkf current_page: /
 [Console - log] [Voice] mic useEffect triggered | isConnected: true | micStreamActive: false
 [Console - log] [Voice] Initializing PERSISTENT microphone stream for WebSocket session...
 [Console - error] [Voice] Persistent Microphone error NotSupportedError: Not supported
@@ -34,7 +35,7 @@ React keys must be passed directly to JSX without using spread:
 [Console - log] [Voice] Received message type: AI_RESPONSE
 [Console - log] [Voice] [CONNECT-DIAGNOSTIC] RAW AI_RESPONSE Received: {"content":"Namaste! MantraSetu mein aapka swagat hai. Aaj main aapki kya seva kar sakta hoon?","intent":"GREETING","action":null,"target":null,"active_field":null}
 [Console - log] [DEBUG-PAYLOAD-EXTRACT] Extracted action: null target: null activeField: null intent: GREETING
-[Console - log] [Voice] [CONNECT-DIAGNOSTIC] Initial Greeting response received. Forcing action & target to null. User remains on current page.
+[Console - log] [Voice] [CONNECT-DIAGNOSTIC] Initial Greeting response received. Triggering greeting avatar animation.
 [Console - log] [Voice] --------------------------------------------------
 [Console - log] [Voice] AI_RESPONSE NAVIGATION CHECK:
 [Console - log] [Voice] Raw Target: null
@@ -43,80 +44,119 @@ React keys must be passed directly to JSX without using spread:
 [Console - log] [Voice] Query: null
 [Console - log] [NAV-DEBUG] RAW AI_RESPONSE Received. action= null target= null
 [Console - log] [STATE] idle -> speaking
-[Console - log] [Provider] state changed to speaking
 [Console - log] [Voice] Received message type: AUDIO_CHUNK
 [Console - log] [STATE] AUDIO_CHUNK is_final: true
-[Console - log] [Voice] Decoded audioData bytes length: 56832
-[Console - log] [Voice] Successfully decoded via decodeAudioData (duration: 7.104s)
+[Console - log] [Voice] Decoded audioData bytes length: 56256
+[Console - log] [Provider] state changed to speaking
+[Console - log] [Voice] Successfully decoded via decodeAudioData (duration: 7.032s)
 [Console - log] [Voice] Attempting to play greeting audio before playing chunk. Current AudioContext state: running
 [Console - log] [Voice] Playing next audio chunk from queue
 [Console - log] [Voice] Calling source.start(). AudioContext state is: running
-[Console - log] [DEBUG-SIMULATION] Simulating user speech: "pandit onboarding page par le chal"
 [Console - log] [Voice] Audio chunk playback ended
 [Console - log] [VERIFY-DIAGNOSTIC] (a) Audio playback complete (verification readout finished).
 [Console - log] [VERIFY-DIAGNOSTIC] (b) Mic re-armed. Transitioning state: speaking -> listening.
+[Console - log] [MIC-STATE] listening
+[Console - log] [WS-STATE] 1
+[Console - log] [DIAGNOSTIC-1] TTS END -> stateRef: listening | wsReadyState: 1 | audioCtxState: running
+[Console - log] [GREETING-DONE] State: listening WS: 1 SessionReady: true
 [Console - log] [Voice] Entered LISTENING state. Resetting user speech byte counters.
 [Console - log] [Provider] state changed to listening
-[Console - log] [DIAGNOSTIC] FULL RAW AI_RESPONSE PAYLOAD: {"content":"Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, aapka pehla naam (first name) kya hai?","intent":"OPEN_SIGNUP","action":"NAVIGATE","target":"/signup?role=pandit","query":null,"fields":null,"active_field":"pandit-first-name"}
+[Console - log] [DEBUG-SIMULATION] Simulating user speech: "pandit onboarding page par le chal"
+[Console - log] [DIAGNOSTIC] FULL RAW AI_RESPONSE PAYLOAD: {"content":"Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi aur sirf verification ke liye upyog hogi. Chaliye, ab hum aapka registration shuru karte hain. Namaste! Aap chahein to apni profile photo upload kar sakte hain, ye optional hai. Agar upload karna hai to 'Choose Picture' par click kijiye, nahi to bas 'skip' ya 'aage badho' boliye.","intent":"OPEN_SIGNUP","action":"NAVIGATE","target":"/signup?role=pandit","query":null,"fields":null,"active_field":"pandit-avatar"}
 [Console - log] [Voice] Received message type: AI_RESPONSE
-[Console - log] [Voice] [CONNECT-DIAGNOSTIC] RAW AI_RESPONSE Received: {"content":"Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, aapka pehla naam (first name) kya hai?","intent":"OPEN_SIGNUP","action":"NAVIGATE","target":"/signup?role=pandit","query":null,"fields":null,"active_field":"pandit-first-name"}
-[Console - log] [DEBUG-PAYLOAD-EXTRACT] Extracted action: NAVIGATE target: /signup?role=pandit activeField: pandit-first-name intent: OPEN_SIGNUP
-[Console - log] [NAV-SYNC-TRACE] Active field received: "pandit-first-name" -> Computed Step: 1. Dispatching saarthi-set-step event.
-[Console - log] [DEBUG-HIGHLIGHT-TARGET] activeField: pandit-first-name selector: [data-testid="input-pandit-first-name"] found: false tagName: undefined
+[Console - log] [Voice] [CONNECT-DIAGNOSTIC] RAW AI_RESPONSE Received: {"content":"Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Aapki jaankari poori tarah surakshit rahegi aur sirf verification ke liye upyog hogi. Chaliye, ab hum aapka registration shuru karte hain. Namaste! Aap chahein to apni profile photo upload kar sakte hain, ye optional hai. Agar upload karna hai to 'Choose Picture' par click kijiye, nahi to bas 'skip' ya 'aage badho' boliye.","intent":"OPEN_SIGNUP","action":"NAVIGATE","target":"/signup?role=pandit","query":null,"fields":null,"active_field":"pandit-avatar"}
+[Console - log] [DEBUG-PAYLOAD-EXTRACT] Extracted action: NAVIGATE target: /signup?role=pandit activeField: pandit-avatar intent: OPEN_SIGNUP
+[Console - log] [NAV-SYNC-TRACE] Active field received: "pandit-avatar" -> Computed Step: 1. Dispatching saarthi-set-step event.
+[Console - log] [DEBUG-HIGHLIGHT-TARGET] activeField: pandit-avatar selector: [data-testid="input-pandit-avatar"], #pandit-avatar found: false tagName: undefined
+[Console - log] [Voice] [CONNECT-DIAGNOSTIC] Initial Greeting response received. Triggering greeting avatar animation.
 [Console - log] [Voice] --------------------------------------------------
 [Console - log] [Voice] AI_RESPONSE NAVIGATION CHECK:
-[Console - log] [Voice] Raw Target: /signup?role=pandit
-[Console - log] [Voice] Raw Action: NAVIGATE
+[Console - log] [Voice] Raw Target: null
+[Console - log] [Voice] Raw Action: null
 [Console - log] [Voice] Intent: OPEN_SIGNUP
 [Console - log] [Voice] Query: null
-[Console - log] [PANDIT-STEP-TRACE] Dispatching saarthi-set-step event for activeField: "pandit-first-name" -> step: 1
-[Console - log] [NAV-DEBUG] RAW AI_RESPONSE Received. action= NAVIGATE target= "/signup?role=pandit"
-[Console - log] [NAV-DEBUG] Routing for target: /signup?role=pandit, query: null, intent: OPEN_SIGNUP, currentPath: /
+[Console - log] [PANDIT-NAV] Auto-navigating to Pandit onboarding route (/signup?role=pandit) for intent: OPEN_SIGNUP
+[Console - log] [PANDIT-STEP-TRACE] Dispatching saarthi-set-step event for activeField: "pandit-avatar" -> step: 1
+[Console - log] [NAV-DEBUG] RAW AI_RESPONSE Received. action= null target= null
+[Console - log] [STATE] idle -> speaking
+[Console - log] [Provider] state changed to speaking
 [Console - warning] [GSI_LOGGER]: Provided button width is invalid: 100%
 [Console - log] [SYNC-DEBUG] activeField: pandit-avatar | step: 1
 [Console - log] [Voice] Received message type: AUDIO_CHUNK
 [Console - log] [STATE] AUDIO_CHUNK is_final: true
-[Console - log] [Voice] Decoded audioData bytes length: 159360
-[Console - log] [Voice] Successfully decoded via decodeAudioData (duration: 19.92s)
+[Console - log] [Voice] Decoded audioData bytes length: 279744
+[Console - log] [Voice] Successfully decoded via decodeAudioData (duration: 34.968s)
 [Console - log] [Voice] Attempting to play greeting audio before playing chunk. Current AudioContext state: running
 [Console - log] [Voice] Playing next audio chunk from queue
 [Console - log] [Voice] Calling source.start(). AudioContext state is: running
-[Console - log] [DEBUG-SIMULATION] Simulating user speech: "Ramesh"
-[Console - log] [DIAGNOSTIC] FULL RAW AI_RESPONSE PAYLOAD: {"content":"Bahut sundar Ramesh ji! Ab apna upanaam ya last name bataiye.","intent":"PANDIT_ONBOARDING","action":"FILL_FORM","target":"pandit-first-name","query":"Ramesh","fields":null,"active_field":"pandit-last-name"}
+[Console - log] [DEBUG-SIMULATION] Simulating user speech: "skip"
+[Console - log] [DIAGNOSTIC] FULL RAW AI_RESPONSE PAYLOAD: {"content":"Koi baat nahi Panditji. Ab apna pehla naam (First Name) bataiye.","intent":"PANDIT_ONBOARDING","action":"FILL_FORM","target":"pandit-avatar","query":"skipped","fields":null,"active_field":"pandit-first-name"}
 [Console - log] [Voice] Received message type: AI_RESPONSE
-[Console - log] [Voice] [CONNECT-DIAGNOSTIC] RAW AI_RESPONSE Received: {"content":"Bahut sundar Ramesh ji! Ab apna upanaam ya last name bataiye.","intent":"PANDIT_ONBOARDING","action":"FILL_FORM","target":"pandit-first-name","query":"Ramesh","fields":null,"active_field":"pandit-last-name"}
-[Console - log] [DEBUG-PAYLOAD-EXTRACT] Extracted action: FILL_FORM target: pandit-first-name activeField: pandit-last-name intent: PANDIT_ONBOARDING
-[Console - log] [NAV-SYNC-TRACE] Active field received: "pandit-last-name" -> Computed Step: 1. Dispatching saarthi-set-step event.
-[Console - log] [PANDIT-STEP-TRACE] Received saarthi-set-step event. Changing panditStep -> 1 (Triggered by activeField: "pandit-last-name")
-[Console - log] [DEBUG-HIGHLIGHT-TARGET] activeField: pandit-last-name selector: [data-testid="input-pandit-last-name"] found: true tagName: INPUT
-[Console - log] [PROOF-FEATURE-A] activeFieldId: pandit-last-name | Highlighted Element: pandit-last-name | Total .saarthi-highlight count in DOM: 1
-[Console - log] [DEBUG-DROPDOWN-CHECK] activeField: pandit-last-name selectEl: undefined optionsCount: undefined
+[Console - log] [Voice] [CONNECT-DIAGNOSTIC] RAW AI_RESPONSE Received: {"content":"Koi baat nahi Panditji. Ab apna pehla naam (First Name) bataiye.","intent":"PANDIT_ONBOARDING","action":"FILL_FORM","target":"pandit-avatar","query":"skipped","fields":null,"active_field":"pandit-first-name"}
+[Console - log] [DEBUG-PAYLOAD-EXTRACT] Extracted action: FILL_FORM target: pandit-avatar activeField: pandit-first-name intent: PANDIT_ONBOARDING
+[Console - log] [NAV-SYNC-TRACE] Active field received: "pandit-first-name" -> Computed Step: 1. Dispatching saarthi-set-step event.
+[Console - log] [PANDIT-STEP-TRACE] Received saarthi-set-step event. Changing panditStep -> 1 (Triggered by activeField: "pandit-first-name")
+[Console - log] [DEBUG-HIGHLIGHT-TARGET] activeField: pandit-first-name selector: [data-testid="input-pandit-first-name"] found: true tagName: INPUT
+[Console - log] [PROOF-FEATURE-A] activeFieldId: pandit-first-name | Highlighted Element: pandit-first-name | Total .saarthi-highlight count in DOM: 1
+[Console - log] [DEBUG-DROPDOWN-CHECK] activeField: pandit-first-name selectEl: undefined optionsCount: undefined
+[Console - log] [Voice] --------------------------------------------------
+[Console - log] [Voice] AI_RESPONSE NAVIGATION CHECK:
+[Console - log] [Voice] Raw Target: pandit-avatar
+[Console - log] [Voice] Raw Action: FILL_FORM
+[Console - log] [Voice] Intent: PANDIT_ONBOARDING
+[Console - log] [Voice] Query: skipped
+[Console - log] [PANDIT-STEP-TRACE] Dispatching saarthi-set-step event for activeField: "pandit-first-name" -> step: 1
+[Console - log] [PANDIT-STEP-TRACE] Received saarthi-set-step event. Changing panditStep -> 1 (Triggered by activeField: "pandit-first-name")
+[Console - log] [NAV-DEBUG] RAW AI_RESPONSE Received. action= FILL_FORM target= "pandit-avatar"
+[Console - log] [FORM-FILL] Raw AI_RESPONSE for FILL_FORM: {content: Koi baat nahi Panditji. Ab apna pehla naam (First Name) bataiye., intent: PANDIT_ONBOARDING, action: FILL_FORM, target: pandit-avatar, query: skipped}
+[Console - log] [FORM-FILL] Received fields array: null
+[Console - log] [FORM-FILL] Number of fields to process: 1
+[Console - log] [FORM-FILL] Fields to fill: [Object]
+[Console - log] [FORM-FILL] Processing field pandit-avatar -> selector: input[name="pandit-avatar"], #pandit-avatar
+[Console - log] [NAV-DEBUG] Executing step: {action: click, target: [data-testid="tab-usertype-pandit"], delay: 150}
+[Console - warning] [NAV-DEBUG] Click target not found: [data-testid="tab-usertype-pandit"]
+[Console - log] [NAV-DEBUG] Executing step: {action: wait_for_selector, target: input[name="pandit-avatar"], #pandit-avatar, delay: 150}
+[Console - log] [STATE] idle -> speaking
+[Console - log] [Voice] Received message type: AUDIO_CHUNK
+[Console - log] [STATE] AUDIO_CHUNK is_final: true
+[Console - log] [Voice] Decoded audioData bytes length: 51456
+[Console - log] [SYNC-DEBUG] activeField: pandit-first-name | step: 1
+[Console - log] [Voice] Successfully decoded via decodeAudioData (duration: 6.432s)
+[Console - log] [DEBUG-SIMULATION] Simulating user speech: "Ramesh"
+[Console - log] [DIAGNOSTIC] FULL RAW AI_RESPONSE PAYLOAD: {"content":"Maine suna — Ramesh. Kya ye sahi hai?","intent":"PANDIT_ONBOARDING","action":"FILL_FORM","target":"pandit-first-name","query":"Ramesh","fields":null,"active_field":"pandit-first-name"}
+[Console - log] [Voice] Received message type: AI_RESPONSE
+[Console - log] [Voice] [CONNECT-DIAGNOSTIC] RAW AI_RESPONSE Received: {"content":"Maine suna — Ramesh. Kya ye sahi hai?","intent":"PANDIT_ONBOARDING","action":"FILL_FORM","target":"pandit-first-name","query":"Ramesh","fields":null,"active_field":"pandit-first-name"}
+[Console - log] [DEBUG-PAYLOAD-EXTRACT] Extracted action: FILL_FORM target: pandit-first-name activeField: pandit-first-name intent: PANDIT_ONBOARDING
+[Console - log] [NAV-SYNC-TRACE] Active field received: "pandit-first-name" -> Computed Step: 1. Dispatching saarthi-set-step event.
+[Console - log] [PANDIT-STEP-TRACE] Received saarthi-set-step event. Changing panditStep -> 1 (Triggered by activeField: "pandit-first-name")
+[Console - log] [DEBUG-HIGHLIGHT-TARGET] activeField: pandit-first-name selector: [data-testid="input-pandit-first-name"] found: true tagName: INPUT
+[Console - log] [PROOF-FEATURE-A] activeFieldId: pandit-first-name | Highlighted Element: pandit-first-name | Total .saarthi-highlight count in DOM: 1
+[Console - log] [DEBUG-DROPDOWN-CHECK] activeField: pandit-first-name selectEl: undefined optionsCount: undefined
 [Console - log] [Voice] --------------------------------------------------
 [Console - log] [Voice] AI_RESPONSE NAVIGATION CHECK:
 [Console - log] [Voice] Raw Target: pandit-first-name
 [Console - log] [Voice] Raw Action: FILL_FORM
 [Console - log] [Voice] Intent: PANDIT_ONBOARDING
 [Console - log] [Voice] Query: Ramesh
-[Console - log] [PANDIT-STEP-TRACE] Dispatching saarthi-set-step event for activeField: "pandit-last-name" -> step: 1
-[Console - log] [PANDIT-STEP-TRACE] Received saarthi-set-step event. Changing panditStep -> 1 (Triggered by activeField: "pandit-last-name")
+[Console - log] [PANDIT-STEP-TRACE] Dispatching saarthi-set-step event for activeField: "pandit-first-name" -> step: 1
+[Console - log] [PANDIT-STEP-TRACE] Received saarthi-set-step event. Changing panditStep -> 1 (Triggered by activeField: "pandit-first-name")
 [Console - log] [NAV-DEBUG] RAW AI_RESPONSE Received. action= FILL_FORM target= "pandit-first-name"
-[Console - log] [FORM-FILL] Raw AI_RESPONSE for FILL_FORM: {content: Bahut sundar Ramesh ji! Ab apna upanaam ya last name bataiye., intent: PANDIT_ONBOARDING, action: FILL_FORM, target: pandit-first-name, query: Ramesh}
+[Console - log] [FORM-FILL] Raw AI_RESPONSE for FILL_FORM: {content: Maine suna — Ramesh. Kya ye sahi hai?, intent: PANDIT_ONBOARDING, action: FILL_FORM, target: pandit-first-name, query: Ramesh}
 [Console - log] [FORM-FILL] Received fields array: null
 [Console - log] [FORM-FILL] Number of fields to process: 1
 [Console - log] [FORM-FILL] Fields to fill: [Object]
 [Console - log] [FORM-FILL] Processing field pandit-first-name -> selector: [data-testid="input-pandit-first-name"], #pandit-first-name
+[Console - log] [STATE] idle -> speaking
+[Console - log] [Voice] Received message type: AUDIO_CHUNK
+[Console - log] [STATE] AUDIO_CHUNK is_final: true
+[Console - log] [Voice] Decoded audioData bytes length: 28800
+[Console - log] [Voice] Successfully decoded via decodeAudioData (duration: 3.6s)
+[Console - warning] [NAV-DEBUG] Timeout waiting for selector: input[name="pandit-avatar"], #pandit-avatar
 [Console - log] [NAV-DEBUG] Executing step: {action: click, target: [data-testid="tab-usertype-pandit"], delay: 150}
 [Console - warning] [NAV-DEBUG] Click target not found: [data-testid="tab-usertype-pandit"]
 [Console - log] [NAV-DEBUG] Executing step: {action: wait_for_selector, target: [data-testid="input-pandit-first-name"], #pandit-first-name, delay: 150}
-[Console - log] [STATE] idle -> speaking
-[Console - log] [SYNC-DEBUG] activeField: pandit-last-name | step: 1
-[Console - log] [Provider] state changed to speaking
-[Console - log] [Voice] Received message type: AUDIO_CHUNK
-[Console - log] [STATE] AUDIO_CHUNK is_final: true
-[Console - log] [Voice] Decoded audioData bytes length: 43008
-[Console - log] [Voice] Successfully decoded via decodeAudioData (duration: 5.376s)
-[Console - log] [NAV-DEBUG] Executing step: {action: move, target: [data-testid="input-pandit-first-name"], #pandit-first-name, delay: 200}
-[Console - log] [NAV-DEBUG] Executing step: {action: type, target: [data-testid="input-pandit-first-name"], #pandit-first-name, text: Ramesh, delay: 300}
+[Console - log] [NAV-DEBUG] Executing step: {action: move, target: [data-testid="input-pandit-first-name"], #pandit-first-name, delay: 450}
+[Console - log] [NAV-DEBUG] Executing step: {action: type, target: [data-testid="input-pandit-first-name"], #pandit-first-name, text: Ramesh, delay: 350}
 [Console - log] [FORM-FILL-EXEC] Action: TYPE. Target: "[data-testid="input-pandit-first-name"], #pandit-first-name". ElementFound: true. ValueToSet: "Ramesh"
 [Console - log] [FORM-FILL-EXEC] Applied saarthi-highlight class to target: [data-testid="input-pandit-first-name"], #pandit-first-name
 [Console - log] [FORM-FILL-PROOF] Typing target="[data-testid="input-pandit-first-name"], #pandit-first-name" | Char 0/6 | Val="" | DOM Val=""
