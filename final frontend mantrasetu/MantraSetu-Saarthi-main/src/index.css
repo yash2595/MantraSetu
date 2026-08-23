@@ -2010,3 +2010,18 @@ input, select, textarea {
     border-color: #f97316;
   }
 }
+
+/* Hide native number input up/down spinner arrows specifically for Pandit Experience input */
+#pandit-exp::-webkit-outer-spin-button,
+#pandit-exp::-webkit-inner-spin-button,
+[data-testid="input-pandit-exp"]::-webkit-outer-spin-button,
+[data-testid="input-pandit-exp"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+#pandit-exp,
+[data-testid="input-pandit-exp"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

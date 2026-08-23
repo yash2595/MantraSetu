@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class VoiceActivityDetector:
     """Pre-STT Acoustic Voice Activity Detector (VAD) Gate."""
 
-    def __init__(self, min_speech_duration_sec: float = 0.8, sample_rate: int = 16000) -> None:
+    def __init__(self, min_speech_duration_sec: float = 0.15, sample_rate: int = 16000) -> None:
         self.min_speech_duration_sec = min_speech_duration_sec
         self.sample_rate = sample_rate
 
@@ -57,7 +57,7 @@ class VoiceActivityDetector:
             zcr = sum(1 for j in range(1, frame_samples) if (samples[j] >= 0) != (samples[j-1] >= 0)) / frame_samples
             
             # Speech frame classification (Voiced / Unvoiced human speech envelope)
-            if rms >= 450 and zcr < 0.45:
+            if rms >= 200 and zcr < 0.45:
                 speech_frames += 1
 
         speech_duration_sec = round(speech_frames * 0.03, 2)

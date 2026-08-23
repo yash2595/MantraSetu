@@ -39,6 +39,8 @@ export interface SaarthiContextType {
   setDialogueText: (text: string) => void;
   toggleMinimized: () => void;
   announceMessage: (text: string, isSuccess?: boolean) => void;
+  disableVoice: () => void;
+  enableVoice: () => void;
 }
 
 export const SaarthiContext = createContext<SaarthiContextType | undefined>(undefined);

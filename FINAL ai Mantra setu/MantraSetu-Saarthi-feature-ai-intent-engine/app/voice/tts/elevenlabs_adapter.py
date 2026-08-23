@@ -31,7 +31,7 @@ class ElevenLabsAdapter(ITTSProvider):
         self._api_key = api_key or os.environ.get("ELEVENLABS_API_KEY", "")
         self._model = model
         self._active_requests: set[str] = set()
-        self._default_voice_id = default_voice_id or os.environ.get("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
+        self._default_voice_id = default_voice_id or os.environ.get("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB")
 
     @property
     def provider_name(self) -> str:
@@ -112,28 +112,18 @@ class ElevenLabsAdapter(ITTSProvider):
                     metadata={"provider": self.provider_name, "status": "complete"},
                 )
         except Exception as e:
-            logger.error(f"[NO_RESPONSE_RISK:TTS_TIMEOUT] ElevenLabs streaming failed or timed out: {e}. Falling back to gTTS...")
-            try:
-                import io
-                from gtts import gTTS
-                tts = gTTS(text=request.text, lang='hi')
-                fp = io.BytesIO()
-                tts.write_to_fp(fp)
-                audio_bytes = fp.getvalue()
-                if req_id_str in self._active_requests:
-                    yield AudioChunk(
-                        request_id=request.request_id,
-                        session_id=request.session_id,
-                        conversation_id=request.conversation_id,
-                        sequence_number=0,
-                        data=audio_bytes,
-                        is_final=True,
-                        timestamp_ms=int(time.time() * 1000),
-                        metadata={"status": "gtts_fallback", "provider": self.provider_name},
-                    )
-                    return
-            except Exception as gtts_err:
-                logger.warning(f"gTTS fallback failed: {gtts_err}")
+            logger.error(f"[ELEVENLABS-ERROR] ElevenLabs streaming failed or timed out: {e}")
+            if req_id_str in self._active_requests:
+                yield AudioChunk(
+                    request_id=request.request_id,
+                    session_id=request.session_id,
+                    conversation_id=request.conversation_id,
+                    sequence_number=0,
+                    data=b"",
+                    is_final=True,
+                    timestamp_ms=int(time.time() * 1000),
+                    metadata={"status": "error", "provider": self.provider_name},
+                )
 
             if req_id_str in self._active_requests:
                 yield AudioChunk(

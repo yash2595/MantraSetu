@@ -35,10 +35,24 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
   // Onboarding disabled in production; backend will handle greeting and AI_RESPONSE.
 }, []);
 
+  const disableVoice = useCallback(() => {
+    console.log('[Provider] disableVoice invoked');
+    if ((window as any)._saarthiDisableVoice) {
+      (window as any)._saarthiDisableVoice();
+    }
+  }, []);
+
+  const enableVoice = useCallback(() => {
+    console.log('[Provider] enableVoice invoked');
+    if ((window as any)._saarthiEnableVoice) {
+      (window as any)._saarthiEnableVoice();
+    }
+  }, []);
+
   // ── USER CHOICE 1: Continue Manually ────────────────────────
   const continueManually = useCallback(() => {
-    console.log('[Provider] continueManually invoked');
-    // 180ms fade out popup & bubble -> 100ms pause -> bow -> minimize to bottom-right
+    console.log('[Provider] continueManually invoked: deactivating voice subsystem');
+    disableVoice();
     setShowChoicePopup(false);
     setShowSpeechBubble(false);
 
@@ -51,18 +65,22 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
         setDialogueText('');
       }, 500);
     }, 280); // 180ms fade + 100ms pause
-  }, []);
+  }, [disableVoice]);
 
   // ── USER CHOICE 2: Continue with Saarthi ────────────────────
   const continueWithSaarthi = useCallback(() => {
-    console.log('[Provider] continueWithSaarathi invoked, switching to listening');
+    console.log('[Provider] continueWithSaarthi invoked, enabling voice & switching to listening');
+    enableVoice();
+    if ((window as any)._saarthiAudioContext && (window as any)._saarthiAudioContext.state === 'suspended') {
+      (window as any)._saarthiAudioContext.resume().catch((e: any) => console.warn('[AudioContext] Resume error:', e));
+    }
     setShowChoicePopup(false);
     setIsMinimized(false); // REMAINS in center
     setShowSpeechBubble(true);
     setDialogueText('जी बताइए,\nआज मैं आपकी क्या सहायता कर सकता हूँ?');
     setState('listening');
     setOnboardingPhase('saarthi_listening');
-  }, []);
+  }, [enableVoice]);
 
   // ── MINIMIZE / STEP-ASIDE CONTROL (Sequence Refined) ─────────
   const minimizeSaarthi = useCallback(() => {
@@ -155,6 +173,8 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
         setDialogueText,
         toggleMinimized,
         announceMessage,
+        disableVoice,
+        enableVoice,
       }}
     >
       {children}

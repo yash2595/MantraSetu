@@ -1,4 +1,6 @@
 import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 import asyncio
 from pathlib import Path
 
@@ -37,11 +39,14 @@ async def test_specialization_and_exp_cases():
 
     # Experience Tests
     exp_tests = [
-        ("10 saal ka experience hai", "10-20 years"),
-        ("15 years", "10-20 years"),
-        ("5 saal se kar raha hoon", "5-10 years"),
-        ("3 saal ka anubhav hai", "1-5 years"),
-        ("25 saal se zyada experience hai", "20+ years")
+        ("12 years", "12"),
+        ("15 years", "15"),
+        ("20 years", "20"),
+        ("I have 8 years of experience", "8"),
+        ("मेरे 12 साल का experience है", "12"),
+        ("15 साल", "15"),
+        ("3 saal ka anubhav hai", "3"),
+        ("25 saal se zyada experience hai", "25")
     ]
 
     for input_text, expected in exp_tests:

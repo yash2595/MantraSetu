@@ -52,7 +52,7 @@ export function getFormStateData(): Record<string, string> {
     const genderEl = document.querySelector<HTMLSelectElement>('#pandit-gender, [data-testid="select-pandit-gender"]');
     const cityEl = document.querySelector<HTMLInputElement>('#pandit-city, [data-testid="input-pandit-city"]');
     const stateEl = document.querySelector<HTMLInputElement>('#pandit-state, [data-testid="input-pandit-state"]');
-    const expEl = document.querySelector<HTMLSelectElement>('#pandit-exp, [data-testid="select-pandit-exp"]');
+    const expEl = document.querySelector<HTMLInputElement | HTMLSelectElement>('#pandit-exp, [data-testid="input-pandit-exp"], [data-testid="select-pandit-exp"]');
     const eduEl = document.querySelector<HTMLInputElement>('#pandit-education, [data-testid="input-pandit-education"]');
     const specEl = document.querySelector<HTMLSelectElement>('#pandit-spec, [data-testid="select-pandit-spec"]');
     const bioEl = document.querySelector<HTMLTextAreaElement>('#pandit-bio, [data-testid="textarea-pandit-bio"]');
@@ -162,23 +162,8 @@ export function useSaarthiVoice() {
   // Push-to-talk state removed for revert
 
 
+  const isVoiceEnabledRef = useRef<boolean>(true);
   const wsRef = useRef<WebSocket | null>(null);
-
-  const sendWsMessage = useCallback((payload: any): boolean => {
-    const currentWs = wsRef.current;
-    if (currentWs && currentWs.readyState === WebSocket.OPEN) {
-      currentWs.send(JSON.stringify(payload));
-      return true;
-    }
-    console.warn(
-      `[Voice] Cannot send WebSocket message (type: ${payload?.type}). ` +
-      `Socket state is ${currentWs ? currentWs.readyState : 'NULL'} (expected WebSocket.OPEN=${WebSocket.OPEN}).`
-    );
-    return false;
-  }, []);
-
-  // toggleMic removed for revert
-  const navigate = useNavigate();
 
   const isSessionReadyRef = useRef(false);
   const isConnectingRef = useRef(false);
@@ -197,12 +182,118 @@ export function useSaarthiVoice() {
     }
   }, []);
 
+  const disableVoice = useCallback(() => {
+    console.log('[Voice] Disabling voice subsystem: stopping mic, closing WS, purging audio queue');
+    isVoiceEnabledRef.current = false;
+    setIsConnected(false);
+    updateSessionReady(false);
+
+    // 1. Remove all global autoplay click listeners
+    if ((window as any)._audioPlayClickListenerAdded) {
+      if ((window as any)._resumeAudioListener) {
+        window.removeEventListener('click', (window as any)._resumeAudioListener, true);
+        window.removeEventListener('keydown', (window as any)._resumeAudioListener, true);
+        window.removeEventListener('touchstart', (window as any)._resumeAudioListener, true);
+        window.removeEventListener('click', (window as any)._resumeAudioListener);
+        window.removeEventListener('keydown', (window as any)._resumeAudioListener);
+        window.removeEventListener('touchstart', (window as any)._resumeAudioListener);
+      }
+      (window as any)._audioPlayClickListenerAdded = false;
+    }
+
+    // 2. Purge queued audio & stop active audio source
+    audioQueueRef.current = [];
+    isPlayingRef.current = false;
+    isFinalChunkReceived.current = false;
+    if (currentAudioSourceRef.current) {
+      try {
+        currentAudioSourceRef.current.stop();
+        currentAudioSourceRef.current.disconnect();
+      } catch (e) {}
+      currentAudioSourceRef.current = null;
+    }
+
+    // 3. Stop mic stream & processor
+    if (processorRef.current) {
+      try {
+        processorRef.current.disconnect();
+        processorRef.current.onaudioprocess = null;
+      } catch (e) {}
+      processorRef.current = null;
+    }
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach((track) => {
+        console.log('[Voice] Stopping mic track:', track.label);
+        track.stop();
+      });
+      micStreamRef.current = null;
+    }
+
+    // 4. Close WebSocket
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = null;
+    }
+    if (wsRef.current) {
+      wsRef.current.onclose = null;
+      wsRef.current.onerror = null;
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
+    // 5. Suspend audioContext
+    if (audioContextRef.current && audioContextRef.current.state === 'running') {
+      audioContextRef.current.suspend().catch(() => {});
+    }
+
+    // 6. Force state to idle
+    stateRef.current = 'idle';
+    setSaarthiState('idle');
+  }, [setSaarthiState, updateSessionReady]);
+
+  const enableVoice = useCallback(() => {
+    console.log('[Voice] Enabling voice subsystem');
+    isVoiceEnabledRef.current = true;
+    if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+      connectWebSocketRef.current();
+    }
+  }, []);
+
+  useEffect(() => {
+    (window as any)._saarthiDisableVoice = disableVoice;
+    (window as any)._saarthiEnableVoice = enableVoice;
+    return () => {
+      delete (window as any)._saarthiDisableVoice;
+      delete (window as any)._saarthiEnableVoice;
+    };
+  }, [disableVoice, enableVoice]);
+
+  const sendWsMessage = useCallback((payload: any): boolean => {
+    const currentWs = wsRef.current;
+    if (currentWs && currentWs.readyState === WebSocket.OPEN) {
+      currentWs.send(JSON.stringify(payload));
+      return true;
+    }
+    console.warn(
+      `[Voice] Cannot send WebSocket message (type: ${payload?.type}). ` +
+      `Socket state is ${currentWs ? currentWs.readyState : 'NULL'} (expected WebSocket.OPEN=${WebSocket.OPEN}).`
+    );
+    return false;
+  }, []);
+
+  // toggleMic removed for revert
+  const navigate = useNavigate();
+
 
 
   useEffect(() => {
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
-        .then(stream => {
+        .then(() => {
           console.log('[MIC] Permission granted, ready');
         })
         .catch(err => {
@@ -362,8 +453,8 @@ export function useSaarthiVoice() {
     if (step.action === 'scroll' && step.target) {
       const targetEl = document.querySelector(step.target) as HTMLElement;
       if (targetEl) {
-        targetEl.scrollIntoView({ behavior: 'auto', block: 'center' });
-        setTimeout(processNextStep, step.delay || 400);
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(processNextStep, step.delay || 300);
       } else {
         console.warn('[NAV-DEBUG] Scroll target not found, gracefully staying at top:', step.target);
         processNextStep();
@@ -374,23 +465,28 @@ export function useSaarthiVoice() {
     if (step.action === 'move' && step.target) {
       const targetEl = document.querySelector(step.target) as HTMLElement;
       if (targetEl) {
-        targetEl.scrollIntoView({ behavior: 'auto', block: 'center' });
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         
-        // 300ms scroll buffer to ensure final coordinates are accurate
+        // Short 150ms buffer for scroll to stabilize before calculating viewport center
         setTimeout(() => {
           const rect = targetEl.getBoundingClientRect();
-          // Coordinates targeting the center of the element relative to viewport
           const targetX = rect.left + rect.width / 2;
           const targetY = rect.top + rect.height / 2;
           
+          const currentX = parseFloat(cursor!.style.left) || (window.innerWidth / 2);
+          const currentY = parseFloat(cursor!.style.top) || (window.innerHeight / 2);
+          const dist = Math.hypot(targetX - currentX, targetY - currentY);
+          const moveDurationMs = Math.min(800, Math.max(300, Math.round(dist * 0.7)));
+
+          cursor!.style.transition = `left ${moveDurationMs}ms cubic-bezier(0.25, 1, 0.5, 1), top ${moveDurationMs}ms cubic-bezier(0.25, 1, 0.5, 1), opacity 200ms ease, transform 150ms ease`;
           cursor!.style.opacity = '1';
           cursor!.style.transform = 'scale(1)';
           cursor!.style.backgroundColor = 'rgba(238, 124, 43, 0.6)';
           cursor!.style.left = `${targetX - 12}px`;
           cursor!.style.top = `${targetY - 12}px`;
           
-          setTimeout(processNextStep, step.delay);
-        }, 300);
+          setTimeout(processNextStep, Math.max(step.delay || 150, moveDurationMs + 30));
+        }, 150);
       } else {
         console.warn('[NAV-DEBUG] Move target not found:', step.target);
         processNextStep();
@@ -683,6 +779,10 @@ export function useSaarthiVoice() {
   }, []);
 
   const connectWebSocket = useCallback(() => {
+    if (!isVoiceEnabledRef.current) {
+      console.log('[Voice] Skipping connectWebSocket because voice is disabled');
+      return;
+    }
     const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const wsUrl = apiBase.replace('http', 'ws') + '/ws/voice';
 
@@ -761,6 +861,10 @@ export function useSaarthiVoice() {
     };
 
     ws.onmessage = async (event: MessageEvent) => {
+        if (!isVoiceEnabledRef.current) {
+          console.log('[Voice] Discarding incoming WebSocket message because voice is disabled');
+          return;
+        }
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'PING') {
@@ -910,7 +1014,7 @@ export function useSaarthiVoice() {
                   } else if (activeField.includes('state')) {
                     highlightSelector = isPanditField ? '[data-testid="input-pandit-state"]' : '[data-testid="input-state"]';
                   } else if (activeField.includes('exp')) {
-                    highlightSelector = '[data-testid="select-pandit-exp"]';
+                    highlightSelector = '[data-testid="input-pandit-exp"], #pandit-exp, [data-testid="select-pandit-exp"]';
                   } else {
                     highlightSelector = `#${activeField}, [data-testid="input-${activeField}"], [data-testid="select-${activeField}"]`;
                   }
@@ -1055,20 +1159,30 @@ export function useSaarthiVoice() {
               if (step2Fields.some(f => fieldLower.includes(f))) targetStep = 2;
               if (step3Fields.some(f => fieldLower.includes(f))) targetStep = 3;
 
-              console.log(`[PANDIT-STEP-TRACE] Dispatching saarthi-set-step event for activeField: "${activeField}" -> step: ${targetStep}`);
-              window.dispatchEvent(new CustomEvent('saarthi-set-step', { detail: { step: targetStep, activeField } }));
+              const payloadFields = (msg.payload && msg.payload.fields) || [];
+              const hasStep1FieldsInPayload = payloadFields.some((f: any) => {
+                const t = ((f && f.target) || '').toLowerCase();
+                return t.includes('city') || t.includes('state') || t.includes('name') || t.includes('phone') || t.includes('email') || t.includes('gender');
+              });
 
-              // Visually highlight active field in DOM
-              setTimeout(() => {
-                document.querySelectorAll('.saarthi-highlight').forEach(el => el.classList.remove('saarthi-highlight'));
-                const sel = `[data-testid="input-${activeField}"], #${activeField}, [data-testid="input-${activeField.replace('pandit-', '')}"]`;
-                const el = document.querySelector<HTMLElement>(sel);
-                if (el) {
-                  el.classList.add('saarthi-highlight');
-                  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  el.focus();
-                }
-              }, 100);
+              if (!hasStep1FieldsInPayload) {
+                console.log(`[PANDIT-STEP-TRACE] Dispatching saarthi-set-step event for activeField: "${activeField}" -> step: ${targetStep}`);
+                window.dispatchEvent(new CustomEvent('saarthi-set-step', { detail: { step: targetStep, activeField } }));
+
+                // Visually highlight active field in DOM
+                setTimeout(() => {
+                  document.querySelectorAll('.saarthi-highlight').forEach(el => el.classList.remove('saarthi-highlight'));
+                  const sel = `[data-testid="input-${activeField}"], #${activeField}, [data-testid="input-${activeField.replace('pandit-', '')}"]`;
+                  const el = document.querySelector<HTMLElement>(sel);
+                  if (el) {
+                    el.classList.add('saarthi-highlight');
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.focus();
+                  }
+                }, 100);
+              } else {
+                console.log(`[PANDIT-STEP-TRACE] Deferring step change to ${targetStep} because payload contains Step 1 fields to fill first.`);
+              }
             }
 
             console.log('[NAV-DEBUG] RAW AI_RESPONSE Received. action=', action, 'target=', JSON.stringify(target));
@@ -1183,7 +1297,7 @@ export function useSaarthiVoice() {
                 else if (fTarget.includes('state')) selector = isPanditField ? '[data-testid="input-pandit-state"]' : 'input[name="state"], [data-testid="input-state"]';
                 else if (fTarget.includes('email')) selector = isPanditField ? '[data-testid="input-pandit-email"]' : 'input[name="email"], input[type="email"], [data-testid="input-email"]';
                 else if (fTarget.includes('lang')) selector = '[data-testid^="toggle-lang-"]';
-                else if (fTarget.includes('exp')) selector = '[data-testid="select-pandit-exp"]';
+                else if (fTarget.includes('exp')) selector = '#pandit-exp, [data-testid="input-pandit-exp"], [data-testid="select-pandit-exp"]';
                 else if (fTarget.includes('spec')) selector = '[data-testid="select-pandit-spec"]';
                 else if (fTarget.includes('bio')) selector = '#pandit-bio, [data-testid="textarea-pandit-bio"]';
                 else if (fTarget.includes('achieve')) selector = '#pandit-achievements, [data-testid^="input-pandit-achievements-"]';
@@ -1229,11 +1343,46 @@ export function useSaarthiVoice() {
                       seq.push({ action: 'wait_for_selector', target: selector, delay: 150 });
                   }
 
-                  const isSelectDropdown = fTarget.includes('exp') || fTarget.includes('spec');
+                  const isSelectDropdown = fTarget.includes('spec');
                   const isLangToggle = fTarget.includes('lang');
-                  const isButtonGroup = fTarget.includes('gender') || fTarget.includes('availability') || fTarget.includes('service') || fTarget.includes('mode');
+                  const isServiceAreaToggle = fTarget === 'pandit-service-areas' || fTarget.includes('service');
+                  const isButtonGroup = (fTarget.includes('gender') || fTarget.includes('availability') || fTarget.includes('mode')) && !isServiceAreaToggle;
 
-                  if (isButtonGroup) {
+                  if (isServiceAreaToggle) {
+                    const queryLower = (fQuery || '').toLowerCase();
+                    const serviceCatalog = [
+                      'Delhi NCR', 'Mumbai', 'Bangalore', 'Chennai', 'Kolkata', 'Hyderabad',
+                      'Pune', 'Ahmedabad', 'Jaipur', 'Lucknow', 'Online Puja', 'PAN India',
+                      'North Zone', 'South Zone', 'East Zone', 'West Zone', 'Other'
+                    ];
+
+                    const queryParts = queryLower.split(/,| aur | and | & | \+ /i).map((p: string) => p.trim()).filter(Boolean);
+
+                    for (const area of serviceCatalog) {
+                      const areaLower = area.toLowerCase();
+                      const areaSlug = areaLower.replace(/\s+/g, '-');
+                      const btnSelector = `[data-testid="pill-pandit-service-areas-${areaSlug}"]`;
+
+                      const isSpoken = queryParts.some((p: string) => p === areaLower || p.includes(areaLower) || areaLower.includes(p)) || queryLower.includes(areaLower);
+
+                      let btnEl = document.querySelector<HTMLElement>(btnSelector);
+                      if (!btnEl) {
+                        const container = document.querySelector('[data-testid="pill-group-pandit-service-areas"]');
+                        if (container) {
+                          const btns = Array.from(container.querySelectorAll<HTMLElement>('button'));
+                          btnEl = btns.find(b => (b.textContent || '').toLowerCase().includes(areaLower)) || null;
+                        }
+                      }
+
+                      const isActive = btnEl ? (btnEl.textContent || '').includes('✓') : false;
+
+                      if (isSpoken && !isActive) {
+                        console.log(`[SAARTHI-VOICE] Toggling Service Area pill: ${area} (selector: ${btnSelector})`);
+                        seq.push({ action: 'move', target: btnSelector, delay: 450 });
+                        seq.push({ action: 'click', target: btnSelector, delay: 250 });
+                      }
+                    }
+                  } else if (isButtonGroup) {
                     const btnGroupSel = `[data-field="${fTarget}"] button, [data-testid="pill-group-${fTarget}"] button, [data-testid^="pill-${fTarget}"]`;
                     const queryLower = (fQuery || '').toLowerCase();
                     const buttons = Array.from(document.querySelectorAll<HTMLElement>(btnGroupSel));
@@ -1255,16 +1404,28 @@ export function useSaarthiVoice() {
                     seq.push({ action: 'select_option', target: selector, text: fQuery, delay: 350 });
                   } else if (isLangToggle) {
                     const queryLower = (fQuery || '').toLowerCase();
-                    const allPossibleLangs = ['hindi', 'sanskrit', 'english', 'gujarati', 'marathi', 'bengali', 'tamil', 'telugu'];
-                    
-                    for (const lang of allPossibleLangs) {
-                      const btnSelector = `[data-testid="toggle-lang-${lang}"]`;
-                      const isSpoken = queryLower.includes(lang) || (lang === 'english' && (queryLower.includes('angrezi') || queryLower.includes('english')));
-                      
-                      const btnEl = document.querySelector<HTMLElement>(btnSelector);
+                    const languagesList = [
+                      'Hindi', 'Sanskrit', 'English', 'Tamil', 'Telugu', 'Bengali',
+                      'Gujarati', 'Marathi', 'Kannada', 'Malayalam', 'Punjabi', 'Assamese', 'Odia'
+                    ];
+
+                    const queryParts = queryLower.split(/,| aur | and | & | \+ /i).map((p: string) => p.trim()).filter(Boolean);
+
+                    // Ensure Step 2 language toggle container is rendered in sequence
+                    seq.push({ action: 'wait_for_selector', target: '[data-testid="toggle-lang-hindi"]', delay: 200 });
+
+                    for (const lang of languagesList) {
+                      const langLower = lang.toLowerCase();
+                      const btnSelector = `[data-testid="toggle-lang-${langLower}"]`;
+                      const isSpoken = queryParts.some((p: string) => p === langLower || p.includes(langLower) || langLower.includes(p)) ||
+                                       queryLower.includes(langLower) ||
+                                       (langLower === 'english' && (queryLower.includes('angrezi') || queryLower.includes('english')));
+
+                      let btnEl = document.querySelector<HTMLElement>(btnSelector);
                       const isActive = btnEl ? (btnEl.textContent || '').includes('✓') : false;
-                      
+
                       if (isSpoken && !isActive) {
+                        console.log(`[SAARTHI-VOICE] Toggling Language pill: ${lang} (selector: ${btnSelector})`);
                         seq.push({ action: 'move', target: btnSelector, delay: 450 });
                         seq.push({ action: 'click', target: btnSelector, delay: 250 });
                       }
@@ -1282,6 +1443,23 @@ export function useSaarthiVoice() {
                   } else {
                     console.warn(`[FORM-FILL] Could not find element for target: ${fTarget}`);
                   }
+                }
+              }
+
+              const isPanditActive = activeField?.startsWith('pandit-') || window.location.pathname.includes('signup');
+              if (activeField && isPanditActive) {
+                const step2Fields = ['exp', 'gurukul', 'education', 'spec', 'lang', 'achievements', 'bio', 'service'];
+                const step3Fields = ['certfile', 'aadhaarfile', 'galleryfiles', 'password', 'confirm', 'codeofconduct'];
+                let targetStep: 1 | 2 | 3 = 1;
+                const fLower = activeField.toLowerCase();
+                if (step2Fields.some(f => fLower.includes(f))) targetStep = 2;
+                if (step3Fields.some(f => fLower.includes(f))) targetStep = 3;
+
+                if (targetStep >= 2) {
+                  seq.push({ action: 'click', target: '[data-testid="button-pandit-next-1"]', delay: 150 });
+                }
+                if (targetStep >= 3) {
+                  seq.push({ action: 'click', target: '[data-testid="button-pandit-next-2"]', delay: 150 });
                 }
               }
 
@@ -1419,6 +1597,11 @@ export function useSaarthiVoice() {
 
           // ----------- AUDIO_CHUNK handling -----------------------------------
           if (msg.type === 'AUDIO_CHUNK') {
+            if (!isVoiceEnabledRef.current) {
+              console.log('[Voice] Discarding AUDIO_CHUNK because voice is disabled');
+              audioQueueRef.current = [];
+              return;
+            }
             const isFinal = msg.payload.is_final || false;
             console.log('[STATE]', 'AUDIO_CHUNK is_final:', isFinal);
             
@@ -1427,6 +1610,7 @@ export function useSaarthiVoice() {
             }
             if (!audioContextRef.current) {
               audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+              (window as any)._saarthiAudioContext = audioContextRef.current;
             }
             if (audioContextRef.current.state === 'suspended') {
               console.log(`[Voice] AudioContext is suspended. Attempting resume()...`);
@@ -1562,9 +1746,21 @@ export function useSaarthiVoice() {
   }, []);
 
   const playNextAudio = useCallback(() => {
+    if (!isVoiceEnabledRef.current) {
+      console.log('[Voice] Discarding playNextAudio because voice is disabled');
+      audioQueueRef.current = [];
+      isPlayingRef.current = false;
+      return;
+    }
 
     if (isPlayingRef.current || audioQueueRef.current.length === 0 || !audioContextRef.current) {
       if (audioQueueRef.current.length === 0 && !isPlayingRef.current) {
+         if (!isVoiceEnabledRef.current) {
+           console.log('[Voice] Suppressing state transition because voice is disabled');
+           stateRef.current = 'idle';
+           setSaarthiState('idle');
+           return;
+         }
          console.log('[VERIFY-DIAGNOSTIC] (a) Audio playback complete (verification readout finished).');
          console.log('[VERIFY-DIAGNOSTIC] (b) Mic re-armed. Transitioning state: speaking -> listening.');
          isFinalChunkReceived.current = false;
@@ -1695,8 +1891,6 @@ export function useSaarthiVoice() {
     }
 
     console.log('[Voice] Initializing PERSISTENT microphone stream for WebSocket session...');
-    let silenceStart = Date.now();
-    let vadWarmupTime = Date.now() + 1000;
 
     navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
       .then(stream => {
@@ -1747,15 +1941,34 @@ export function useSaarthiVoice() {
             const base64data = uint8ArrayToBase64(pcm16);
 
             userRecordedBytesRef.current += pcm16.byteLength;
-            userHasSpokenRef.current = true; // Mark speech active as audio frames stream
             
-            if (chunkCounter % 10 === 0) {
-              console.log(`[VAD-DIAGNOSTIC] Streaming AUDIO_FRAME (chunk ${chunkCounter}). Total user bytes: ${userRecordedBytesRef.current}. Sending via WebSocket...`);
+            // Hard Safety Cap: If accumulated user bytes reach ~10 seconds (320,000 bytes), force AUDIO_END dispatch
+            if (userHasSpokenRef.current && !audioEndSent && userRecordedBytesRef.current >= 320000) {
+              console.warn('[HARD-SAFETY-CAP-TRIGGERED] User audio buffer reached 320,000 bytes (~10s). Forcing AUDIO_END dispatch.');
+              audioEndSent = true;
+              currentRequestIdRef.current = generateUUID();
+              activeRequestIdRef.current = currentRequestIdRef.current;
+              sendWsMessage({
+                type: 'AUDIO_END',
+                request_id: currentRequestIdRef.current,
+                payload: {
+                  current_page: window.location.pathname,
+                  active_field: activeFieldRef.current,
+                  dom_form_data: getFormStateData(),
+                }
+              });
+              userHasSpokenRef.current = false;
+              userRecordedBytesRef.current = 0;
+              setSaarthiState('idle');
+            } else {
+              if (chunkCounter % 10 === 0) {
+                console.log(`[VAD-DIAGNOSTIC] Streaming AUDIO_FRAME (chunk ${chunkCounter}). Total user bytes: ${userRecordedBytesRef.current}. Sending via WebSocket...`);
+              }
+              sendWsMessage({
+                type: 'AUDIO_FRAME',
+                payload: { data: base64data },
+              });
             }
-            sendWsMessage({
-              type: 'AUDIO_FRAME',
-              payload: { data: base64data },
-            });
           } else if (!isSessionReadyRef.current) {
             // Discard audio captured during connection/handshake gap so stale audio does not garble future utterances
             userRecordedBytesRef.current = 0;
@@ -1827,14 +2040,18 @@ export function useSaarthiVoice() {
 
           // Option 3 SNR Proximity VAD: Dynamic Threshold = backgroundNoise + 6.0 (or minimum 6.0)
           const DYNAMIC_THRESHOLD = Math.max(6.0, backgroundNoise + 6.0);
+          // Continuation Threshold with +2.0 hysteresis to prevent room noise spikes from holding timer indefinitely
+          const CONTINUATION_THRESHOLD = DYNAMIC_THRESHOLD + 2.0;
 
-          // Proximity Speech Detection: Require average > DYNAMIC_THRESHOLD consistently for >300ms (3 ticks)
+          // Proximity Speech Detection: Require average >= DYNAMIC_THRESHOLD consistently for >=3 ticks (300ms)
           if (average >= DYNAMIC_THRESHOLD) {
             speechConsecutiveTicks++;
-            lastSpeechTime = Date.now();
             if (speechConsecutiveTicks >= 3) {
               userHasSpokenRef.current = true;
               audioEndSent = false;
+              if (average >= CONTINUATION_THRESHOLD) {
+                lastSpeechTime = Date.now();
+              }
               console.log('[PROXIMITY-SPEECH-DETECTED]', 'avg:', average.toFixed(2), 'threshold:', DYNAMIC_THRESHOLD.toFixed(2), 'ticks:', speechConsecutiveTicks);
             }
           } else {
@@ -1847,8 +2064,9 @@ export function useSaarthiVoice() {
             console.log('[VAD-TICK]', 'avg:', average.toFixed(2), 'threshold:', DYNAMIC_THRESHOLD.toFixed(2), 'spoken:', userHasSpokenRef.current, 'bytes:', userRecordedBytesRef.current, 'silentFor:', silentFor);
           }
 
-          // 2.2 seconds silence after proximity speech = send AUDIO_END (4.0 seconds for phone/email/education fields to allow recalling digits/domains/names)
-          const isSlowField = ['pandit-phone', 'phone', 'pandit-email', 'email', 'pandit-gurukul', 'education'].includes(activeFieldRef.current);
+          // 2.2 seconds silence after proximity speech = send AUDIO_END (4.0 seconds for phone/email/education fields)
+          const currentActiveFld = activeFieldRef.current || '';
+          const isSlowField = ['pandit-phone', 'phone', 'pandit-email', 'email', 'pandit-gurukul', 'education'].includes(currentActiveFld);
           const silenceThreshold = isSlowField ? 4000 : 2200;
           if (userHasSpokenRef.current && !audioEndSent && silentFor >= silenceThreshold) {
             audioEndSent = true;
@@ -1868,6 +2086,7 @@ export function useSaarthiVoice() {
 
             userHasSpokenRef.current = false;
             userRecordedBytesRef.current = 0;
+            speechConsecutiveTicks = 0;
             setSaarthiState('idle');
             lastSpeechTime = Date.now();
           }
@@ -1923,5 +2142,5 @@ export function useSaarthiVoice() {
     setSaarthiState('listening');
   }, [setSaarthiState]);
 
-  return { isConnected, isSessionReady, error, stopSpeaking };
+  return { isConnected, isSessionReady, error, stopSpeaking, disableVoice, enableVoice };
 }

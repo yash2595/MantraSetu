@@ -133,7 +133,7 @@ export default function SignUp() {
   const [panditFirstName, setPanditFirstName] = useState('');
   const [panditLastName, setPanditLastName] = useState('');
   const [panditName, setPanditName] = useState('');
-  const [panditGender, setPanditGender] = useState<'Male' | 'Female' | 'Other'>('Male');
+  const [panditGender, setPanditGender] = useState<'Male' | 'Female' | 'Other' | ''>('');
   const [panditPhone, setPanditPhone] = useState('');
   const [panditEmail, setPanditEmail] = useState('');
   const [panditCity, setPanditCity] = useState('');
@@ -494,7 +494,7 @@ export default function SignUp() {
     setPanditFirstName('');
     setPanditLastName('');
     setPanditName('');
-    setPanditGender('Male');
+    setPanditGender('');
     setPanditPhone('');
     setPanditEmail('');
     setPanditCity('');
@@ -564,6 +564,7 @@ export default function SignUp() {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(panditEmail)) {
       newErrors.panditEmail = 'Please enter a valid email address.';
     }
+    if (!panditGender) newErrors.panditGender = 'Gender is required.';
     if (!panditCity.trim()) newErrors.panditCity = 'Primary City is required.';
     if (!panditState.trim()) newErrors.panditState = 'State is required.';
     setErrors(newErrors);
@@ -1081,6 +1082,7 @@ export default function SignUp() {
                               onChange={(e) => setPanditGender(e.target.value as any)}
                               style={{ display: 'none' }}
                             >
+                              <option value="">Select Gender</option>
                               <option value="Male">Male</option>
                               <option value="Female">Female</option>
                               <option value="Other">Other</option>
@@ -1164,13 +1166,19 @@ export default function SignUp() {
                         {/* Service Areas Multi-select Pills & Text */}
                         <div className="field">
                           <label>सेवा क्षेत्र * (Service Areas *)</label>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.3rem', marginBottom: '0.5rem' }}>
+                          <div
+                            data-field="pandit-service-areas"
+                            data-testid="pill-group-pandit-service-areas"
+                            style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.3rem', marginBottom: '0.5rem' }}
+                          >
                             {serviceAreasCatalog.map((area) => {
                               const active = selectedServiceAreas.includes(area);
+                              const areaSlug = area.toLowerCase().replace(/\s+/g, '-');
                               return (
                                 <button
                                   key={area}
                                   type="button"
+                                  data-testid={`pill-pandit-service-areas-${areaSlug}`}
                                   onClick={() => toggleServiceArea(area)}
                                   style={{
                                     padding: '0.3rem 0.65rem',
@@ -1235,8 +1243,9 @@ export default function SignUp() {
                                 setPanditExp(e.target.value);
                                 if (errors.panditExp) clearError('panditExp');
                               }}
-                              placeholder="0"
-                              data-testid="select-pandit-exp"
+                              placeholder="e.g. 10"
+                              data-testid="input-pandit-exp"
+                              style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid #d4c5b5', fontSize: '0.85rem' }}
                             />
                             {errors.panditExp && (
                               <span className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditExp}</span>
