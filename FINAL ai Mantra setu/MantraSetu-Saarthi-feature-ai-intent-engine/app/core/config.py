@@ -3,7 +3,7 @@
 from enum import Enum
 from functools import lru_cache
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,6 +41,27 @@ class Settings(BaseSettings):
     api_v1_prefix: str = Field(default="/api/v1")
     api_base_url: str = Field(default="http://localhost:8000")
     log_level: str = Field(default="INFO")
+    cors_origins: str = Field(default="")
+    voice_ticket_secret: str = Field(
+        default="mantrasetu_voice_ticket_secret_shared_2026",
+        validation_alias=AliasChoices("VOICE_TICKET_SECRET", "voice_ticket_secret"),
+    )
+    jwt_algorithm: str = Field(default="HS256")
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        default_dev = [
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:3000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:3000",
+        ]
+        if self.cors_origins:
+            prod_origins = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+            return list(dict.fromkeys(default_dev + prod_origins))
+        return default_dev
 
     application: ApplicationSettings = Field(default_factory=ApplicationSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)

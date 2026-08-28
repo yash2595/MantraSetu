@@ -16,6 +16,10 @@ database = client[DATABASE_NAME]
 
 
 async def check_database_connection():
-    # Skip actual DB ping during development to avoid blocking startup when MongoDB is unavailable.
-    print("[INFO] Skipping MongoDB connection check (development mode).")
-    return
+    try:
+        print("[INFO] Creating MongoDB indexes...")
+        await database["users"].create_index("email", unique=True)
+        await database["pandit_applications"].create_index("email", unique=True)
+        print("[INFO] MongoDB indexes created successfully.")
+    except Exception as e:
+        print(f"[ERROR] Failed to create MongoDB indexes: {e}")

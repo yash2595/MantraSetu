@@ -65,6 +65,8 @@ class TestServiceDiscoveryLoadBalancingAndScaling(unittest.TestCase):
         self.assertGreaterEqual(len(discovered), 2)
 
     def test_load_balancing_and_failover(self):
+        ep2 = ServiceEndpoint(endpoint_id="ep_api_02", service_name="api_gateway", port=8001)
+        self.registry.register_service(ep2)
         endpoints = self.discovery.discover_service("api_gateway")
         selected = self.balancer.select_endpoint(endpoints, LoadBalancingAlgorithm.ROUND_ROBIN)
         self.assertIsNotNone(selected)

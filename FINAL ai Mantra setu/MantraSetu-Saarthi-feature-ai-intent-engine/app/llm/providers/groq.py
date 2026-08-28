@@ -35,7 +35,7 @@ class GroqProvider(BaseLLMProvider):
         self._settings = settings or llm_settings
         self._api_key = (
             api_key
-            or (self._settings.groq_api_key.get_secret_value() if self._settings.groq_api_key else None)
+            or (self._settings.groq_api_key.get_secret_value() if hasattr(self._settings, 'groq_api_key') and self._settings.groq_api_key else None)
             or os.getenv("GROQ_API_KEY", "")
         )
         self._model = model or os.getenv("GROQ_LLM_MODEL", "llama-3.3-70b-versatile")
@@ -109,7 +109,7 @@ class GroqProvider(BaseLLMProvider):
         try:
             from groq import AsyncGroq
 
-            client = AsyncGroq(api_key=self._api_key)
+            client = AsyncGroq(api_key=self._api_key, timeout=15.0)
 
             temp = request.temperature if request.temperature is not None else self._settings.temperature
             max_toks = request.max_tokens or self._settings.max_tokens
@@ -156,9 +156,62 @@ class GroqProvider(BaseLLMProvider):
                 "Groq generation timed out after 30.0s", provider=self.provider_name
             )
         except Exception as e:
-            logger.error("Groq generation failed: %s", str(e), exc_info=True)
+            err_str = str(e)
+            # GROQ RATE-LIMIT HARDENING: Auto-retry on 429 with fast fallback model
+            # instead of raising error and leaving user stuck with a freeze/apology
+            if "429" in err_str or "rate_limit" in err_str.lower() or "Rate limit" in err_str:
+                fast_model = os.getenv("GROQ_LLM_MODEL_FAST", "openai/gpt-oss-20b")
+                if self._model != fast_model:
+                    logger.warning(
+                        "[GROQ-429-FALLBACK] Rate limit hit on %s. Retrying with fast model: %s",
+                        self._model, fast_model
+                    )
+                    try:
+                        from groq import AsyncGroq
+                        fallback_client = AsyncGroq(api_key=self._api_key, timeout=15.0)
+                        fallback_kw = {
+                            "model": fast_model,
+                            "messages": messages,
+                            "temperature": request.temperature if request.temperature is not None else self._settings.temperature,
+                        }
+                        if request.max_tokens or self._settings.max_tokens:
+                            fallback_kw["max_tokens"] = request.max_tokens or self._settings.max_tokens
+                        if request.stop:
+                            fallback_kw["stop"] = request.stop
+
+                        fallback_response = await asyncio.wait_for(
+                            fallback_client.chat.completions.create(**fallback_kw),
+                            timeout=20.0,
+                        )
+                        duration_ms = (time.perf_counter() - start_time) * MS_PER_SECOND
+                        content = fallback_response.choices[0].message.content or ""
+                        usage_data = getattr(fallback_response, "usage", None)
+                        usage = TokenUsage(
+                            prompt_tokens=getattr(usage_data, "prompt_tokens", 0) if usage_data else 0,
+                            completion_tokens=getattr(usage_data, "completion_tokens", 0) if usage_data else 0,
+                            total_tokens=getattr(usage_data, "total_tokens", 0) if usage_data else 0,
+                        )
+                        logger.info("[GROQ-429-FALLBACK] Succeeded with %s in %.0fms", fast_model, duration_ms)
+                        return LLMResponse(
+                            content=content,
+                            model=fast_model,
+                            provider=self.provider_name,
+                            usage=usage,
+                            finish_reason="stop",
+                            latency_ms=duration_ms,
+                        )
+                    except Exception as fallback_err:
+                        logger.error(
+                            "[GROQ-429-FALLBACK] Fast model %s also failed: %s",
+                            fast_model, fallback_err
+                        )
+                        raise ExternalServiceError(
+                            f"Groq 429 and fast-model fallback also failed: {fallback_err}",
+                            provider=self.provider_name,
+                        ) from fallback_err
+            logger.error("Groq generation failed: %s", err_str, exc_info=True)
             raise ExternalServiceError(
-                f"Groq API error: {str(e)}", provider=self.provider_name
+                f"Groq API error: {err_str}", provider=self.provider_name
             ) from e
 
     async def stream_generate(self, request: LLMRequest) -> AsyncGenerator[str, None]:
@@ -173,7 +226,7 @@ class GroqProvider(BaseLLMProvider):
         try:
             from groq import AsyncGroq
 
-            client = AsyncGroq(api_key=self._api_key)
+            client = AsyncGroq(api_key=self._api_key, timeout=15.0)
 
             temp = request.temperature if request.temperature is not None else self._settings.temperature
             max_toks = request.max_tokens or self._settings.max_tokens
@@ -189,11 +242,19 @@ class GroqProvider(BaseLLMProvider):
             if request.stop:
                 kw["stop"] = request.stop
 
-            stream = await client.chat.completions.create(**kw)
+            stream = await asyncio.wait_for(
+                client.chat.completions.create(**kw),
+                timeout=10.0
+            )
 
-            async for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+            iterator = stream.__aiter__()
+            while True:
+                try:
+                    chunk = await asyncio.wait_for(iterator.__anext__(), timeout=5.0)
+                    if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                        yield chunk.choices[0].delta.content
+                except StopAsyncIteration:
+                    break
 
         except Exception as e:
             logger.error("Groq streaming failed: %s", str(e), exc_info=True)

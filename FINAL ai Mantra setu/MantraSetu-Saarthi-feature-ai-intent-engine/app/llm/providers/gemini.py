@@ -56,7 +56,7 @@ class GeminiProvider(BaseLLMProvider):
             logger.warning("GEMINI_API_KEY is not set.")
             self._client = None
         else:
-            self._client = genai.Client(api_key=api_key)
+            self._client = genai.Client(api_key=api_key, http_options={"timeout": 15.0})
 
         self._model = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
 

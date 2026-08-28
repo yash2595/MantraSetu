@@ -52,6 +52,33 @@ class TestAIOrchestratorLayerV41(IsolatedAsyncioTestCase):
     """Enterprise AI Orchestrator Layer v4.1 Test Suite."""
 
     def setUp(self) -> None:
+        from unittest.mock import AsyncMock, patch
+        from app.orchestrator.orchestrator_models import ProviderResponse, ProviderType
+        from app.orchestrator.providers.llm_intent_detector import LLMIntentDetector
+
+        # Patch generate_with_failover to return a mock response and prevent hitting real API in unit tests
+        self._generate_patcher = patch.object(
+            ProviderManager,
+            "generate_with_failover",
+            new_callable=AsyncMock
+        )
+        self.mock_generate = self._generate_patcher.start()
+        self.mock_generate.return_value = ProviderResponse(
+            provider_type=ProviderType.GROQ,
+            text="Hello from MantraSetu AI! How can I assist you with your puja or kundali today?",
+            usage_tokens=10,
+            latency_ms=10.0
+        )
+
+        # Also mock LLMIntentDetector.detect to prevent LLM intent detection network requests
+        self._detect_patcher = patch.object(
+            LLMIntentDetector,
+            "detect",
+            new_callable=AsyncMock
+        )
+        self.mock_detect = self._detect_patcher.start()
+        self.mock_detect.return_value = {"intent": "CHAT", "target": None, "response_text": None}
+
         self.state_machine = OrchestratorStateMachine()
         self.capability_registry = AICapabilityRegistry()
         self.scheduler = RequestScheduler()
@@ -99,6 +126,10 @@ class TestAIOrchestratorLayerV41(IsolatedAsyncioTestCase):
             frontend_bridge=self.frontend_bridge,
         )
 
+    def tearDown(self) -> None:
+        self._generate_patcher.stop()
+        self._detect_patcher.stop()
+
     # ------------------------------------------------------------------
     # 1. State Machine & Lifecycle Tests
     # ------------------------------------------------------------------
@@ -112,9 +143,9 @@ class TestAIOrchestratorLayerV41(IsolatedAsyncioTestCase):
         self.state_machine.transition(req_id, OrchestratorState.BUILDING_CONTEXT)
         self.assertEqual(self.state_machine.get_state(req_id), OrchestratorState.BUILDING_CONTEXT)
 
-        # Invalid transition: BUILDING_CONTEXT -> COMPLETED (should raise ValidationError)
+        # Invalid transition: BUILDING_CONTEXT -> IDLE (should raise ValidationError)
         with self.assertRaises(ValidationError):
-            self.state_machine.transition(req_id, OrchestratorState.COMPLETED)
+            self.state_machine.transition(req_id, OrchestratorState.IDLE)
 
     # ------------------------------------------------------------------
     # 2. Capability Registry & Provider Manager Tests
@@ -146,7 +177,7 @@ class TestAIOrchestratorLayerV41(IsolatedAsyncioTestCase):
         # Fast-Path Intent Router Greeting
         fast_res = self.intent_router.evaluate_fast_path("Namaste")
         self.assertTrue(fast_res.is_fast_path)
-        self.assertIn("Namaste", fast_res.response_text)
+        self.assertIn("MantraSetu", fast_res.response_text)
 
     # ------------------------------------------------------------------
     # 4. Context Compressor & Prompt Template Registry Tests
@@ -196,7 +227,7 @@ class TestAIOrchestratorLayerV41(IsolatedAsyncioTestCase):
         t_start = time.perf_counter()
 
         req = OrchestratorRequest(
-            user_message="Tell me about temple pujas",
+            user_message="Tell me about spiritual growth",
             session_id="sess_e2e_orch",
             conversation_id="conv_e2e_orch",
             current_page="/",

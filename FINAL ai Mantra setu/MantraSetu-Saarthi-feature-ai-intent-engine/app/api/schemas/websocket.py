@@ -25,6 +25,7 @@ class ProtocolMessageType(StrEnum):
     AUDIO_END = "AUDIO_END"
     PING = "PING"
     PONG = "PONG"
+    PAGE_CHANGE = "PAGE_CHANGE"
     ERROR = "ERROR"
     DISCONNECT = "DISCONNECT"
 

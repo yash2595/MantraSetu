@@ -67,7 +67,7 @@ class TestProductionConfigValidation(unittest.TestCase):
         good_env = {
             "ENVIRONMENT": "production",
             "ALLOW_MOCK_PROVIDERS": "false",
-            "OPENAI_API_KEY": "sk-proj-prod-real-key-100",
+            "OPENAI_API_KEY": "prod-real-key-100",
             "SARVAM_API_KEY": "sarvam-prod-real-key-100",
             "QWEN_API_KEY": "qwen-prod-real-key-100",
             "JWT_SECRET_KEY": "super_secret_production_jwt_signing_key_32bytes",

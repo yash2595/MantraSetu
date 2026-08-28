@@ -54,21 +54,7 @@ class SarvamAdapter(ITTSProvider):
         logger.info("Sarvam TTS stream started", extra={"request_id": req_id_str})
 
         try:
-            import io
-            from gtts import gTTS
-            
-            logger.info(f"Using gTTS fallback to generate audio for: {request.text}")
-            audio_bytes = b""
-            try:
-                tts = gTTS(text=request.text, lang='hi')
-                fp = io.BytesIO()
-                tts.write_to_fp(fp)
-                audio_bytes = fp.getvalue()
-            except Exception as gtts_err:
-                logger.warning(
-                    "gTTS generation failed: %s. Yielding empty fallback audio chunk.",
-                    gtts_err
-                )
+            logger.error("Sarvam TTS is not implemented/configured. Yielding empty fallback audio chunk.")
             
             if req_id_str in self._active_requests:
                 yield AudioChunk(
@@ -76,10 +62,10 @@ class SarvamAdapter(ITTSProvider):
                     session_id=request.session_id,
                     conversation_id=request.conversation_id,
                     sequence_number=0,
-                    data=audio_bytes,
+                    data=b"",
                     is_final=True,
                     timestamp_ms=int(time.time() * 1000),
-                    metadata={"status": "gtts_fallback_error" if audio_bytes == b"" else "gtts_fallback", "provider": self.provider_name},
+                    metadata={"status": "error", "provider": self.provider_name, "error": "sarvam_not_implemented"},
                 )
         finally:
             self._active_requests.discard(req_id_str)

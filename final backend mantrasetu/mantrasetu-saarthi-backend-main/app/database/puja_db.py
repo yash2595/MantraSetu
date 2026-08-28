@@ -7,6 +7,9 @@ puja_collection = database["pujas"]
 async def get_all_pujas() -> list[dict]:
     cursor = puja_collection.find({}, {"_id": 0})
     return await cursor.to_list(length=None)
+
+async def get_puja_by_id(puja_id: str) -> dict | None:
+    return await puja_collection.find_one({"id": puja_id}, {"_id": 0})
 booking_collection = database["puja_bookings"]
 
 

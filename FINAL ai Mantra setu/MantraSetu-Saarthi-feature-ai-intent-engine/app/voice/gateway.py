@@ -50,6 +50,9 @@ class VoiceGateway:
         self._speech_recognizer = speech_recognizer
         self._buffers: dict[str, AudioBuffer] = {}
         self._aggregators: dict[str, TranscriptAggregator] = {}
+        self._vads: dict[str, Any] = {}
+        self._cached_pujas = None
+        self._fetching_pujas_task = None
 
     @property
     def session_manager(self) -> VoiceSessionManager:
@@ -58,6 +61,21 @@ class VoiceGateway:
     @property
     def speech_recognizer(self) -> ISpeechRecognizer:
         return self._speech_recognizer
+
+    async def _fetch_puja_list(self) -> None:
+        try:
+            import httpx
+            import os
+            backend_url = os.getenv("MAIN_BACKEND_URL") or os.getenv("API_BASE_URL") or "http://localhost:8000"
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                resp = await client.get(f"{backend_url}/puja/list")
+                if resp.status_code == 200:
+                    pujas = resp.json()
+                    puja_names = [p.get("title") for p in pujas if p.get("title")]
+                    self._cached_pujas = puja_names
+                    logger.info(f"Successfully cached {len(puja_names)} pujas from main backend")
+        except Exception as e:
+            logger.warning(f"Could not fetch dynamic puja list in background: {e}")
 
     async def start_voice_session(
         self,
@@ -78,23 +96,19 @@ class VoiceGateway:
             session_id=session_id,
         )
         
-        # Fetch dynamic puja list from main backend
-        try:
-            import httpx
-            import os
-            backend_url = os.getenv("MAIN_BACKEND_URL", "http://localhost:5000")
-            async with httpx.AsyncClient(timeout=2.0) as client:
-                resp = await client.get(f"{backend_url}/puja/list")
-                if resp.status_code == 200:
-                    pujas = resp.json()
-                    puja_names = [p.get("title") for p in pujas if p.get("title")]
-                    session.context_data["pujas"] = puja_names
-                    logger.info(f"Fetched {len(puja_names)} pujas for session {session.session_id}")
-        except Exception as e:
-            logger.warning(f"Could not fetch dynamic puja list from main backend: {e}")
+        # Use cached puja names if available, and trigger non-blocking background fetch if empty
+        import asyncio
+        if self._cached_pujas is not None:
+            session.context_data["pujas"] = self._cached_pujas
+        else:
+            session.context_data["pujas"] = []
+            if not self._fetching_pujas_task or self._fetching_pujas_task.done():
+                self._fetching_pujas_task = asyncio.create_task(self._fetch_puja_list())
 
         self._buffers[session.session_id] = AudioBuffer()
         self._aggregators[session.session_id] = TranscriptAggregator()
+        from app.voice.vad import VoiceActivityDetector
+        self._vads[session.session_id] = VoiceActivityDetector(min_speech_duration_sec=0.15, sample_rate=sample_rate, safety_cap_sec=12.0)
         await self._speech_recognizer.start_session(session)
         return session
 
@@ -115,10 +129,21 @@ class VoiceGateway:
             self._buffers[session_id] = AudioBuffer()
         if session_id not in self._aggregators:
             self._aggregators[session_id] = TranscriptAggregator()
+        if session_id not in self._vads:
+            from app.voice.vad import VoiceActivityDetector
+            self._vads[session_id] = VoiceActivityDetector(min_speech_duration_sec=0.15, sample_rate=session.sample_rate or 16000, safety_cap_sec=12.0)
 
         buffer = self._buffers.get(session_id)
         if buffer:
             buffer.append(chunk)
+            
+        vad = self._vads.get(session_id)
+        if vad:
+            safety_cap_hit = vad.process_chunk(chunk)
+            if safety_cap_hit:
+                from app.voice.exceptions import SafetyCapExceededError
+                logger.warning(f"[VAD-SAFETY] Session {session_id} exceeded max duration of {vad.safety_cap_sec}s! Raising exception to force finalization.")
+                raise SafetyCapExceededError(f"Session {session_id} exceeded maximum allowed duration.")
 
         partial_chunk = await self._speech_recognizer.stream_audio(session, chunk)
         if partial_chunk and partial_chunk.text:
@@ -147,9 +172,13 @@ class VoiceGateway:
 
         # ── Pre-STT VAD Gate: Verify minimum 0.25s active human speech ──
         raw_pcm_bytes = buffer.flush()
-        from app.voice.vad import VoiceActivityDetector
-        vad = VoiceActivityDetector(min_speech_duration_sec=0.15, sample_rate=session.sample_rate or 16000)
-        vad_analysis = vad.analyze_audio_buffer(raw_pcm_bytes)
+        vad = self._vads.pop(session_id, None)
+        if not vad:
+            from app.voice.vad import VoiceActivityDetector
+            vad = VoiceActivityDetector(min_speech_duration_sec=0.15, sample_rate=session.sample_rate or 16000, safety_cap_sec=12.0)
+            vad.process_chunk(raw_pcm_bytes)
+        
+        vad_analysis = vad.get_analysis()
 
         # ── [DIAG-INVESTIGATION] VAD Gate Decision ──
         logger.info(
@@ -375,6 +404,7 @@ class VoiceGateway:
                 )
             self._buffers.pop(session_id, None)
             self._aggregators.pop(session_id, None)
+            self._vads.pop(session_id, None)
             return repeat_response, ""
         else:
             session.stt_fail_count = 0  # Reset fail count on clean transcript
@@ -388,6 +418,7 @@ class VoiceGateway:
             logger.info("[STT-DIAGNOSTIC] Session %s | Empty transcript detected (silence/background noise). Suppressing AI response.", session.session_id)
             self._buffers.pop(session_id, None)
             self._aggregators.pop(session_id, None)
+            self._vads.pop(session_id, None)
             await self._session_manager.close_session(session_id, status=VoiceSessionStatus.COMPLETED)
             
             from app.orchestrator.orchestrator_models import OrchestratorResponse, ResponseType
@@ -439,6 +470,9 @@ class VoiceGateway:
             self._buffers[session_id] = AudioBuffer()
         if session_id not in self._aggregators:
             self._aggregators[session_id] = TranscriptAggregator()
+        if session_id not in self._vads:
+            from app.voice.vad import VoiceActivityDetector
+            self._vads[session_id] = VoiceActivityDetector(min_speech_duration_sec=0.15, sample_rate=session.sample_rate or 16000, safety_cap_sec=12.0)
 
         return response, final_text
 
@@ -449,4 +483,5 @@ class VoiceGateway:
             await self._speech_recognizer.cancel_session(session)
             self._buffers.pop(session_id, None)
             self._aggregators.pop(session_id, None)
+            self._vads.pop(session_id, None)
             await self._session_manager.close_session(session_id, status=VoiceSessionStatus.CANCELLED)

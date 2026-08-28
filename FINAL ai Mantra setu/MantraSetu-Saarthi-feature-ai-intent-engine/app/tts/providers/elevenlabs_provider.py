@@ -80,6 +80,8 @@ class ElevenLabsProvider(BaseTextToSpeechProvider):
         
         import os
         self._api_key = os.environ.get("ELEVENLABS_API_KEY", "")
+        if not self._api_key:
+            raise ValueError("ELEVENLABS_API_KEY environment variable is missing")
         self._voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "pFZP5JQG7iQjIQuC4Bku")
 
         if not self._api_key:
@@ -142,7 +144,8 @@ class ElevenLabsProvider(BaseTextToSpeechProvider):
             "model_id": self.model_name,
             "voice_settings": {
                 "stability": 0.5,
-                "similarity_boost": 0.75
+                "similarity_boost": 0.75,
+                "speed": float(os.environ.get("ELEVENLABS_SPEED", "0.88"))
             }
         }
 

@@ -11,6 +11,7 @@ from typing import Any
 from app.core.models import ComponentHealth, SystemHealthStatus
 from app.orchestrator.ai_capability_registry import AICapabilityRegistry
 from app.orchestrator.gemini_bridge import GeminiLLMBridge
+from app.orchestrator.groq_bridge import GroqLLMBridge
 from app.orchestrator.orchestrator_contracts import ILLMProviderBridge
 from app.orchestrator.orchestrator_exceptions import ProviderError
 from app.orchestrator.orchestrator_models import (
@@ -36,9 +37,12 @@ class ProviderManager:
         default_provider_type: ProviderType = ProviderType.MOCK,
     ) -> None:
         self._capability_registry = capability_registry or AICapabilityRegistry()
-        self._default_provider_type = ProviderType.GEMINI
+        self._default_provider_type = ProviderType.GROQ
+        self._primary_bridge: ILLMProviderBridge = GroqLLMBridge()
+        self._fallback_bridge: ILLMProviderBridge = GeminiLLMBridge()
         self._providers: dict[ProviderType, ILLMProviderBridge] = {
-            ProviderType.GEMINI: GeminiLLMBridge(),
+            ProviderType.GROQ: self._primary_bridge,
+            ProviderType.GEMINI: self._fallback_bridge,
         }
         self._lock = RLock()
         self._started_at = datetime.now(timezone.utc).isoformat()
@@ -66,12 +70,17 @@ class ProviderManager:
             return await primary.generate(context)
         except Exception as e:
             logger.warning("Primary provider %s failed: %s", primary, e)
-            return ProviderResponse(
-                provider_type=ProviderType.GEMINI,
-                text="The AI Service encountered an error or the Gemini API key is missing.",
-                usage_tokens=0,
-                latency_ms=0,
-            )
+            self._failovers_count += 1
+            try:
+                return await self._fallback_bridge.generate(context)
+            except Exception as fallback_err:
+                logger.error("Fallback provider also failed: %s", fallback_err)
+                return ProviderResponse(
+                    provider_type=ProviderType.GEMINI,
+                    text="The AI Service encountered an error. Please try again.",
+                    usage_tokens=0,
+                    latency_ms=0,
+                )
 
     # ------------------------------------------------------------------
     # Diagnostics, Telemetry & Health APIs

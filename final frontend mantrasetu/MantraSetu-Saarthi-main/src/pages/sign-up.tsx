@@ -167,6 +167,33 @@ export default function SignUp() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formSent, setFormSent] = useState(false);
+  const [draftLink, setDraftLink] = useState<string | null>(null);
+
+  const handleSaveDraft = async () => {
+    setIsSubmitting(true);
+    try {
+      const payload = getPersistableData({
+        panditStep,
+        panditFirstName, panditLastName, panditName, panditGender,
+        panditPhone, panditEmail, panditCity, panditState,
+        panditAvailabilityMode, selectedServiceAreas,
+        panditExp, panditEducation, panditGurukul,
+        panditSpec, selectedSpecs, panditLanguages,
+        panditAchievements, panditBio
+      });
+      const res = await authService.saveDraft(payload);
+      if (res.status === 'success') {
+        const link = `${window.location.origin}/signup?role=pandit&draft=${res.draft_id}`;
+        setDraftLink(link);
+      }
+    } catch (err) {
+      console.error('Save draft failed:', err);
+      alert('Failed to save draft. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -205,19 +232,105 @@ export default function SignUp() {
   };
 
 
-  // ── SESSION STORAGE PERSISTENCE & RELOAD RESTORATION ──
-  // Smart detection: only restore draft if an active voice session exists (mid-fill F5 refresh).
-  // On a completely fresh visit (new tab / new browser session), saarthi_session_id is absent
-  // from sessionStorage → clear any stale draft and start blank.
+  const [emailDuplicateError, setEmailDuplicateError] = useState('');
+  const [phoneDuplicateError, setPhoneDuplicateError] = useState('');
+
+  // Debounced Duplicate Check for Pandit Email & Phone
   useEffect(() => {
-    const loadDraft = () => {
+    const handler = setTimeout(async () => {
+      const emailToCheck = panditEmail.trim();
+      const phoneToCheck = panditPhone.trim();
+      
+      if (!emailToCheck && !phoneToCheck) {
+        setEmailDuplicateError('');
+        setPhoneDuplicateError('');
+        return;
+      }
+      
+      try {
+        const response = await authService.checkDuplicate(
+          emailToCheck || undefined,
+          phoneToCheck || undefined
+        );
+        
+        if (response.is_duplicate && response.fields) {
+          if (response.fields.includes('email')) setEmailDuplicateError('This email is already registered.');
+          else setEmailDuplicateError('');
+          
+          if (response.fields.includes('phone')) setPhoneDuplicateError('This phone number is already registered.');
+          else setPhoneDuplicateError('');
+        } else {
+          setEmailDuplicateError('');
+          setPhoneDuplicateError('');
+        }
+      } catch (err) {
+        console.error('Duplicate check failed:', err);
+      }
+    }, 500);
+    
+    return () => clearTimeout(handler);
+  }, [panditEmail, panditPhone]);
+
+  // ── SESSION STORAGE PERSISTENCE & RELOAD RESTORATION ──
+  useEffect(() => {
+    const populateFormData = (data: any) => {
+      // ── Step position (CRITICAL: restore saved step during mid-form refresh) ──
+      if (data.panditStep && [1, 2, 3].includes(data.panditStep)) {
+        console.log(`[PANDIT-STEP-TRACE] Restoring saved panditStep from draft: ${data.panditStep}`);
+        setPanditStep(data.panditStep as 1 | 2 | 3);
+      }
+
+      // ── Step 1: Personal & Contact ──
+      if (data.panditFirstName) setPanditFirstName(data.panditFirstName);
+      if (data.panditLastName) setPanditLastName(data.panditLastName);
+      if (data.panditFirstName || data.panditLastName) {
+        setPanditName(`${data.panditFirstName ?? ''} ${data.panditLastName ?? ''}`.trim());
+      }
+      if (data.panditGender) setPanditGender(data.panditGender);
+      if (data.panditPhone) setPanditPhone(data.panditPhone);
+      if (data.panditEmail) setPanditEmail(data.panditEmail);
+      if (data.panditCity) setPanditCity(data.panditCity);
+      if (data.panditState) setPanditState(data.panditState);
+      if (data.panditAvailabilityMode) setPanditAvailabilityMode(data.panditAvailabilityMode);
+      if (Array.isArray(data.selectedServiceAreas)) setSelectedServiceAreas(data.selectedServiceAreas);
+
+      // ── Step 2: Vedic Qualifications, Experience & Achievements ──
+      if (data.panditExp) setPanditExp(data.panditExp);
+      if (data.panditEducation) setPanditEducation(data.panditEducation);
+      if (data.panditGurukul) setPanditGurukul(data.panditGurukul);
+      if (data.panditSpec) setPanditSpec(data.panditSpec);
+      if (Array.isArray(data.selectedSpecs)) setSelectedSpecs(data.selectedSpecs);
+      if (Array.isArray(data.panditLanguages)) setPanditLanguages(data.panditLanguages);
+      if (Array.isArray(data.panditAchievements)) setPanditAchievements(data.panditAchievements);
+      if (data.panditBio) setPanditBio(data.panditBio);
+    };
+
+    const loadDraft = async () => {
+      // 1. Check if URL has a draft token
+      const searchParams = new URLSearchParams(location.search);
+      const draftId = searchParams.get('draft');
+      
+      if (draftId) {
+        console.log(`[DRAFT] Found draft token in URL: ${draftId}. Fetching from backend...`);
+        try {
+          const res = await authService.getDraft(draftId);
+          if (res.status === 'success' && res.data) {
+            setUserType('pandit'); // CRITICAL: Set user type to pandit so the form renders!
+            populateFormData(res.data);
+            console.log('[DRAFT] Restored form data from backend draft');
+            // Clean up URL so refresh doesn't refetch
+            window.history.replaceState({}, document.title, location.pathname + "?role=" + (userType || 'pandit'));
+          }
+        } catch (err) {
+          console.error('[DRAFT] Failed to fetch draft', err);
+        }
+        return; // Don't check sessionStorage if we just loaded from URL
+      }
+
+      // 2. Fallback to Session Storage if no URL token
       const saved = sessionStorage.getItem('ms_saarthi_pandit_form_data');
       if (!saved) return; // Nothing to restore
 
-      // KEY DISTINCTION: Is there an active voice onboarding session?
-      // saarthi_session_id is written by useSaarthiVoice.ts on WebSocket CONNECT.
-      // Exists  → mid-fill F5 refresh → RESTORE form data normally.
-      // Absent  → new browser visit  → CLEAR stale draft so form is blank.
       const hasActiveVoiceSession = !!sessionStorage.getItem('saarthi_session_id');
 
       if (!hasActiveVoiceSession) {
@@ -227,47 +340,17 @@ export default function SignUp() {
         return;
       }
 
-      // Active session exists → safe to restore (mid-fill F5 refresh)
       try {
         const data = JSON.parse(saved);
-
-        // ── Step position (CRITICAL: restore saved step during mid-form refresh) ──
-        if (data.panditStep && [1, 2, 3].includes(data.panditStep)) {
-          console.log(`[PANDIT-STEP-TRACE] Restoring saved panditStep from draft: ${data.panditStep}`);
-          setPanditStep(data.panditStep as 1 | 2 | 3);
-        }
-
-        // ── Step 1: Personal & Contact ──
-        if (data.panditFirstName) setPanditFirstName(data.panditFirstName);
-        if (data.panditLastName) setPanditLastName(data.panditLastName);
-        if (data.panditFirstName || data.panditLastName) {
-          setPanditName(`${data.panditFirstName ?? ''} ${data.panditLastName ?? ''}`.trim());
-        }
-        if (data.panditGender) setPanditGender(data.panditGender);
-        if (data.panditPhone) setPanditPhone(data.panditPhone);
-        if (data.panditEmail) setPanditEmail(data.panditEmail);
-        if (data.panditCity) setPanditCity(data.panditCity);
-        if (data.panditState) setPanditState(data.panditState);
-        if (data.panditAvailabilityMode) setPanditAvailabilityMode(data.panditAvailabilityMode);
-        if (Array.isArray(data.selectedServiceAreas)) setSelectedServiceAreas(data.selectedServiceAreas);
-
-        // ── Step 2: Vedic Qualifications, Experience & Achievements ──
-        if (data.panditExp) setPanditExp(data.panditExp);
-        if (data.panditEducation) setPanditEducation(data.panditEducation);
-        if (data.panditGurukul) setPanditGurukul(data.panditGurukul);
-        if (data.panditSpec) setPanditSpec(data.panditSpec);
-        if (Array.isArray(data.selectedSpecs)) setSelectedSpecs(data.selectedSpecs);
-        if (Array.isArray(data.panditLanguages)) setPanditLanguages(data.panditLanguages);
-        if (Array.isArray(data.panditAchievements)) setPanditAchievements(data.panditAchievements);
-        if (data.panditBio) setPanditBio(data.panditBio);
-
+        populateFormData(data);
         console.log('[PERSISTENCE] Mid-fill refresh: restored Pandit form draft from sessionStorage.');
       } catch (e) {
         console.error('[PERSISTENCE] Failed to parse sessionStorage data', e);
       }
     };
+    
     loadDraft();
-  }, []);
+  }, [location.search, userType]);
 
   // ── VOICE ASSISTANT STEP SYNC ──
   // Listen for active_field changes from Saarthi voice agent and switch UI tab/step dynamically
@@ -542,6 +625,11 @@ export default function SignUp() {
     if (!terms) {
       newErrors.terms = 'You must agree to the Terms of Service and Privacy Policy.';
     }
+    if (emailDuplicateError || phoneDuplicateError) {
+      newErrors.panditEmail = emailDuplicateError ? 'Please use a different email.' : newErrors.panditEmail;
+      newErrors.panditPhone = phoneDuplicateError ? 'Please use a different phone number.' : newErrors.panditPhone;
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -576,6 +664,12 @@ export default function SignUp() {
     if (!panditExp.trim()) {
       newErrors.panditExp = 'Experience in years is required.';
     }
+    if (!panditEducation.trim() && !panditGurukul.trim()) {
+      newErrors.panditEducation = 'Education or Gurukul details are required.';
+    }
+    if (!panditBio.trim()) {
+      newErrors.panditBio = 'Bio is required.';
+    }
     if (panditLanguages.length === 0) {
       newErrors.panditLanguages = 'Please select at least one language.';
     }
@@ -588,6 +682,9 @@ export default function SignUp() {
 
   const validatePanditStep3 = () => {
     const newErrors: Record<string, string> = {};
+    if (!aadhaarFile) {
+      newErrors.aadhaarFile = 'ID Proof (Aadhaar) is required.';
+    }
     if (!panditPassword) {
       newErrors.panditPassword = 'Password is required.';
     } else if (panditPassword.length < 8) {
@@ -976,6 +1073,8 @@ export default function SignUp() {
                               onChange={(e) => handleFirstNameChange(e.target.value)}
                               placeholder="Enter your first name"
                               data-testid="input-pandit-first-name"
+                              aria-describedby="pandit-first-name-error"
+                              aria-invalid={Boolean(errors.panditFirstName)}
                             />
                             {/* Hidden input keeping backward compatibility with pandit-name testid */}
                             <input
@@ -985,7 +1084,7 @@ export default function SignUp() {
                               data-testid="input-pandit-name"
                             />
                             {errors.panditFirstName && (
-                              <span className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditFirstName}</span>
+                              <span id="pandit-first-name-error" className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditFirstName}</span>
                             )}
                           </div>
 
@@ -999,9 +1098,11 @@ export default function SignUp() {
                               onChange={(e) => handleLastNameChange(e.target.value)}
                               placeholder="Enter your last name"
                               data-testid="input-pandit-last-name"
+                              aria-describedby="pandit-last-name-error"
+                              aria-invalid={Boolean(errors.panditLastName)}
                             />
                             {errors.panditLastName && (
-                              <span className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditLastName}</span>
+                              <span id="pandit-last-name-error" className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditLastName}</span>
                             )}
                           </div>
                         </div>
@@ -1021,9 +1122,14 @@ export default function SignUp() {
                               }}
                               placeholder="Enter your email address"
                               data-testid="input-pandit-email"
+                              aria-describedby="pandit-email-error"
+                              aria-invalid={Boolean(errors.panditEmail || emailDuplicateError)}
                             />
                             {errors.panditEmail && (
-                              <span className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditEmail}</span>
+                              <span id="pandit-email-error" className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditEmail}</span>
+                            )}
+                            {!errors.panditEmail && emailDuplicateError && (
+                              <span id="pandit-email-error" className="field-error" role="alert" style={{ color: '#d93025' }}><ShieldAlert size={14} /> {emailDuplicateError}</span>
                             )}
                           </div>
 
@@ -1040,9 +1146,14 @@ export default function SignUp() {
                               }}
                               placeholder="Enter your phone number"
                               data-testid="input-pandit-phone"
+                              aria-describedby="pandit-phone-error"
+                              aria-invalid={Boolean(errors.panditPhone || phoneDuplicateError)}
                             />
                             {errors.panditPhone && (
-                              <span className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditPhone}</span>
+                              <span id="pandit-phone-error" className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditPhone}</span>
+                            )}
+                            {!errors.panditPhone && phoneDuplicateError && (
+                              <span id="pandit-phone-error" className="field-error" role="alert" style={{ color: '#d93025' }}><ShieldAlert size={14} /> {phoneDuplicateError}</span>
                             )}
                           </div>
                         </div>
@@ -1138,9 +1249,11 @@ export default function SignUp() {
                               }}
                               placeholder="e.g. Varanasi, Haridwar, Delhi"
                               data-testid="input-pandit-city"
+                              aria-describedby="pandit-city-error"
+                              aria-invalid={Boolean(errors.panditCity)}
                             />
                             {errors.panditCity && (
-                              <span className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditCity}</span>
+                              <span id="pandit-city-error" className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditCity}</span>
                             )}
                           </div>
 
@@ -1156,9 +1269,11 @@ export default function SignUp() {
                               }}
                               placeholder="e.g. Uttar Pradesh"
                               data-testid="input-pandit-state"
+                              aria-describedby="pandit-state-error"
+                              aria-invalid={Boolean(errors.panditState)}
                             />
                             {errors.panditState && (
-                              <span className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditState}</span>
+                              <span id="pandit-state-error" className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditState}</span>
                             )}
                           </div>
                         </div>
@@ -1207,15 +1322,27 @@ export default function SignUp() {
                           />
                         </div>
 
-                        <button
-                          type="button"
-                          className="button button-primary"
-                          onClick={handleNextStep}
-                          style={{ width: '100%', marginTop: '0.4rem', justifyContent: 'center' }}
-                          data-testid="button-pandit-next-1"
-                        >
-                          Next: Professional Details <ArrowRight size={16} />
-                        </button>
+                        <div style={{ display: 'flex', gap: '1rem', marginTop: '0.4rem' }}>
+                          <button
+                            type="button"
+                            className="button button-secondary"
+                            onClick={handleSaveDraft}
+                            disabled={isSubmitting}
+                            style={{ flex: 1, justifyContent: 'center' }}
+                            data-testid="button-pandit-draft-1"
+                          >
+                            Save as Draft
+                          </button>
+                          <button
+                            type="button"
+                            className="button button-primary"
+                            onClick={handleNextStep}
+                            style={{ flex: 2, justifyContent: 'center' }}
+                            data-testid="button-pandit-next-1"
+                          >
+                            Next: Professional Details <ArrowRight size={16} />
+                          </button>
+                        </div>
                       </div>
                     )}
 
@@ -1246,9 +1373,11 @@ export default function SignUp() {
                               placeholder="e.g. 10"
                               data-testid="input-pandit-exp"
                               style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid #d4c5b5', fontSize: '0.85rem' }}
+                              aria-describedby="pandit-exp-error"
+                              aria-invalid={Boolean(errors.panditExp)}
                             />
                             {errors.panditExp && (
-                              <span className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditExp}</span>
+                              <span id="pandit-exp-error" className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditExp}</span>
                             )}
                           </div>
 
@@ -1260,9 +1389,15 @@ export default function SignUp() {
                               onChange={(e) => {
                                 setPanditEducation(e.target.value);
                                 setPanditGurukul(e.target.value);
+                                if (errors.panditEducation) clearError('panditEducation');
                               }}
                               placeholder="Your educational background (e.g. Acharya / Gurukul)"
+                              aria-describedby="pandit-education-error"
+                              aria-invalid={Boolean(errors.panditEducation)}
                             />
+                            {errors.panditEducation && (
+                              <span id="pandit-education-error" className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditEducation}</span>
+                            )}
                           </div>
                         </div>
 
@@ -1404,11 +1539,19 @@ export default function SignUp() {
                             id="pandit-bio"
                             data-testid="textarea-pandit-bio"
                             value={panditBio}
-                            onChange={(e) => setPanditBio(e.target.value)}
+                            onChange={(e) => {
+                              setPanditBio(e.target.value);
+                              if (errors.panditBio) clearError('panditBio');
+                            }}
                             rows={3}
                             placeholder="Tell us about your spiritual journey, experience, and what makes you unique..."
                             style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid #d4c5b5', fontSize: '0.85rem' }}
+                            aria-describedby="pandit-bio-error"
+                            aria-invalid={Boolean(errors.panditBio)}
                           />
+                          {errors.panditBio && (
+                            <span id="pandit-bio-error" className="field-error" role="alert"><ShieldAlert size={14} /> {errors.panditBio}</span>
+                          )}
                         </div>
 
                         <div style={{ display: 'flex', gap: '0.8rem', marginTop: '0.4rem' }}>
@@ -1419,6 +1562,15 @@ export default function SignUp() {
                             style={{ flex: 1, justifyContent: 'center' }}
                           >
                             <ArrowLeft size={15} /> Back
+                          </button>
+                          <button
+                            type="button"
+                            className="button button-secondary"
+                            onClick={handleSaveDraft}
+                            disabled={isSubmitting}
+                            style={{ flex: 1, justifyContent: 'center' }}
+                          >
+                            Save Draft
                           </button>
                           <button
                             type="button"
@@ -1629,6 +1781,7 @@ export default function SignUp() {
                                 minLength={8}
                                 style={{ paddingRight: '2.8rem' }}
                                 aria-invalid={Boolean(errors.panditPassword)}
+                                aria-describedby="pandit-password-error"
                                 data-testid="input-pandit-password"
                               />
                               <button
@@ -1654,7 +1807,7 @@ export default function SignUp() {
                               Min 8 characters with uppercase, lowercase, number, and special character (@$!%*?&#)
                             </span>
                             {errors.panditPassword && (
-                              <span className="field-error" role="alert">
+                              <span id="pandit-password-error" className="field-error" role="alert">
                                 <ShieldAlert size={14} /> {errors.panditPassword}
                               </span>
                             )}
@@ -1675,6 +1828,7 @@ export default function SignUp() {
                                 placeholder="Confirm your password"
                                 style={{ paddingRight: '2.8rem' }}
                                 aria-invalid={Boolean(errors.panditConfirmPassword)}
+                                aria-describedby="pandit-confirm-error"
                                 data-testid="input-pandit-confirm"
                               />
                               <button
@@ -1697,7 +1851,7 @@ export default function SignUp() {
                               </button>
                             </div>
                             {errors.panditConfirmPassword && (
-                              <span className="field-error" role="alert">
+                              <span id="pandit-confirm-error" className="field-error" role="alert">
                                 <ShieldAlert size={14} /> {errors.panditConfirmPassword}
                               </span>
                             )}
@@ -2011,6 +2165,43 @@ export default function SignUp() {
       </main>
       <SiteFooter />
       <Modal modal={modal} onClose={() => setModal(null)} />
+
+      {/* Draft Link Modal */}
+      {draftLink && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '400px', width: '90%', textAlign: 'center', position: 'relative' }}>
+            <button
+              onClick={() => setDraftLink(null)}
+              style={{ position: 'absolute', right: '1rem', top: '1rem', border: 'none', background: 'transparent', cursor: 'pointer' }}
+            >
+              <X size={20} />
+            </button>
+            <CheckCircle2 size={48} color="#16a34a" style={{ margin: '0 auto 1rem' }} />
+            <h3 style={{ margin: '0 0 0.5rem', color: '#3d2b1f', fontSize: '1.25rem' }}>Draft Saved!</h3>
+            <p style={{ margin: '0 0 1.5rem', color: '#68645f', fontSize: '0.9rem' }}>
+              Your progress has been saved. Copy the link below to resume your application later.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input 
+                type="text" 
+                readOnly 
+                value={draftLink} 
+                style={{ flex: 1, padding: '0.5rem', border: '1px solid #d4c5b5', borderRadius: '6px', fontSize: '0.8rem', background: '#f5f1eb' }}
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
+              <button 
+                onClick={() => { navigator.clipboard.writeText(draftLink); alert('Link copied!'); }}
+                style={{ background: '#ee7c2b', color: 'white', border: 'none', borderRadius: '6px', padding: '0 1rem', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

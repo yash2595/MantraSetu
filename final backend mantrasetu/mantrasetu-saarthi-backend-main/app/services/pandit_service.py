@@ -1,39 +1,22 @@
 import os
-import shutil
 import uuid
 from typing import List, Optional
 
+import pymongo
 from fastapi import HTTPException, UploadFile
 
 from app.schemas.pandit_schema import PanditApplicationResponse
 from app.database.pandit_db import find_pandit_by_email, create_pandit_application
 from app.database.user_db import find_user_by_email
 from app.services.security import hash_password
+from app.utils.file_handler import save_uploaded_file
+from app.database.pandit_db import get_all_pandits
 
 
-UPLOAD_DIR = "uploads"
-ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".pdf", ".webp", ".mp4", ".webm", ".mov", ".avi", ".mkv"}
+async def execute_get_pandit_list() -> List[dict]:
+    pandits = await get_all_pandits()
+    return pandits
 
-
-def save_uploaded_file(file: UploadFile, subfolder: str) -> str:
-    ext = os.path.splitext(file.filename)[1].lower()
-
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type: {ext}"
-        )
-
-    folder = os.path.join(UPLOAD_DIR, subfolder)
-    os.makedirs(folder, exist_ok=True)
-
-    filename = f"{uuid.uuid4().hex}{ext}"
-    filepath = os.path.join(folder, filename)
-
-    with open(filepath, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    return filepath.replace("\\", "/")
 
 
 async def execute_pandit_application(
@@ -80,12 +63,12 @@ async def execute_pandit_application(
         )
 
     aadhaar_path = (
-        save_uploaded_file(aadhaar_file, "aadhaar")
+        await save_uploaded_file(aadhaar_file, "aadhaar")
         if aadhaar_file else None
     )
 
     certificate_path = (
-        save_uploaded_file(certificate_file, "certificates")
+        await save_uploaded_file(certificate_file, "certificates")
         if certificate_file else None
     )
 
@@ -93,7 +76,7 @@ async def execute_pandit_application(
     if gallery_files:
         for gfile in gallery_files:
             if gfile and gfile.filename:
-                gpath = save_uploaded_file(gfile, "gallery")
+                gpath = await save_uploaded_file(gfile, "gallery")
                 saved_gallery_paths.append(gpath)
 
     # Specialization parsing: accept list or comma-separated string
@@ -105,7 +88,7 @@ async def execute_pandit_application(
     else:
         spec_list = [str(specialization)]
 
-    hashed = hash_password(password)
+    hashed = await hash_password(password)
 
     try:
         print(f"[BACKEND-PANDIT-APPLY] Writing Pandit application document to MongoDB 'pandit_applications' collection...")
@@ -131,13 +114,14 @@ async def execute_pandit_application(
             gallery_files=saved_gallery_paths,
         )
         print(f"[BACKEND-PANDIT-APPLY] Pandit application persisted in MongoDB! Inserted ID: {application_id}")
+    except pymongo.errors.DuplicateKeyError:
+        print(f"[BACKEND-PANDIT-APPLY] Duplicate Key Error")
+        raise HTTPException(
+            status_code=409,
+            detail="Is email ya mobile number se pehle se ek application maujood hai."
+        )
     except Exception as e:
         print(f"[BACKEND-PANDIT-APPLY] DB insert error: {e}")
-        if "duplicate" in str(e).lower() or "11000" in str(e):
-            raise HTTPException(
-                status_code=409,
-                detail="Is email ya mobile number se pehle se ek application maujood hai."
-            )
         raise e
 
     return PanditApplicationResponse(

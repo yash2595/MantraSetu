@@ -19,8 +19,8 @@ class CatalogRetriever:
     records using ``rapidfuzz``.
     """
 
-    PUJA_ENDPOINT = f"{_API_BASE}/api/puja/list"
-    PANDIT_ENDPOINT = f"{_API_BASE}/api/pandit/list"
+    PUJA_ENDPOINT = f"{_API_BASE}/puja/list"
+    PANDIT_ENDPOINT = f"{_API_BASE}/pandit/list"
 
     def __init__(self) -> None:
         self.puja_catalog: List[Dict] = []

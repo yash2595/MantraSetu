@@ -23,7 +23,6 @@ from app.ai.models import (
     MessageRole,
     TokenUsage,
 )
-from app.ai.providers import QwenAIProvider
 from app.ai.registry import AIProviderRegistry
 from app.ai.service import AIService
 

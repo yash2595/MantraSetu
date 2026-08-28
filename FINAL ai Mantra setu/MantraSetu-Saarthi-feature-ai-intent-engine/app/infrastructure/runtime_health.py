@@ -25,7 +25,7 @@ class RuntimeHealthAggregator:
         self._lock = RLock()
         self._health_probes_count = 0
 
-    def get_runtime_health() -> RuntimeHealth:
+    def get_runtime_health(self) -> RuntimeHealth:
         """Aggregate liveness and readiness probe status (<2ms target)."""
         start_ts = time.perf_counter()
         with self._lock:

@@ -5,19 +5,30 @@ logger = logging.getLogger(__name__)
 
 # Basic routing keywords mapping
 _NAV_KEYWORDS = {
-    "/": ["home", "main page", "shuruat", "wapas jao", "home page"],
-    "/kundali-creation": ["kundali", "janam patri", "patrika", "birth chart", "kundli"],
-    "/puja": ["puja", "pooja", "pandit book", "pandit bulao", "book pandit"],
-    "/muhurat-finder": ["muhurat", "shubh samay", "auspicious time", "shubh muhurat", "muhurth"],
-    "/login?role=pandit": ["pandit login", "panditji login", "login as pandit", "login as a pandit", "pandit pehle se"],
-    "/login": ["login", "sign in", "andar aao", "log in"],
-    "/dashboard": ["dashboard", "mera profile", "meri jankari", "meri jaankari", "meri details"],
-    "/profile": ["profile"],
+    "/": ["home", "main page", "shuruat", "wapas jao", "home page", "homepage", "mukhya prishth", "मुख्य पृष्ठ"],
+    "/kundali-creation": ["kundali", "janam patri", "patrika", "birth chart", "kundli", "kundali creation", "kundali banao", "kundli creation", "कुंडली"],
+    "/puja": ["puja", "pooja", "pandit book", "pandit bulao", "book pandit", "puja booking", "pooja booking", "पूजा"],
+    "/muhurat-finder": ["muhurat", "shubh samay", "auspicious time", "shubh muhurat", "muhurth", "muhurat finder", "मुहूर्त"],
+    "/login?role=pandit": ["pandit login", "panditji login", "login as pandit", "login as a pandit", "pandit pehle se", "pandit sign in", "पंडित लॉगिन"],
+    "/login": ["login", "sign in", "andar aao", "log in", "login page", "लॉगिन"],
+    "/dashboard": ["dashboard", "mera profile", "meri jankari", "meri jaankari", "meri details", "डैशबोर्ड"],
+    "/profile": ["profile", "meri profile"],
     "/about": ["about us", "hamare bare mein", "aapke bare mein"],
-    "/contact": ["contact", "sampark", "call karo", "help", "madad"],
+    "/contact": ["contact", "sampark", "call karo", "help", "madad", "संपर्क"],
     # Signups
-    "/signup?role=pandit": ["pandit banna", "pandit registration", "pandit sign up", "pandit signup", "pandit join", "join as pandit", "register as pandit", "register as a pandit", "panditji register", "pandit account"],
-    "/signup": ["devotee banna", "bhakt banna", "devotee sign up", "devotee registration", "register as devotee", "devotee signup", "devotee join", "open signup"]
+    "/signup?role=pandit": [
+        "pandit banna", "pandit banne", "pandit registration", "pandit sign up", "pandit signup", "pandit join",
+        "join as pandit", "register as pandit", "register as a pandit", "panditji register", "pandit account",
+        "pandit onboarding", "pandit onboard", "pandit kaise", "onboarding page", "pandit page", "pandit ji banna",
+        "onboarding start", "onboarding shuru", "onboard karo", "onboarding karo", "onboarding pe", "onboarding par",
+        "onboarding", "onboard", "pandit ke roop mein register", "pandit ke roop mein", "pandit ke liye register",
+        "पंडित बनना", "पंडित रजिस्ट्रेशन", "पंडित के रूप में रजिस्टर", "पंडित के रूप में जुड़ना"
+    ],
+    "/signup": [
+        "devotee banna", "bhakt banna", "devotee sign up", "devotee registration", "register as devotee",
+        "devotee signup", "devotee join", "open signup", "signup page", "sign up page", "registration page",
+        "signup dikhao", "sign up dikhao", "साइन अप पेज", "रजिस्ट्रेशन पेज"
+    ]
 }
 
 # Ambiguous cases
@@ -33,9 +44,9 @@ def is_navigation_command(msg: str) -> bool:
     msg_lower = msg.lower()
     
     # Exclude false positives (like "refresh page" or "kaunsa page" or RAG queries)
-    if "refresh" in msg_lower or "reload" in msg_lower or "kaunsa" in msg_lower or "kya" in msg_lower or "jankari" in msg_lower or "samagri" in msg_lower:
-        # Let these be handled by location_query, refresh, or RAG logic
-        if not ("kundali" in msg_lower or "puja" in msg_lower or "pandit banna" in msg_lower):
+    if "refresh" in msg_lower or "reload" in msg_lower or "kaunsa" in msg_lower or "jankari" in msg_lower or "samagri" in msg_lower:
+        # Let these be handled by location_query, refresh, or RAG logic unless navigation intent is explicit
+        if not ("kundali" in msg_lower or "puja" in msg_lower or "pandit" in msg_lower or "onboard" in msg_lower or "signup" in msg_lower or "sign up" in msg_lower):
             return False
         # If it's explicitly asking for info (RAG), don't treat it as navigation
         if "jankari" in msg_lower or "samagri" in msg_lower:

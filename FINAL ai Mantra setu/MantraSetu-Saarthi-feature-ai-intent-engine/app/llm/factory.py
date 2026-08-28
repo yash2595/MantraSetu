@@ -44,7 +44,9 @@ class LLMProviderFactory:
             cls._instance = super().__new__(cls)
             cls._instance._registry = {}
             from app.llm.providers.gemini import GeminiProvider
+            from app.llm.providers.groq import GroqProvider
             cls._instance._registry["gemini"] = GeminiProvider
+            cls._instance._registry["groq"] = GroqProvider
         return cls._instance
 
     def register(self, name: str, provider_cls: type[BaseLLMProvider]) -> None:

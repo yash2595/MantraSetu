@@ -11,6 +11,7 @@ from app.voice.tts.exceptions import (
     VoiceTTSException,
 )
 from app.voice.tts.factory import PROVIDERS, build_tts_provider
+from app.voice.tts.inworld_adapter import InWorldTTSAdapter
 from app.voice.tts.openai_adapter import OpenAIAdapter
 from app.voice.tts.sarvam_adapter import SarvamAdapter
 from app.voice.tts.schemas import (
@@ -27,6 +28,7 @@ __all__ = [
     "AudioStream",
     "ITTSProvider",
     "InvalidVoiceConfiguration",
+    "InWorldTTSAdapter",
     "OpenAIAdapter",
     "SarvamAdapter",
     "StreamingInterrupted",

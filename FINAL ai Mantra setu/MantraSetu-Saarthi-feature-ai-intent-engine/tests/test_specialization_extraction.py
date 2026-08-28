@@ -15,6 +15,9 @@ class DummyAIService:
             content = "INVALID"
         return DummyResp()
 
+import pytest
+
+@pytest.mark.asyncio
 async def test_specialization_and_exp_cases():
     print("=== TESTING SPECIALIZATION & EXPERIENCE FAST-PATH EXTRACTIONS ===")
     ai = DummyAIService()

@@ -33,7 +33,7 @@ from app.voice.tts.voice_response_pipeline import VoiceResponsePipeline
 
 logger = logging.getLogger(__name__)
 
-_global_bootstrap_lock = threading.Lock()
+_global_bootstrap_lock = threading.RLock()
 _bootstrap_async_lock = asyncio.Lock()
 _shutdown_async_lock = asyncio.Lock()
 
@@ -322,8 +322,7 @@ async def async_bootstrap_application(app: FastAPI | None = None) -> BootstrapRe
 async def shutdown_application() -> None:
     """Global entrypoint to gracefully shutdown application runtime services."""
     global _bootstrap_instance
-    async with _shutdown_async_lock:
-        if _bootstrap_instance is not None:
-            await _bootstrap_instance.shutdown()
-            _bootstrap_instance = None
+    if _bootstrap_instance is not None:
+        await _bootstrap_instance.shutdown()
+        _bootstrap_instance = None
 

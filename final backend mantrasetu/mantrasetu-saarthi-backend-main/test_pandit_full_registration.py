@@ -81,7 +81,7 @@ def _base_data(overrides: dict | None = None) -> list[tuple]:
         "state":             "Uttar Pradesh",
         "experience":        "10 years",
         "gender":            "Male",
-        "availability_mode": "Both",
+        "availability":      "Both",
         "education":         "Shastri (Sanskrit)",
         "gurukul":           "Kashi Vidya Peeth",
         "bio":               "Experienced Vedic priest.",
@@ -97,7 +97,7 @@ def _base_data(overrides: dict | None = None) -> list[tuple]:
     for lang in ("Hindi", "Sanskrit"):
         items.append(("languages", (None, lang, "text/plain")))
     for spec in ("वैदिक अनुष्ठान (Vedic Rituals)", "विवाह संस्कार (Marriage Ceremonies)"):
-        items.append(("specializations", (None, spec, "text/plain")))
+        items.append(("specialization", (None, spec, "text/plain")))
     for area in ("Delhi NCR", "Online Puja"):
         items.append(("service_areas", (None, area, "text/plain")))
     for ach in ("Conducted 500+ yajnas at Kashi Vishwanath", "Trained under Pt. Shri Ram Sharma Acharya"):
@@ -141,11 +141,10 @@ async def test_full_registration_all_fields():
         doc = await collection.find_one({"email": TEST_EMAIL})
         assert doc is not None
 
-        # specializations -> List[str]
-        assert isinstance(doc["specializations"], list)
-        assert "vadik anusthan (Vedic Rituals)" in doc["specializations"] or \
-               any("Vedic" in s for s in doc["specializations"]), \
-               f"specializations: {doc['specializations']}"
+        # specialization -> str
+        assert isinstance(doc["specialization"], str)
+        assert "Vedic" in doc["specialization"] or "Marriage" in doc["specialization"], \
+               f"specialization: {doc['specialization']}"
 
         # gallery_files -> list of paths under uploads/gallery/
         assert isinstance(doc["gallery_files"], list)
@@ -160,7 +159,7 @@ async def test_full_registration_all_fields():
 
         # new scalar fields
         assert doc["gender"] == "Male"
-        assert doc["availability_mode"] == "Both"
+        assert doc["availability"] == "Both"
         assert doc["education"] == "Shastri (Sanskrit)"
         assert doc["gurukul"] == "Kashi Vidya Peeth"
         assert doc["bio"] == "Experienced Vedic priest."
@@ -170,7 +169,7 @@ async def test_full_registration_all_fields():
         assert not doc["hashed_password"].startswith("Secure")
 
         print(f"\nPASS: Registration stored. id={body['application_id']}")
-        safe_specs = [s.encode('ascii', errors='replace').decode('ascii') for s in doc['specializations']]
+        safe_specs = doc['specialization'].encode('ascii', errors='replace').decode('ascii')
         safe_achievements = [a.encode('ascii', errors='replace').decode('ascii') for a in doc['achievements']]
         print(f"  specializations : {safe_specs}")
         print(f"  gallery_files   : {doc['gallery_files']}")

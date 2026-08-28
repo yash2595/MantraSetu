@@ -41,22 +41,61 @@ async def health_check(
         component_health = await orchestrator.health_check()
         is_healthy = component_health.status.value == "healthy"
 
-        # Build a flat component map from the single orchestrator aggregate
+        # Probe MongoDB Ping Health
+        mongo_status = "healthy"
+        mongo_msg = "MongoDB Atlas pool active and ping successful."
+        try:
+            from app.database.connection import get_mongo_client
+            client = get_mongo_client()
+            if client is not None:
+                client.admin.command("ping")
+            else:
+                mongo_status = "unhealthy"
+                mongo_msg = "MongoDB client pool not initialized or unavailable."
+        except Exception as db_err:
+            mongo_status = "unhealthy"
+            mongo_msg = f"MongoDB ping failed: {db_err}"
+
+        # Probe Active Voice Sessions
+        active_sessions_count = 0
+        try:
+            from app.voice.session_manager import VoiceSessionManager
+            # Count active sessions if manager initialized
+            from app.dependencies.composition import get_voice_session_manager
+            manager = get_voice_session_manager()
+            if manager:
+                active_sessions_count = len(manager._sessions)
+        except Exception:
+            pass
+
+        # Overall health requires orchestrator healthy AND mongodb healthy
+        overall_healthy = is_healthy and (mongo_status == "healthy")
+
         components: dict[str, ComponentHealthSchema] = {
             component_health.component_name: ComponentHealthSchema(
                 component_name=component_health.component_name,
                 status=component_health.status.value,
                 message=component_health.message,
+            ),
+            "mongodb": ComponentHealthSchema(
+                component_name="mongodb",
+                status=mongo_status,
+                message=mongo_msg,
+            ),
+            "active_voice_sessions": ComponentHealthSchema(
+                component_name="active_voice_sessions",
+                status="healthy",
+                message=f"Active voice sessions count: {active_sessions_count}",
             )
         }
 
         response = HealthResponse(
-            status=component_health.status.value,
-            healthy=is_healthy,
+            status="healthy" if overall_healthy else "unhealthy",
+            healthy=overall_healthy,
             components=components,
         )
 
-        http_status = status.HTTP_200_OK if is_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+        http_status = status.HTTP_200_OK if overall_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
         return JSONResponse(content=response.model_dump(), status_code=http_status)
 
     except Exception as exc:

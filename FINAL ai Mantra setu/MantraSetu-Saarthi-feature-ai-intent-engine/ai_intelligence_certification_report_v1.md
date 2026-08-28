@@ -108,4 +108,4 @@ Notes:
 
 ## Conclusion
 
-The AI stack is not a stub: implemented capabilities were executed with live or unit/integration runtime evidence. However, the full certification bar you requested is stricter than the evidence available here, so the safest status remains **AI PARTIALLY FUNCTIONAL**.
+The AI stack is not a stub: implemented capabilities were executed with live or unit/integration runtime evidence. However, Phase B workflows require true end-to-end traversal (with turn-by-turn state management) and the voice STT layer requires real audio processing evidence. Until these areas are completely verified, the stack is in an **EVALUATION/PARTIAL** state and is not considered production-ready.

@@ -38,8 +38,14 @@ text_to_speech_factory.register(_fish_speech_provider, overwrite=False)
 text_to_speech_factory.register(_cosyvoice_provider, overwrite=False)
 text_to_speech_factory.register(_elevenlabs_provider, overwrite=False)
 
+import os
+
 # Orchestration Service Singletons
-_ai_service = AIService(factory=_llm_factory, default_provider_name="gemini")
+_llm_provider_env = os.getenv("LLM_PROVIDER")
+if not _llm_provider_env:
+    raise ValueError("LLM_PROVIDER environment variable is missing")
+_default_provider = _llm_provider_env.lower()
+_ai_service = AIService(factory=_llm_factory, default_provider_name=_default_provider)
 _speech_service = SpeechToTextService(provider=_whisper_provider)
 _tts_service = TextToSpeechService(provider=_elevenlabs_provider)
 _session_store = SessionStore()

@@ -21,16 +21,26 @@ def get_voice_session_manager() -> VoiceSessionManager:
 def get_voice_gateway() -> VoiceGateway:
     """Dependency provider returning configured VoiceGateway instance."""
     from app.api.dependencies.orchestrator import get_ai_orchestrator
+    import os
     ai_orchestrator = get_ai_orchestrator()
     session_manager = get_voice_session_manager()
-    return build_voice_gateway(ai_orchestrator=ai_orchestrator, session_manager=session_manager)
+    stt_provider = os.environ.get("DEFAULT_STT_PROVIDER")
+    if not stt_provider:
+        raise ValueError("DEFAULT_STT_PROVIDER environment variable is missing")
+    return build_voice_gateway(
+        ai_orchestrator=ai_orchestrator,
+        session_manager=session_manager,
+        stt_provider=stt_provider,
+    )
 
 
 def get_tts_pipeline() -> VoiceResponsePipeline:
     """Dependency provider returning singleton VoiceResponsePipeline instance."""
     global _tts_pipeline_instance
     if _tts_pipeline_instance is None:
-        tts_provider = build_tts_provider("sarvam")
+        import os
+        provider_name = os.environ.get("DEFAULT_TTS_PROVIDER", "sarvam")
+        tts_provider = build_tts_provider(provider_name)
         cache_manager = get_tts_cache_manager()
         _tts_pipeline_instance = VoiceResponsePipeline(tts_provider=tts_provider, cache_manager=cache_manager)
     return _tts_pipeline_instance

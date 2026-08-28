@@ -125,16 +125,27 @@ class TestVoiceGateway(IsolatedAsyncioTestCase):
         # 2. Audio chunk frame
         audio_frame_res = await self.ws_handler.handle_audio_frame(session_id, b"raw_audio_chunk_data")
 
+        # Mock VAD analysis to bypass VAD gate discard
+        mock_vad = MagicMock()
+        mock_vad.get_analysis.return_value = {
+            "is_valid_speech": True,
+            "speech_duration_sec": 1.0,
+            "total_duration_sec": 1.0,
+            "reason": "VALID_SPEECH"
+        }
+        self.ws_handler._voice_gateway._vads[session_id] = mock_vad
+
         # 3. Finish frame -> triggers AIOrchestrator.process()
         finish_msg = await self.ws_handler.handle_finish(session_id)
         self.assertEqual(finish_msg.type, WebSocketMessageType.INTERACTION_RESPONSE)
 
-        # Verify AIOrchestrator.process() was invoked with a normalized InteractionRequest
+        # Verify AIOrchestrator.process() was invoked with a normalized OrchestratorRequest
         self.mock_ai_orchestrator.process.assert_called_once()
         invoked_req = self.mock_ai_orchestrator.process.call_args[0][0]
-        self.assertIsInstance(invoked_req, InteractionRequest)
-        self.assertEqual(invoked_req.user_input, "Delhi me Rudrabhishek pooja book karo")
-        self.assertEqual(invoked_req.metadata["transport"], "voice_websocket")
+        from app.orchestrator.orchestrator_models import OrchestratorRequest
+        self.assertIsInstance(invoked_req, OrchestratorRequest)
+        self.assertEqual(invoked_req.user_message, "Delhi me Rudrabhishek pooja book karo")
+        self.assertEqual(invoked_req.user_parameters["transport"], "voice_websocket")
 
     def test_factory_builders(self) -> None:
         """Verify build_voice_gateway and build_websocket_voice_handler construct functional instances."""
@@ -165,11 +176,27 @@ class TestVoiceGateway(IsolatedAsyncioTestCase):
         # 3. Provider timeout exception verification
         self.mock_speech_recognizer.finish_session.side_effect = SpeechRecognitionTimeout("STT Timeout")
         sess = await self.voice_gateway.start_voice_session("conn-timeout")
+        mock_vad1 = MagicMock()
+        mock_vad1.get_analysis.return_value = {
+            "is_valid_speech": True,
+            "speech_duration_sec": 1.0,
+            "total_duration_sec": 1.0,
+            "reason": "VALID_SPEECH"
+        }
+        self.voice_gateway._vads[sess.session_id] = mock_vad1
         with self.assertRaises(SpeechRecognitionTimeout):
             await self.voice_gateway.finish_voice_session(sess.session_id)
 
         # 4. Provider unavailable exception verification
         self.mock_speech_recognizer.finish_session.side_effect = SpeechProviderUnavailable("Provider Offline")
         sess2 = await self.voice_gateway.start_voice_session("conn-unavailable")
+        mock_vad2 = MagicMock()
+        mock_vad2.get_analysis.return_value = {
+            "is_valid_speech": True,
+            "speech_duration_sec": 1.0,
+            "total_duration_sec": 1.0,
+            "reason": "VALID_SPEECH"
+        }
+        self.voice_gateway._vads[sess2.session_id] = mock_vad2
         with self.assertRaises(SpeechProviderUnavailable):
             await self.voice_gateway.finish_voice_session(sess2.session_id)

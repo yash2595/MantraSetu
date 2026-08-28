@@ -228,7 +228,19 @@ class AIOrchestrator:
         return self._scheduler
 
     async def process_request(self, request: OrchestratorRequest) -> OrchestratorResponse:
-        """Process input request through complete orchestration lifecycle."""
+        """Main entry point for orchestration pipeline processing with global error boundary."""
+        try:
+            return await self._process_request_internal(request)
+        except Exception as e:
+            logger.error(f"Orchestration pipeline failed for request {request.request_id}: {e}", exc_info=True)
+            return self._response_builder.build_response(
+                request_id=request.request_id,
+                text_override="MantraSetu AI could not process this request right now.",
+                response_type=ResponseType.ERROR,
+            )
+
+    async def _process_request_internal(self, request: OrchestratorRequest) -> OrchestratorResponse:
+        """Internal implementation of orchestration pipeline processing."""
         t_start = time.perf_counter()
         with self._lock:
             self._scheduler.schedule_request(request)
@@ -405,9 +417,49 @@ class AIOrchestrator:
                     mapped_target = _ROUTE_MAP.get(target_route, target_route)
                     nav_directive = {"action": "NAVIGATE", "target": mapped_target, "query": nav_result.get("query"), "intent": "NAVIGATE"}
                     self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+                    
+                    if target_route == "/signup?role=pandit":
+                        import random
+                        text_override = random.choice([
+                            "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, apna poora naam bataiye.",
+                            "Har Har Mahadev! Welcome Panditji! Aapke onboarding ke liye main Pandit registration page khol raha hoon. Sabse pehle apna poora naam share kariye.",
+                            "Jai Shri Ram! Panditji, aapka swagat hai! Main Pandit registration page open kar raha hoon. Kripya apna poora naam bataiye."
+                        ])
+                        # Initialize state right away for explicit signup to prevent second turn drop
+                        session.onboarding_state = {
+                            "active": True,
+                            "current_field_index": 0,
+                            "collected_data": {},
+                            "fields": [
+                                "pandit-avatar",
+                                "pandit-first-name",
+                                "pandit-last-name",
+                                "pandit-email",
+                                "pandit-phone",
+                                "pandit-gender",
+                                "pandit-availability",
+                                "pandit-city",
+                                "pandit-state",
+                                "pandit-service-areas",
+                                "pandit-exp",
+                                "pandit-gurukul",
+                                "pandit-languages",
+                                "pandit-spec",
+                                "pandit-achievements",
+                                "pandit-bio",
+                                "pandit-certFile",
+                                "pandit-aadhaarFile",
+                                "pandit-galleryFiles",
+                                "pandit-password",
+                                "pandit-confirm"
+                            ]
+                        }
+                    else:
+                        text_override = "Theek hai, main aapko le ja raha hoon."
+                        
                     return self._response_builder.build_response(
                         request_id=request.request_id,
-                        text_override="Theek hai, main aapko le ja raha hoon.",
+                        text_override=text_override,
                         response_type=ResponseType.NAVIGATION_DIRECTIVE,
                         navigation_directive=nav_directive,
                         metadata=ResponseMetadata(fast_path=True, latency_ms=round(elapsed_ms, 2)),
@@ -417,10 +469,13 @@ class AIOrchestrator:
 
         # Check if we are currently in an active onboarding session
         onboarding_state = getattr(session, "onboarding_state", None)
-        
-        # Auto-initialize onboarding state if user is on signup page
+
+        # 3.5 Fallback Auto-Init for Pandit Onboarding (Moved back to top with explicit signup guard)
         page_str = sanitized_req.current_page or ""
-        if (not onboarding_state or not onboarding_state.get("active")) and ("/signup" in page_str or "pandit" in page_str):
+        msg_lower_check = sanitized_req.user_message.strip().lower()
+        is_explicit_signup = any(w in msg_lower_check for w in ["register", "signup", "sign up", "onboard", "roop mein", "banna hai", "onboarding"])
+        
+        if (not onboarding_state or not onboarding_state.get("active")) and ("/signup" in page_str or "pandit" in page_str) and not is_explicit_signup:
             session.onboarding_state = {
                 "active": True,
                 "current_field_index": 0,
@@ -450,6 +505,7 @@ class AIOrchestrator:
                 ]
             }
             onboarding_state = session.onboarding_state
+            logger.info("[PANDIT-ONBOARDING] Auto-initialized state because user is on signup page with implicit input.")
 
         if onboarding_state and onboarding_state.get("active"):
             breakout_phrases = ["cancel", "ruko", "stop", "exit", "chhod do", "cancel kardo", "mujhe kuch aur karna hai", "abort", "कैंसल", "रुकिए", "रुको", "छोड़ दो"]
@@ -480,13 +536,24 @@ class AIOrchestrator:
             self._lifecycle_manager.transition_state(request.request_id, OrchestratorState.EXECUTING_LLM)
             self._lifecycle_manager.transition_state(request.request_id, OrchestratorState.SYNTHESIZING_RESPONSE)
             
-            response = await pandit_onboarding.process_onboarding_step(sanitized_req, session, self)
-            if response:
+            try:
+                async with session.lock:
+                    response = await pandit_onboarding.process_onboarding_step(sanitized_req, session, self)
+                if response:
+                    elapsed_ms = (time.perf_counter() - t_start) * 1000.0
+                    self._telemetry_manager.record_request(is_success=True, latency_ms=elapsed_ms)
+                    self._lifecycle_manager.complete_request_lifecycle(request.request_id)
+                    self._scheduler.complete_request(request.request_id)
+                    return response
+            except Exception as onboarding_err:
+                logger.error("[PANDIT-ONBOARDING] Exception inside process_onboarding_step: %s", onboarding_err, exc_info=True)
                 elapsed_ms = (time.perf_counter() - t_start) * 1000.0
-                self._telemetry_manager.record_request(is_success=True, latency_ms=elapsed_ms)
-                self._lifecycle_manager.complete_request_lifecycle(request.request_id)
-                self._scheduler.complete_request(request.request_id)
-                return response
+                return self._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override="Kshama karein, onboarding process mein kuch takneeki dikkat aayi hai. Kripya dobara koshish karein ya screen par manual form fill karein.",
+                    response_type=ResponseType.CHAT,
+                    metadata=ResponseMetadata(fast_path=False, latency_ms=round(elapsed_ms, 2)),
+                )
 
         # Check if we are waiting for a Site Tour clarification (Pandit vs Devotee tour)
         pending_tour_clarification = getattr(session, "pending_tour_clarification", False)

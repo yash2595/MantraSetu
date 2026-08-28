@@ -89,17 +89,17 @@ async def apply_pandit(
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    # --- Save to MongoDB ---
-    mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017/mantrasetu")
+    # --- Save to MongoDB via shared pool ---
     try:
-        import pymongo
-        client = pymongo.MongoClient(mongo_uri, serverSelectionTimeoutMS=3000)
-        db_name = mongo_uri.rstrip("/").split("/")[-1] or "mantrasetu"
-        db = client[db_name]
-        result = db["pandit_applications"].insert_one(doc)
-        inserted_id = str(result.inserted_id)
-        logger.info("[PANDIT-APPLY] Saved to MongoDB. _id=%s, name=%s, email=%s", inserted_id, name, email)
-        client.close()
+        from app.database.connection import get_db
+        db = get_db()
+        if db is not None:
+            result = db["pandit_applications"].insert_one(doc)
+            inserted_id = str(result.inserted_id)
+            logger.info("[PANDIT-APPLY] Saved to MongoDB via shared pool. _id=%s, name=%s, email=%s", inserted_id, name, email)
+        else:
+            logger.warning("[PANDIT-APPLY] Database connection pool unavailable. Falling back to local ID.")
+            inserted_id = pandit_id
     except Exception as e:
         logger.error("[PANDIT-APPLY] MongoDB save FAILED: %s", e)
         # Still return success so frontend doesn't break — log the failure

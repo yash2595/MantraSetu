@@ -18,14 +18,21 @@ logger = logging.getLogger(__name__)
 
 
 class GroqSTTAdapter(ISpeechRecognizer):
-    """Speech-to-Text adapter connecting to Groq Whisper API (whisper-large-v3-turbo)."""
+    """[DEPRECATED] Barebones Groq Whisper STT adapter without prompt biasing.
+    
+    DEPRECATION NOTICE: Do not use GroqSTTAdapter directly in production.
+    Use WhisperAdapter (which includes Bug-12 prompt biasing) or RoutingSTTAdapter (hybrid mode).
+    """
 
     def __init__(
         self,
         api_key: str | None = None,
         model: str | None = None,
     ) -> None:
+        logger.warning("[DEPRECATION-WARNING] GroqSTTAdapter is deprecated. Use WhisperAdapter or RoutingSTTAdapter instead.")
         self._api_key = api_key or os.environ.get("GROQ_API_KEY", "")
+        if not self._api_key:
+            raise ValueError("GROQ_API_KEY environment variable is missing")
         self._model = model or os.environ.get("GROQ_STT_MODEL", "whisper-large-v3-turbo")
 
     @property

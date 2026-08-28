@@ -30,10 +30,14 @@ class TestModule5Enterprise(IsolatedAsyncioTestCase):
     """Enterprise unit and integration tests for Module 5 runtime infrastructure."""
 
     def setUp(self) -> None:
+        import app.core.bootstrap
+        app.core.bootstrap._bootstrap_instance = None
         reset_runtime_registry()
         transport_metrics.reset()
 
     def tearDown(self) -> None:
+        import app.core.bootstrap
+        app.core.bootstrap._bootstrap_instance = None
         reset_runtime_registry()
         transport_metrics.reset()
 
@@ -183,8 +187,34 @@ class TestModule5Enterprise(IsolatedAsyncioTestCase):
         registry = RuntimeRegistry()
         container = ApplicationContainer()
 
-        mock_settings = MagicMock(app_name="", api_v1_prefix="/api/v1", log_level="INFO")
+        mock_settings = MagicMock()
+        mock_settings.app_name = ""
+        mock_settings.app = None
+        mock_settings.api_v1_prefix = "/api/v1"
+        mock_settings.api = None
+        mock_settings.log_level = "INFO"
+        mock_settings.logging = None
         registry.register_settings(mock_settings)
+        registry.register_logger(logging.getLogger("TestLogger"))
+        
+        mock_orch = MagicMock(spec=AIOrchestrator)
+        mock_gw = MagicMock(spec=VoiceGateway)
+        mock_pipe = MagicMock(spec=VoiceResponsePipeline)
+        mock_sess = MagicMock(spec=VoiceSessionManager)
+        mock_metrics = MagicMock(spec=TransportMetrics)
+        
+        registry.register_ai_orchestrator(mock_orch)
+        registry.register_voice_gateway(mock_gw)
+        registry.register_voice_response_pipeline(mock_pipe)
+        registry.register_voice_session_manager(mock_sess)
+        registry.register_transport_metrics(mock_metrics)
+        registry.freeze()
+        
+        container.register_instance(AIOrchestrator, mock_orch)
+        container.register_instance(VoiceGateway, mock_gw)
+        container.register_instance(VoiceResponsePipeline, mock_pipe)
+        container.register_instance(VoiceSessionManager, mock_sess)
+        container.register_instance(TransportMetrics, mock_metrics)
 
         validator = StartupValidator(registry=registry, container=container)
         with self.assertRaises(StartupValidationError) as ctx:
@@ -264,9 +294,23 @@ class TestModule5Enterprise(IsolatedAsyncioTestCase):
 
     async def test_fastapi_app_lifespan_integration(self) -> None:
         """Verify create_app() wires FastAPI lifespan startup and shutdown cleanly."""
+        registry = get_runtime_registry()
+        mock_orch = MagicMock(spec=AIOrchestrator)
+        mock_gw = MagicMock(spec=VoiceGateway)
+        mock_pipe = MagicMock(spec=VoiceResponsePipeline)
+        mock_sess = MagicMock(spec=VoiceSessionManager)
+        mock_metrics = MagicMock(spec=TransportMetrics)
+        
+        registry.register_ai_orchestrator(mock_orch)
+        registry.register_voice_gateway(mock_gw)
+        registry.register_voice_response_pipeline(mock_pipe)
+        registry.register_voice_session_manager(mock_sess)
+        registry.register_transport_metrics(mock_metrics)
+
         app = create_app()
 
-        async with app.router.lifespan_context(app):
-            registry = get_runtime_registry()
-            self.assertTrue(registry.is_frozen)
-            self.assertIsNotNone(registry.ai_orchestrator)
+        async with asyncio.timeout(5.0):
+            async with app.router.lifespan_context(app):
+                registry = get_runtime_registry()
+                self.assertTrue(registry.is_frozen)
+                self.assertIsNotNone(registry.ai_orchestrator)

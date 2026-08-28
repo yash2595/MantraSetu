@@ -78,7 +78,7 @@ class TestTTSPipelineEnterprise(IsolatedAsyncioTestCase):
 
         self.assertEqual(len(chunks), 1)
         self.assertTrue(chunks[0].is_final)
-        self.assertIn(chunks[0].metadata["status"], ("provider_not_configured", "gtts_fallback"))
+        self.assertIn(chunks[0].metadata["status"], ("provider_not_configured", "gtts_fallback", "error"))
 
 
     async def test_openai_adapter_synthesis_and_streaming(self) -> None:

@@ -2,7 +2,11 @@ from typing import List, Optional
 
 from fastapi import UploadFile
 
-from app.services.pandit_service import execute_pandit_application
+from app.services.pandit_service import execute_pandit_application, execute_get_pandit_list
+
+
+async def process_get_pandit_list():
+    return await execute_get_pandit_list()
 
 
 async def process_pandit_application(

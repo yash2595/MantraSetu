@@ -11,6 +11,8 @@ from __future__ import annotations
 from typing import Any
 
 from app.llm.providers.gemini import GeminiProvider
+from app.llm.factory import LLMProviderFactory
+import os
 from app.orchestrator.chat_orchestrator import ChatOrchestrator
 from app.orchestrator.context import OrchestratorDependencies
 from app.orchestrator.base import (
@@ -147,10 +149,24 @@ def build_chat_orchestrator() -> ChatOrchestrator:
     ai_orch = build_ai_orchestrator()
     # Provide dummy dependencies since the new AIOrchestrator handles its own
     parser = PassThroughStructuredOutputParser()
+    
+    llm_provider_env = os.getenv("LLM_PROVIDER")
+    if not llm_provider_env:
+        raise ValueError("LLM_PROVIDER environment variable is missing")
+    provider_name = llm_provider_env.lower()
+    llm_factory = LLMProviderFactory()
+    try:
+        provider_cls = llm_factory.get(provider_name)
+        llm_client = provider_cls()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Failed to initialize configured LLM provider '%s' (%s). Falling back to GeminiProvider.", provider_name, e)
+        llm_client = GeminiProvider()
+
     dependencies = OrchestratorDependencies(
         context_loader=NoopConversationContextLoader(),
         prompt_provider=PromptManager(),
-        llm_client=GeminiProvider(),
+        llm_client=llm_client,
         output_parser=parser,
         routing_policy=DefaultRoutingPolicy(),
         response_formatter=parser,

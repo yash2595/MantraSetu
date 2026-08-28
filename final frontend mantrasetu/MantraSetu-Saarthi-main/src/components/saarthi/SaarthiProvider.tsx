@@ -69,16 +69,37 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
 
   // ── USER CHOICE 2: Continue with Saarthi ────────────────────
   const continueWithSaarthi = useCallback(() => {
-    console.log('[Provider] continueWithSaarthi invoked, enabling voice & switching to listening');
+    console.log('[Provider] continueWithSaarthi invoked, enabling voice');
     enableVoice();
     if ((window as any)._saarthiAudioContext && (window as any)._saarthiAudioContext.state === 'suspended') {
-      (window as any)._saarthiAudioContext.resume().catch((e: any) => console.warn('[AudioContext] Resume error:', e));
+      (window as any)._saarthiAudioContext.resume().then(() => {
+        console.log('[Voice] AudioContext resumed successfully in user gesture click handler');
+        if ((window as any)._saarthiPlayNextAudio) {
+          (window as any)._saarthiPlayNextAudio();
+        }
+      }).catch((e: any) => console.warn('[AudioContext] Resume error:', e));
     }
     setShowChoicePopup(false);
     setIsMinimized(false); // REMAINS in center
     setShowSpeechBubble(true);
-    setDialogueText('जी बताइए,\nआज मैं आपकी क्या सहायता कर सकता हूँ?');
-    setState('listening');
+
+    // FIX 1 & 2: Preserve dynamic backend greeting text & speaking state if greeting is active/playing
+    setDialogueText((prevText) => {
+      if (prevText && prevText.trim().length > 0) {
+        console.log('[Provider] Preserving existing dynamic backend greeting text:', prevText);
+        return prevText;
+      }
+      return 'जी बताइए,\nआज मैं आपकी क्या सहायता कर सकता हूँ?';
+    });
+
+    setState((prevState) => {
+      if (prevState === 'speaking') {
+        console.log('[Provider] Preserving active speaking state for greeting playback');
+        return 'speaking';
+      }
+      return 'listening';
+    });
+
     setOnboardingPhase('saarthi_listening');
   }, [enableVoice]);
 

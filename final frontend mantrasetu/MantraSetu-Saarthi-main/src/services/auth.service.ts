@@ -67,6 +67,18 @@ export interface AuthResponse {
 
 export const authService = {
   /**
+   * GET /auth/check-duplicate
+   */
+  async checkDuplicate(email?: string, phone?: string): Promise<{ is_duplicate: boolean; fields: string[] }> {
+    const params = new URLSearchParams();
+    if (email) params.append('email', email);
+    if (phone) params.append('phone', phone);
+    
+    const response = await apiClient.get<{ is_duplicate: boolean; fields: string[] }>(`/auth/check-duplicate?${params.toString()}`);
+    return response.data;
+  },
+
+  /**
    * POST /auth/login
    */
   async login(payload: LoginPayload): Promise<AuthResponse> {
@@ -179,6 +191,25 @@ export const authService = {
     const response = await apiClient.get('/auth/me');
     return response.data;
   },
+
+  /**
+   * POST /pandit/draft
+   */
+  async saveDraft(data: any, draftId?: string): Promise<{ status: string; draft_id: string }> {
+    const response = await apiClient.post<{ status: string; draft_id: string }>('/pandit/draft', {
+      draft_id: draftId,
+      data: data
+    });
+    return response.data;
+  },
+
+  /**
+   * GET /pandit/draft/{draft_id}
+   */
+  async getDraft(draftId: string): Promise<{ status: string; data: any }> {
+    const response = await apiClient.get<{ status: string; data: any }>(`/pandit/draft/${draftId}`);
+    return response.data;
+  }
 };
 
 export default authService;

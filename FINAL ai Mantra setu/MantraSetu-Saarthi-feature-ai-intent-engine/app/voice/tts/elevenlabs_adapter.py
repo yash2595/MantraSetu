@@ -25,13 +25,18 @@ class ElevenLabsAdapter(ITTSProvider):
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = "eleven_multilingual_v2",
+        model: str | None = None,
         default_voice_id: str | None = None,
     ) -> None:
         self._api_key = api_key or os.environ.get("ELEVENLABS_API_KEY", "")
-        self._model = model
+        if not self._api_key:
+            raise ValueError("ELEVENLABS_API_KEY environment variable is missing")
+        self._model = model or os.environ.get("ELEVENLABS_MODEL", "eleven_multilingual_v2")
         self._active_requests: set[str] = set()
         self._default_voice_id = default_voice_id or os.environ.get("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB")
+        self._stability = float(os.environ.get("ELEVENLABS_STABILITY", "0.55"))
+        self._similarity_boost = float(os.environ.get("ELEVENLABS_SIMILARITY_BOOST", "0.80"))
+        self._output_format = os.environ.get("ELEVENLABS_OUTPUT_FORMAT", "mp3_44100_128")
 
     @property
     def provider_name(self) -> str:
@@ -73,32 +78,40 @@ class ElevenLabsAdapter(ITTSProvider):
             "text": request.text,
             "model_id": self._model,
             "voice_settings": {
-                "stability": 0.5,
-                "similarity_boost": 0.75
+                "stability": self._stability,
+                "similarity_boost": self._similarity_boost,
+                "use_speaker_boost": True,
+                "speed": float(os.environ.get("ELEVENLABS_SPEED", "1.00"))
             }
         }
         
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream?output_format={self._output_format}&optimize_streaming_latency=1"
         
         timeout_config = httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0)
         try:
             async with httpx.AsyncClient(timeout=timeout_config) as client:
                 async with client.stream("POST", url, json=payload, headers=headers) as response:
                     response.raise_for_status()
-                    async for chunk in response.aiter_bytes(chunk_size=4096):
-                        if req_id_str not in self._active_requests:
+                    import asyncio
+                    iterator = response.aiter_bytes(chunk_size=4096).__aiter__()
+                    while True:
+                        try:
+                            chunk = await asyncio.wait_for(iterator.__anext__(), timeout=5.0)
+                            if req_id_str not in self._active_requests:
+                                break
+                            if chunk:
+                                yield AudioChunk(
+                                    request_id=request.request_id,
+                                    session_id=request.session_id,
+                                    conversation_id=request.conversation_id,
+                                    sequence_number=0,
+                                    data=chunk,
+                                    is_final=False,
+                                    timestamp_ms=int(time.time() * 1000),
+                                    metadata={"provider": self.provider_name},
+                                )
+                        except StopAsyncIteration:
                             break
-                        if chunk:
-                            yield AudioChunk(
-                                request_id=request.request_id,
-                                session_id=request.session_id,
-                                conversation_id=request.conversation_id,
-                                sequence_number=0,
-                                data=chunk,
-                                is_final=False,
-                                timestamp_ms=int(time.time() * 1000),
-                                metadata={"provider": self.provider_name},
-                            )
                             
             if req_id_str in self._active_requests:
                 yield AudioChunk(
@@ -113,18 +126,6 @@ class ElevenLabsAdapter(ITTSProvider):
                 )
         except Exception as e:
             logger.error(f"[ELEVENLABS-ERROR] ElevenLabs streaming failed or timed out: {e}")
-            if req_id_str in self._active_requests:
-                yield AudioChunk(
-                    request_id=request.request_id,
-                    session_id=request.session_id,
-                    conversation_id=request.conversation_id,
-                    sequence_number=0,
-                    data=b"",
-                    is_final=True,
-                    timestamp_ms=int(time.time() * 1000),
-                    metadata={"status": "error", "provider": self.provider_name},
-                )
-
             if req_id_str in self._active_requests:
                 yield AudioChunk(
                     request_id=request.request_id,

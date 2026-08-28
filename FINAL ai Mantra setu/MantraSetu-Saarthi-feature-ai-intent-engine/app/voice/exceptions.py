@@ -34,3 +34,7 @@ class WebSocketDisconnected(VoiceGatewayError):
 
 class SpeechProviderUnavailable(VoiceGatewayError):
     """Raised when STT provider API is unreachable or misconfigured."""
+
+
+class SafetyCapExceededError(VoiceGatewayError):
+    """Raised when the maximum voice session duration is exceeded."""

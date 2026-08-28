@@ -20,7 +20,7 @@ class AIRuntimeConfiguration:
             "default_max_tokens": 1000,
             "enable_streaming": True,
             "api_keys": {
-                "openai": "sk-mock-openai-key",
+                "openai": "mock-openai-key",
                 "sarvam": "sarvam-mock-key",
                 "qwen": "qwen-mock-key",
             },

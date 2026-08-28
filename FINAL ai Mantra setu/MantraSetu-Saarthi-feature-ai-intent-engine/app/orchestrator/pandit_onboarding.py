@@ -389,12 +389,12 @@ async def detect_correction_field(user_message: str, ai_service: AIService) -> s
     if any(k in msg_lower for k in ["spec", "specialization", "visheshagyata", "विशेषज्ञता"]):
         return "pandit-spec"
     if any(k in msg_lower for k in ["lang", "language", "bhasha", "भाषा"]):
-        return "pandit-lang"
+        return "pandit-languages"
         
     prompt = f"""The user is reviewing their registered details and wants to change a field.
 User Message: "{user_message}"
 Choose the exact target field to correct from this list:
-'pandit-name', 'pandit-phone', 'pandit-email', 'pandit-city', 'pandit-state', 'pandit-exp', 'pandit-spec', 'pandit-lang'.
+'pandit-name', 'pandit-phone', 'pandit-email', 'pandit-city', 'pandit-state', 'pandit-exp', 'pandit-spec', 'pandit-languages'.
 Return ONLY the exact field string."""
     llm_req = LLMRequest(
         messages=[{"role": "system", "content": prompt}, {"role": "user", "content": user_message}],
@@ -403,7 +403,7 @@ Return ONLY the exact field string."""
     try:
         response = await ai_service.generate(request=llm_req)
         val = response.content.strip().replace('"', '').replace("'", "")
-        return val if val in ["pandit-name", "pandit-phone", "pandit-email", "pandit-city", "pandit-state", "pandit-exp", "pandit-spec", "pandit-lang"] else "pandit-phone"
+        return val if val in ["pandit-name", "pandit-phone", "pandit-email", "pandit-city", "pandit-state", "pandit-exp", "pandit-spec", "pandit-languages"] else "pandit-phone"
     except Exception:
         return "pandit-phone"
 
@@ -413,8 +413,15 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
     
     if field in ["pandit-email", "email"]:
 
-        # Remove common email filler prefixes
-        text = re.sub(r'^(mera\s+)?(email\s+address|email\s+id|email)\s+(hai\s+)?', '', text, flags=re.IGNORECASE).strip()
+        # Remove common email filler prefixes & framing phrases ("Mere email idea", "email id hai", "my email address is", etc.)
+        framing_pattern = r'^\b(mera|mere|my|apna|apni)\b\s*\b(email|e-mail|mail)?\b\s*\b(id|idea|address|number)?\b\s*\b(hai|is|hi|h)?\b\s*,?\s*'
+        text = re.sub(framing_pattern, '', text, flags=re.IGNORECASE).strip()
+        text = re.sub(r'^\b(email|e-mail|mail)\b\s*\b(id|idea|address|number)?\b\s*\b(hai|is|hi|h)?\b\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
+        text = re.sub(r'^\b(id|idea|address)\b\s*\b(hai|is|hi|h)?\b\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
+
+        # General Phonetic Rule: STT mishearing of initial "Yash" -> "yes"/"yasm"/"yesm" before common Indian surnames
+        indian_surnames = r'(mishra|sharma|verma|gupta|joshi|kumar|singh|pandey|shastri|tripathi|tiwari|dubey|choubey|upadhyay|dwivedi|patel|rao|reddy|nair|banerjee|mukherjee|chatterjee)'
+        text = re.sub(r'\b(?:yes|yasm|yesm|yashm)\s*' + indian_surnames, r'yash\1', text, flags=re.IGNORECASE)
 
         # 0. Convert spoken digit words inside emails (e.g. "one two one two three four at the rate gmail dot com" -> "121234 at the rate gmail dot com")
         english_digit_words = [
@@ -455,8 +462,8 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
         for dev_let, eng_let in devanagari_letters:
             text = text.replace(dev_let, eng_let)
             
-        # 2. Spoken @ symbols in English & Hindi Devanagari
-        text = re.sub(r'\b(at the rate of|at the rate|at rate of|at rate|at-the-rate|at)\b', '@', text, flags=re.IGNORECASE)
+        # 2. Spoken @ symbols in English & Hindi Devanagari (including STT mishearings "at the red", "at the right", etc.)
+        text = re.sub(r'\b(at the rate of|at the rate|at rate of|at rate|at-the-rate|at the red|at the right|at the net|at the threat|at therate)\b', '@', text, flags=re.IGNORECASE)
         text = re.sub(r'(एट द रेट|ऍट द रेट|एट rate|एट-द-रेट|ऐट)', '@', text)
         text = re.sub(r'(?<=\w)\s+at\s+(?=\w+)', '@', text, flags=re.IGNORECASE)
         
@@ -614,8 +621,19 @@ def convertSpokenEmailToText(spoken: str) -> str:
         return ""
     text = to_roman_text(spoken).lower().strip()
     
-    text = re.sub(r'\b(at the rate of|at the rate|at rate of|at rate|at-the-rate|at)\b', '@', text, flags=re.IGNORECASE)
-    text = re.sub(r'(?<=\w)\s+at\s+(?=\w+)', '@', text, flags=re.IGNORECASE)
+    # 1. Strip common framing phrases from the start of the transcript
+    framing_pattern = r'^\b(mera|mere|my|apna|apni)\b\s*\b(email|e-mail|mail)?\b\s*\b(id|idea|address|number)?\b\s*\b(hai|is|hi|h)?\b\s*,?\s*'
+    text = re.sub(framing_pattern, '', text, flags=re.IGNORECASE).strip()
+    text = re.sub(r'^\b(email|e-mail|mail)\b\s*\b(id|idea|address|number)?\b\s*\b(hai|is|hi|h)?\b\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
+    text = re.sub(r'^\b(id|idea|address)\b\s*\b(hai|is|hi|h)?\b\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
+    
+    # 2. General Phonetic Rule: STT mishearing of initial "Yash" -> "yes"/"yasm"/"yesm" before common Indian surnames (Mishra, Sharma, Verma, Gupta, etc.)
+    indian_surnames = r'(mishra|sharma|verma|gupta|joshi|kumar|singh|pandey|shastri|tripathi|tiwari|dubey|choubey|upadhyay|dwivedi|patel|rao|reddy|nair|banerjee|mukherjee|chatterjee)'
+    text = re.sub(r'\b(?:yes|yasm|yesm|yashm)\s*' + indian_surnames, r'yash\1', text, flags=re.IGNORECASE)
+    
+    # 3. Filter common phonetic mistranscriptions of "@"
+    text = re.sub(r'\b(at the rate of|at the rate|at rate of|at rate|at-the-rate|at the red|at the right|at the net|at the threat|at therate)\b', ' @ ', text, flags=re.IGNORECASE)
+    text = re.sub(r'(?<=\w)\s+at\s+(?=\w+)', ' @ ', text, flags=re.IGNORECASE)
     text = re.sub(r'\b(dot|point|doot|dott)\b', '.', text, flags=re.IGNORECASE)
     text = re.sub(r'\b(dash|hyphen)\b', '-', text, flags=re.IGNORECASE)
     text = re.sub(r'\b(underscore|under score)\b', '_', text, flags=re.IGNORECASE)
@@ -623,8 +641,13 @@ def convertSpokenEmailToText(spoken: str) -> str:
     text = re.sub(r'\b(yaho)\b', 'yahoo', text, flags=re.IGNORECASE)
     text = re.sub(r'\b(c o m)\b', 'com', text, flags=re.IGNORECASE)
     
+    # 4. Repair domain cutoff (e.g. "gmail." at end of string -> "gmail.com")
+    text = re.sub(r'(@(gmail|yahoo|outlook|hotmail|icloud))\s*\.\s*$', r'\1.com', text, flags=re.IGNORECASE)
+    text = re.sub(r'(@(gmail|yahoo|outlook|hotmail|icloud))\s*$', r'\1.com', text, flags=re.IGNORECASE)
+    
+    # 5. Auto-insert missing '@' if a domain is present without '@' (e.g. "yashmishra.gmail.com" -> "yashmishra@gmail.com")
     if '@' not in text:
-        text = re.sub(r'(?<=\w)\s+(?=(gmail|yahoo|outlook|hotmail|icloud|mantrasetu)\.(com|in|co\.in|org|net))\b', '@', text, flags=re.IGNORECASE)
+        text = re.sub(r'(?<=\w)\s*\.?\s*(?=(gmail|yahoo|outlook|hotmail|icloud|mantrasetu)\.(com|in|co\.in|org|net))\b', '@', text, flags=re.IGNORECASE)
         
     email_clean = re.sub(r'\s+', '', text)
     email_clean = email_clean.replace(',', '')
@@ -649,6 +672,9 @@ def is_fragmented_digit_transcript(text: str) -> bool:
     if len(digit_indices) > 1:
         for i in range(digit_indices[0] + 1, digit_indices[-1]):
             tok = tokens[i]
+            # Ignore standard punctuation that Whisper might insert between digits
+            if tok in ["-", ".", ","]:
+                continue
             if not re.match(r'^\d+$', tok) and tok not in VALID_PHONE_WORDS:
                 logger.warning("[PHONE-GUARD] Fragmented digits detected due to intervening word '%s' in transcript '%s'", tok, text)
                 return True
@@ -752,14 +778,14 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
         elif len(digits_only) == 12 and digits_only.startswith('91'):
             digits_only = digits_only[2:]
             
-        if len(digits_only) == 10 and re.match(r'^[56789]', digits_only):
+        if len(digits_only) == 10 and re.match(r'^[6789]', digits_only):
             logger.info("[PANDIT-ONBOARDING] Deterministic regex hit for pandit-phone: %s", digits_only)
             return digits_only
         elif len(digits_only) > 10:
             logger.info("[PANDIT-ONBOARDING] Phone input contains too many digits (%d): %s", len(digits_only), digits_only)
             return digits_only
         else:
-            phone_match = re.search(r'\b[56789]\d{9}\b', user_message_normalized)
+            phone_match = re.search(r'\b[6789]\d{9}\b', user_message_normalized)
             if phone_match:
                 phone_val = phone_match.group(0)
                 logger.info("[PANDIT-ONBOARDING] Deterministic regex hit for pandit-phone: %s", phone_val)
@@ -972,61 +998,18 @@ field_hinglish_names = {
 }
 
 class FieldValidationResult:
-    def __init__(self, is_valid: bool, cleaned_value: Any = None, error_message: str | None = None):
+    def __init__(self, is_valid: bool, cleaned_value: Any = None, error_message: str | None = None, metadata: dict | None = None):
         self.is_valid = is_valid
         self.cleaned_value = cleaned_value
         self.error_message = error_message
+        self.metadata = metadata or {}
 
 FIELD_VALIDATION_REGISTRY: dict[str, Callable[[str, dict], FieldValidationResult]] = {}
 
 def register_field_validator(field_name: str, validator_fn: Callable[[str, dict], FieldValidationResult]):
     FIELD_VALIDATION_REGISTRY[field_name] = validator_fn
 
-def is_fragmented_digit_transcript(text: str) -> bool:
-    """Check if digits in transcript are fragmented by non-digit, non-filler background words."""
-    if not text:
-        return False
-    t_lower = text.lower().strip()
-    VALID_PHONE_WORDS = {
-        "double", "triple", "zero", "shunya", "jiro", "ek", "do", "teen", "char", "panch",
-        "chhe", "che", "saat", "sat", "aath", "ath", "nau", "now", "plus", "ninety", "one",
-        "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
-        "mera", "my", "number", "mobile", "phone", "hai", "is", "ji", "jee", "ha", "haan"
-    }
-    tokens = re.findall(r'\d+|[^\d\s]+', t_lower)
-    digit_indices = [i for i, tok in enumerate(tokens) if re.match(r'^\d+$', tok)]
-    if len(digit_indices) > 1:
-        for i in range(digit_indices[0] + 1, digit_indices[-1]):
-            tok = tokens[i]
-            if not re.match(r'^\d+$', tok) and tok not in VALID_PHONE_WORDS:
-                logger.warning("[PHONE-GUARD] Fragmented digits detected due to intervening word '%s' in transcript '%s'", tok, text)
-                return True
-    return False
 
-def check_text_contamination_ratio(user_message: str, extracted_value: str, field_name: str) -> bool:
-    """Return True if background chatter dominates the transcript (contamination detected)."""
-    if not user_message or not extracted_value or extracted_value == "INVALID" or extracted_value.startswith("QUESTION:"):
-        return False
-    
-    FRAMING_WORDS = {
-        "mera", "meri", "my", "naam", "name", "hai", "is", "sheher", "city", "shahar",
-        "state", "rajya", "gurukul", "education", "padhai", "vishwavidyalaya", "college",
-        "se", "mein", "in", "hoon", "am", "apna", "apni", "ji", "jee", "sir", "pandit"
-    }
-    
-    raw_words = [w.strip(".,?!;:\"'()") for w in user_message.lower().split() if w.strip(".,?!;:\"'()")]
-    meaningful_words = [w for w in raw_words if w not in FRAMING_WORDS]
-    extracted_words = [w.strip(".,?!;:\"'()") for w in extracted_value.lower().split() if w.strip(".,?!;:\"'()")]
-    
-    if len(meaningful_words) >= 4 and len(extracted_words) > 0:
-        ratio = len(extracted_words) / len(meaningful_words)
-        if ratio < 0.40:
-            logger.warning(
-                "[TEXT-CONTAMINATION-GUARD] Extracted '%s' represents only %.1f%% of transcript meaningful words in '%s' for field %s. Rejecting as background chatter contamination.",
-                extracted_value, ratio * 100, user_message, field_name
-            )
-            return True
-    return False
 
 # 1. Phone Validator Entry
 def _validate_phone(val: str, params: dict) -> FieldValidationResult:
@@ -1034,6 +1017,7 @@ def _validate_phone(val: str, params: dict) -> FieldValidationResult:
         digits = re.sub(r'\D', '', val)
         formatted = format_phone_for_speech(digits) if digits else ""
         err = f"Maine suna: '{formatted}', lekin phone number ke beech mein shor tha. Kripya bina rukavat 10-digit mobile number dobara boliye."
+        logger.warning("[TELEMETRY-ONBOARDING] FIELD_REJECTED: field=pandit-phone | reason=fragmented | val=%s", val)
         return FieldValidationResult(False, error_message=err)
 
     digits = re.sub(r'\D', '', val)
@@ -1041,12 +1025,15 @@ def _validate_phone(val: str, params: dict) -> FieldValidationResult:
         digits = digits[1:]
     elif len(digits) == 12 and digits.startswith('91'):
         digits = digits[2:]
-    if len(digits) == 10 and re.match(r'^[56789]', digits):
+    if len(digits) == 10 and re.match(r'^[6789]', digits):
+        logger.info("[TELEMETRY-ONBOARDING] FIELD_ACCEPTED: field=pandit-phone | val=%s", digits)
         return FieldValidationResult(True, cleaned_value=digits)
     formatted = format_phone_for_speech(digits) if digits else ""
     if digits:
+        logger.warning("[TELEMETRY-ONBOARDING] FIELD_REJECTED: field=pandit-phone | reason=invalid_format_digits | val=%s", digits)
         err = f"Maine suna: '{formatted}', lekin mobile number 10 digits ka hona chahiye. Kripya apna 10-digit mobile number dobara bataiye."
     else:
+        logger.warning("[TELEMETRY-ONBOARDING] FIELD_REJECTED: field=pandit-phone | reason=no_digits_found | val=%s", val)
         err = "Maaf kijiye, valid 10-digit mobile number nahi mila. Kripya apna 10-digit mobile number dobara bataiye."
     return FieldValidationResult(False, error_message=err)
 
@@ -1056,10 +1043,45 @@ register_field_validator("pandit-phone", _validate_phone)
 def _validate_email(val: str, params: dict) -> FieldValidationResult:
     match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', val)
     if match:
-        return FieldValidationResult(True, cleaned_value=match.group(0))
+        email_clean = match.group(0).lower()
+        domain = email_clean.split('@')[-1]
+        
+        # Domain Sanity Check: Detect merged words or corrupted domain prefixes (e.g. 'theredgmail.com', 'mygmail.com')
+        COMMON_PROVIDERS = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com", "rediffmail.com", "mantrasetu.com"]
+        for provider in COMMON_PROVIDERS:
+            if domain.endswith(provider) and domain != provider:
+                logger.warning("[TELEMETRY-ONBOARDING] FIELD_REJECTED: field=pandit-email | reason=corrupted_domain_prefix | val=%s | domain=%s", val, domain)
+                err = f"Maine suna: '{val}', lekin email domain ('{domain}') sahi nahi laga. Kripya valid email address (jaise name@gmail.com) dobara bataiye."
+                return FieldValidationResult(False, error_message=err)
+                
+        # Username Post-Hoc Two-Tier Sanity & Confirmation Check against session context identity
+        first_name = (params.get("pandit_first_name") or params.get("first_name") or "").lower().strip()
+        last_name = (params.get("pandit_last_name") or params.get("last_name") or "").lower().strip()
+        needs_confirmation = False
+        if first_name and last_name:
+            import difflib
+            username = email_clean.split('@')[0]
+            expected_username = f"{first_name}{last_name}"
+            ratio = difflib.SequenceMatcher(None, username, expected_username).ratio()
+            
+            # Tier 1 (ratio >= 0.80): High-confidence phonetic STT mishearing (e.g. 'yesmishra' vs 'yashmishra' = 0.84) -> auto-correct
+            if ratio >= 0.80 and ratio < 1.0:
+                corrected_email = f"{expected_username}@{domain}"
+                logger.info("[TELEMETRY-ONBOARDING] Tier-1 high-confidence fuzzy email correction: '%s' -> '%s' (ratio=%.2f)", username, corrected_email, ratio)
+                email_clean = corrected_email
+            elif 0.60 <= ratio < 0.80:
+                # Tier 2 (0.60 <= ratio < 0.80): Borderline ratio (e.g. 'yesmistera' at 0.70, 'aguptaji' at 0.71, 'amitg99' at 0.62)
+                # Preserve exact spoken string and flag for explicit voice confirmation readback
+                needs_confirmation = True
+                logger.info("[TELEMETRY-ONBOARDING] Tier-2 borderline email ratio (ratio=%.2f): preserving spoken email '%s' for explicit confirmation readback.", ratio, email_clean)
+
+        logger.info("[TELEMETRY-ONBOARDING] FIELD_ACCEPTED: field=pandit-email | val=%s | needs_confirmation=%s", email_clean, needs_confirmation)
+        return FieldValidationResult(True, cleaned_value=email_clean, metadata={"needs_explicit_confirmation": needs_confirmation})
     if val and val != "INVALID" and "@" in val:
+        logger.warning("[TELEMETRY-ONBOARDING] FIELD_REJECTED: field=pandit-email | reason=invalid_domain | val=%s", val)
         err = f"Maine suna: '{val}', lekin email address mein '@' aur domain (jaise name@gmail.com) hona zaroori hai. Kripya valid email address dobara bataiye."
     else:
+        logger.warning("[TELEMETRY-ONBOARDING] FIELD_REJECTED: field=pandit-email | reason=missing_at_symbol_or_invalid | val=%s", val)
         err = "Maaf kijiye, valid email address nahi mila. Kripya apna email address (jaise ramesh@gmail.com) dobara bataiye."
     return FieldValidationResult(False, error_message=err)
 
@@ -1137,6 +1159,24 @@ register_field_validator("pandit-spec", _make_multi_choice_validator(["Vedic Puj
 def _make_confirmation_validator(label: str) -> Callable[[str, dict], FieldValidationResult]:
     def validator(val: str, params: dict) -> FieldValidationResult:
         if val and val != "INVALID" and is_upload_confirmed(val):
+            # Check DOM state for file presence if it is a document file field
+            dom_data = params.get("dom_form_data", {}) if isinstance(params, dict) else {}
+            if "certificate" in label or "cert" in label:
+                has_file = params.get("certFile_attached") == "true" or dom_data.get("certFile") or dom_data.get("certFile_attached")
+                if not has_file:
+                    logger.warning("[TELEMETRY-ONBOARDING] FIELD_REJECTED: field=pandit-certFile | reason=missing_dom_file")
+                    return FieldValidationResult(False, error_message="Mujhe koi Shiksha Pramanpatra file nahi mili. Kripya screen par file upload button par click karke certificate select kijiye aur phir 'ho gaya' boliye.")
+            elif "ID proof" in label or "aadhaar" in label:
+                has_file = params.get("aadhaarFile_attached") == "true" or dom_data.get("aadhaarFile") or dom_data.get("aadhaarFile_attached")
+                if not has_file:
+                    logger.warning("[TELEMETRY-ONBOARDING] FIELD_REJECTED: field=pandit-aadhaarFile | reason=missing_dom_file")
+                    return FieldValidationResult(False, error_message="Mujhe koi ID proof file nahi mili. Kripya screen par file upload button par click karke Aadhaar ya ID proof select kijiye aur phir 'ho gaya' boliye.")
+            elif "gallery" in label:
+                has_file = params.get("galleryFiles_attached") == "true" or dom_data.get("galleryFiles") or dom_data.get("galleryFiles_attached")
+                if not has_file:
+                    logger.warning("[TELEMETRY-ONBOARDING] FIELD_REJECTED: field=pandit-galleryFiles | reason=missing_dom_file")
+                    return FieldValidationResult(False, error_message="Mujhe koi gallery file nahi mili. Kripya screen par upload button par click karke photos select kijiye aur phir 'ho gaya' boliye.")
+
             return FieldValidationResult(True, cleaned_value="Done")
         return FieldValidationResult(False, error_message=f"Kripya screen par {label} complete kijiye aur mujhe 'ho gaya' boliye.")
     return validator
@@ -1202,17 +1242,17 @@ register_field_validator("pandit-achievements", _make_non_empty_validator("achie
 register_field_validator("pandit-bio", _make_non_empty_validator("bio"))
 
 # ── UNIFIED GENERIC FIELD VALIDATOR HANDLER ──
-def validate_and_process_field(field_name: str, raw_val: str, user_params: dict, retry_map: dict) -> tuple[bool, Any, str | None]:
+def validate_and_process_field(field_name: str, raw_val: str, user_params: dict, retry_map: dict) -> tuple[bool, Any, str | None, dict]:
     if raw_val and raw_val.startswith("QUESTION:"):
         answer = raw_val.replace("QUESTION:", "").strip()
         hinglish_name = field_hinglish_names.get(field_name, "jankari")
-        return False, None, f"{answer} Ab wapas aate hain, kripya apna {hinglish_name} bataiye."
+        return False, None, f"{answer} Ab wapas aate hain, kripya apna {hinglish_name} bataiye.", {}
 
     validator = FIELD_VALIDATION_REGISTRY.get(field_name)
     if not validator:
         if raw_val and raw_val != "INVALID":
-            return True, raw_val, None
-        return False, None, f"Maaf kijiye, main samajh nahi paya. Dobara bataiye."
+            return True, raw_val, None, {}
+        return False, None, f"Maaf kijiye, main samajh nahi paya. Dobara bataiye.", {}
 
     res = validator(raw_val, user_params)
     if not res.is_valid:
@@ -1223,16 +1263,15 @@ def validate_and_process_field(field_name: str, raw_val: str, user_params: dict,
         max_allowed_retries = 2 if field_name in ["pandit-first-name", "pandit-last-name", "pandit-name"] else 3
         if current_retries >= max_allowed_retries:
             if field_name in ["pandit-first-name", "pandit-last-name", "pandit-name"]:
-                return False, None, "Kripya apna naam type karein"
+                return False, None, "Kripya apna naam type karein", {}
             hinglish_name = field_hinglish_names.get(field_name, "jankari")
             fallback_msg = f"Lagta hai {hinglish_name} ko samajhne mein dikkat ho rahi hai. Kripya screen par highlight ki gayi field par click karke ise manually fill kar dijiye, taaki hum aage badh sakein."
-            return False, None, fallback_msg
+            return False, None, fallback_msg, {}
 
-
-        return False, None, res.error_message
+        return False, None, res.error_message, res.metadata
 
     retry_map[field_name] = 0
-    return True, res.cleaned_value, None
+    return True, res.cleaned_value, None, res.metadata
 
 def sync_next_field_index(state: dict) -> int:
     """Deterministically find the index of the first uncollected field to avoid step index shift."""
@@ -1367,8 +1406,14 @@ async def process_onboarding_step(
                 question = f"Perfect! Ab aage chalte hain. Ab apna {next_hname} bataiye."
                 nav_directive = {"action": "FILL_FORM", "target": tentative_field, "query": tentative_value, "active_field": next_field, "intent": "PANDIT_ONBOARDING"}
             else:
-                question = "Perfect! Main abhi aapka registration submit kar raha hoon."
-                nav_directive = {"action": "NAVIGATE", "target": "/signup?role=pandit", "active_field": None, "intent": "PANDIT_ONBOARDING"}
+                session.onboarding_state = None
+                question = f"Bahut badhiya {pji}! Main abhi aapka registration submit kar raha hoon."
+                nav_directive = {
+                    "action": "SUBMIT_FORM",
+                    "target": "[data-testid='button-submit-pandit-signup']",
+                    "intent": "PANDIT_ONBOARDING",
+                    "fields": None
+                }
             
             orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
             return orchestrator._response_builder.build_response(
@@ -1398,7 +1443,7 @@ async def process_onboarding_step(
         else:
             logger.info("[PANDIT-ONBOARDING] User provided new answer or correction for field %s during confirmation: %r", tentative_field, request.user_message)
             new_val = await extract_field_value(request.user_message, tentative_field, ai_service)
-            is_valid, cleaned_new_val, err_msg = validate_and_process_field(
+            is_valid, cleaned_new_val, err_msg, meta = validate_and_process_field(
                 tentative_field,
                 new_val,
                 request.user_parameters if isinstance(request.user_parameters, dict) else {},
@@ -1553,11 +1598,11 @@ async def process_onboarding_step(
         logger.info("[PANDIT-ONBOARDING] CORRECTING FIELD turn | field: %s | user_msg: %r", target_field, request.user_message)
         val = await extract_field_value(request.user_message, target_field, ai_service)
         
-        is_valid, cleaned_val, err_msg = validate_and_process_field(
+        is_valid, cleaned_val, err_msg, meta = validate_and_process_field(
             target_field,
             val,
             request.user_parameters if isinstance(request.user_parameters, dict) else {},
-            state["field_retry_count"]
+            state.setdefault("field_retry_count", {})
         )
         
         if not is_valid:
@@ -1798,12 +1843,27 @@ async def process_onboarding_step(
         llm_elapsed_ms = int((time.time() - llm_start_time) * 1000)
         logger.info(f"[TIMING-LLM] Field extraction completed in {llm_elapsed_ms}ms | field={current_field} | extracted={val!r}")
     
-    is_valid, cleaned_val, err_msg = validate_and_process_field(
+    is_valid, cleaned_val, err_msg, meta = validate_and_process_field(
         current_field,
         val,
         user_params,
         retry_map
     )
+
+    # ── Tier-2 Voice Confirmation Trigger ──
+    if is_valid and meta and meta.get("needs_explicit_confirmation"):
+        state["status"] = "awaiting_field_confirmation"
+        state["tentative_field"] = current_field
+        state["tentative_value"] = cleaned_val
+        question = f"Maine suna: '{cleaned_val}'. Kya ye email address sahi hai?"
+        nav_directive = {"action": "FILL_FORM", "target": current_field, "query": str(cleaned_val), "active_field": current_field, "intent": "PANDIT_ONBOARDING"}
+        return orchestrator._response_builder.build_response(
+            request_id=request.request_id,
+            text_override=question,
+            response_type=ResponseType.CHAT,
+            navigation_directive=nav_directive,
+            metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
+        )
 
     if not is_valid:
         # Check for navigation intent fallback ONLY after validation fails
@@ -1975,83 +2035,4 @@ async def process_onboarding_step(
         metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
     )
 
-    next_idx = sync_next_field_index(state)
-    logger.info(f"[PANDIT-ONBOARDING] Deterministic sync_next_field_index -> {next_idx} (next missing field)")
-    
-    # ── Transition to Step 2 Summary Confirmation ──
-    cert_file_idx = fields.index("pandit-certFile")
-    if next_idx == cert_file_idx:
-        next_field = None
-        state["status"] = "awaiting_confirmation"
-        question = generate_summary_text(first_name, state["collected_data"], address_info)
-        logger.info("[PANDIT-ONBOARDING] STEP 2 COMPLETE | Transitioning to awaiting_confirmation state.")
-    elif next_idx < len(fields):
-        next_field = fields[next_idx]
-        session.update_location(page="/signup?role=pandit", field=next_field)
-        reaction = get_contextual_reaction(current_field, str(val), address_info)
-        
-        question_variations = {
-            "pandit-first-name": [f"Panditji, aapka first name kya hai?"],
-            "pandit-last-name": [f"{reaction} Aapka last name kya hai?"],
-            "pandit-email": [f"{reaction} Aapka email address kya hai?"],
-            "pandit-phone": [f"{reaction} Aapka 10-digit mobile number bataiye."],
-            "pandit-gender": [f"{reaction} Aapka gender kya hai? Options: Male, Female, ya Other."],
-            "pandit-availability": [f"{reaction} Aapki availability mode kya hai? Offline, Online, ya Both?"],
-            "pandit-city": [f"{reaction} Aap kis city mein rehte hain? Jaise Varanasi, Haridwar, ya Delhi."],
-            "pandit-state": [f"{reaction} Aap kis state se hain?"],
-            "pandit-service-areas": [f"{reaction} Aap kin service areas mein puja ke liye available hain?"],
-            "pandit-exp": [f"{reaction} Aapka puja aur karmakand mein kitne saal ka experience hai?"],
-            "pandit-gurukul": [f"{reaction} Aapka educational background ya Gurukul kaunsa hai?"],
-            "pandit-languages": [f"{reaction} Hum default Hindi aur Sanskrit add kar rahe hain. Koi aur language add karni hai?"],
-            "pandit-spec": [f"{reaction} Aapki primary specialization kaunsi hai? Options: Vedic Pujas & Havan, Jyotish & Kundali, Sanskar Ceremonies, ya Katha & Pravachan."],
-            "pandit-achievements": [f"{reaction} Aapki koi main achievement hai toh bataiye."],
-            "pandit-bio": [f"{reaction} Apne baare mein thoda bataiye (Bio)."],
-            "pandit-certFile": ["Kripya apna certificate upload kijiye. Upload ho jaaye toh 'ho gaya' boliye."],
-            "pandit-aadhaarFile": ["Kripya apne ID proof ki photo upload kijiye. Upload ho jaaye toh 'ho gaya' boliye."],
-            "pandit-galleryFiles": ["Kripya apni required photo upload kijiye. Upload ho jaaye toh 'ho gaya' boliye."],
-            "pandit-password": ["Ab apna password form mein khud banaiye aur type kijiye. Password complete ho jaaye toh 'ho gaya' boliye."],
-            "pandit-confirm": ["Ab confirm password field mein wahi password dobara type kijiye. Ho jaaye toh 'ho gaya' boliye."]
-        }
 
-        opts = question_variations.get(next_field, [f"{reaction} Ab apna {next_field} bataiye."])
-        question = random.choice(opts)
-    else:
-        # All Step 3 fields completed! Trigger submission directly!
-        session.onboarding_state = None
-        text = f"Bahut badhiya {pji}! Main abhi aapka registration submit kar raha hoon."
-        nav_directive = {
-            "action": "SUBMIT_FORM",
-            "target": "[data-testid='button-submit-pandit-signup']",
-            "intent": "PANDIT_ONBOARDING",
-            "fields": None
-        }
-        orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
-        return orchestrator._response_builder.build_response(
-            request_id=request.request_id,
-            text_override=text,
-            response_type=ResponseType.NAVIGATION_DIRECTIVE,
-            navigation_directive=nav_directive,
-            metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
-        )
-        
-    query_val = str(val)
-    if isinstance(val, list):
-        query_val = ", ".join(val)
-        
-    nav_directive = {
-        "action": "FILL_FORM",
-        "target": current_field,
-        "query": query_val,
-        "active_field": next_field,
-        "intent": "PANDIT_ONBOARDING",
-        "fields": None
-    }
-    orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
-    
-    return orchestrator._response_builder.build_response(
-        request_id=request.request_id,
-        text_override=question,
-        response_type=ResponseType.NAVIGATION_DIRECTIVE,
-        navigation_directive=nav_directive,
-        metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
-    )

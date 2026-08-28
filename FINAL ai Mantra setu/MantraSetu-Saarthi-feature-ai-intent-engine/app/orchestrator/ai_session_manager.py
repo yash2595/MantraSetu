@@ -29,6 +29,7 @@ class AISessionRecord:
     onboarding_state: dict[str, Any] | None = None
     current_page: str = "/"
     current_field: str | None = None
+    lock: Any = field(default_factory=__import__('asyncio').Lock)
 
     def update_location(self, page: str | None = None, field: str | None = None) -> None:
         """Update session location and field tracking state."""
@@ -48,10 +49,41 @@ class AISessionManager:
         self._started_at = datetime.now(timezone.utc).isoformat()
         self._start_time = time.perf_counter()
         self._sessions_created_count = 0
+        self._last_cleanup_ts = 0.0
+
+    def cleanup_expired_sessions(self, force: bool = False) -> int:
+        """Purge sessions inactive longer than session_ttl_seconds."""
+        with self._lock:
+            now_ts = time.time()
+            if not force and (now_ts - self._last_cleanup_ts < 60.0):
+                return 0
+            self._last_cleanup_ts = now_ts
+
+            now = datetime.now(timezone.utc)
+            expired_ids = []
+            for sid, rec in list(self._sessions.items()):
+                try:
+                    last_active = datetime.fromisoformat(rec.last_active_at)
+                    idle_seconds = (now - last_active).total_seconds()
+                    if idle_seconds > self._session_ttl_seconds:
+                        expired_ids.append((sid, idle_seconds))
+                except Exception:
+                    pass
+
+            for sid, idle_sec in expired_ids:
+                self._sessions.pop(sid, None)
+                logger.info(
+                    "[AI-SESSION-CLEANUP] Purged expired AI session %s (idle for %.1fs > TTL %.1fs)",
+                    sid,
+                    idle_sec,
+                    self._session_ttl_seconds,
+                )
+            return len(expired_ids)
 
     def get_or_create_session(self, session_id: str, conversation_id: str = "") -> AISessionRecord:
         """Retrieve existing or initialize new AI session record."""
         with self._lock:
+            self.cleanup_expired_sessions()
             if session_id not in self._sessions:
                 conv_id = conversation_id or f"conv_{session_id}"
                 rec = AISessionRecord(session_id=session_id, conversation_id=conv_id)

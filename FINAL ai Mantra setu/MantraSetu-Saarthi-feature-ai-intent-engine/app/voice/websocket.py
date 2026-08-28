@@ -59,7 +59,7 @@ class WebSocketVoiceHandler:
 
     async def handle_finish(self, session_id: str) -> WebSocketMessage:
         """Handle finish frame: finalize recognition and invoke AIOrchestrator."""
-        response = await self._voice_gateway.finish_voice_session(session_id)
+        response, _ = await self._voice_gateway.finish_voice_session(session_id)
         return WebSocketMessage(
             type=WebSocketMessageType.INTERACTION_RESPONSE,
             session_id=session_id,

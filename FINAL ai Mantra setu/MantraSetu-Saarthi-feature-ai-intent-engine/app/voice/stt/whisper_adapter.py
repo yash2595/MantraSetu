@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 
@@ -11,7 +12,25 @@ from app.voice.schemas import TranscriptChunk, TranscriptResult
 from app.voice.session import VoiceSession
 from app.voice.stt.base import ISpeechRecognizer
 
+_STT_CONCURRENCY_SEMAPHORE = asyncio.Semaphore(20)
+
 logger = logging.getLogger(__name__)
+
+
+def _build_whisper_prompt(session: VoiceSession | None) -> str:
+    """Dynamically construct Whisper prompt biasing based on session context and general domain terms."""
+    base_terms = [
+        "MantraSetu", "Pandit", "Puja", "Kundali", "Muhurat", "login", "signup", "onboarding",
+        "Varanasi", "name", "phone", "email", "@gmail.com", "@yahoo.com", "@outlook.com",
+        "at the rate", "9876543210", "spellings", "digits", "Hinglish", "Hindi", "English",
+        "submit", "sahi hai", "galat hai", "haan", "nahi"
+    ]
+    if session and hasattr(session, "context_data") and session.context_data:
+        for key in ["pandit_first_name", "first_name", "pandit_last_name", "last_name", "pandit_email", "email", "client_active_field"]:
+            val = session.context_data.get(key)
+            if val and isinstance(val, str) and val not in base_terms:
+                base_terms.append(val)
+    return ", ".join(base_terms)
 
 
 class WhisperAdapter(ISpeechRecognizer):
@@ -20,6 +39,8 @@ class WhisperAdapter(ISpeechRecognizer):
     def __init__(self, api_key: str | None = None, model: str = "whisper-1") -> None:
         import os
         self._api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
+        if not self._api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is missing")
         self._model = model
 
     @property
@@ -83,66 +104,121 @@ class WhisperAdapter(ISpeechRecognizer):
             stt_confidence = 0.0
             stt_model_used = "google_web_speech_hi-IN"
 
-            # ── Tier 1: Fast Google Web Speech Recognizer (hi-IN) ──
+            # Dynamic prompt construction from session context
+            dynamic_prompt = _build_whisper_prompt(session)
+
+            # ── Tier 0: Groq Whisper STT (Fastest whisper-large-v3-turbo / whisper-large-v3) ──
             stt_start_time = time.time()
-
-            try:
-                import speech_recognition as sr
-                recognizer = sr.Recognizer()
-                recognizer.interim_results = True
-                setattr(recognizer, 'interimResults', True)
-                
-                audio_file = sr.AudioFile(io.BytesIO(wav_data))
-                with audio_file as source:
-                    audio = recognizer.record(source)
-
-                current_field = None
-                if hasattr(session, "onboarding_state") and session.onboarding_state:
-                    idx = session.onboarding_state.get("current_field_index", 0)
-                    fields = session.onboarding_state.get("fields", [])
-                    if idx < len(fields):
-                        current_field = fields[idx]
-
-                lang = "hi-IN"
-                
-                # Robust dual-check for purely numeric/phone/email fields and complex fields like education
-                client_field = session.context_data.get("client_active_field")
-                bypass_fields = ["pandit-phone", "phone", "pandit-email", "email", "pandit-gurukul", "education"]
-                if current_field in bypass_fields or client_field in bypass_fields:
-                    raise Exception(f"Skipping Tier 1 Google WebSpeech for field '{current_field}'/'{client_field}' to use explicit Gemini prompt")
-
+            groq_key = os.environ.get("GROQ_API_KEY", "")
+            if groq_key:
                 try:
-                    result = recognizer.recognize_google(audio, language=lang, show_all=True)
-                except Exception as first_attempt_err:
-                    logger.info(f"[STT-WEBSPEECH] First attempt error ({first_attempt_err}), retrying Google WebSpeech once more...")
-                    result = recognizer.recognize_google(audio, language=lang, show_all=True)
+                    import httpx
+                    async with _STT_CONCURRENCY_SEMAPHORE:
+                        async with httpx.AsyncClient(timeout=10.0) as client:
+                            groq_resp = await client.post(
+                                "https://api.groq.com/openai/v1/audio/transcriptions",
+                                headers={"Authorization": f"Bearer {groq_key}"},
+                                files={"file": ("audio.wav", wav_data, "audio/wav")},
+                                data={
+                                    "model": "whisper-large-v3-turbo",
+                                    "response_format": "json",
+                                    "language": "hi",
+                                    "prompt": dynamic_prompt
+                                }
+                            )
+                        if groq_resp.status_code == 200:
+                            groq_data = groq_resp.json()
+                            text = (groq_data.get("text") or "").strip()
+                            if text:
+                                stt_model_used = "groq_whisper_large_v3_turbo"
+                                stt_confidence = 1.0
+                                stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
+                                logger.info(f"[TIMING-STT] Groq Whisper Turbo STT completed in {stt_elapsed_ms}ms | Transcribed: '{text}'")
+                        elif groq_resp.status_code != 200:
+                            logger.warning(f"[STT-GROQ] Groq Whisper Turbo returned HTTP {groq_resp.status_code}: {groq_resp.text[:200]}, retrying with whisper-large-v3...")
+                            async with httpx.AsyncClient(timeout=10.0) as client:
+                                groq_resp = await client.post(
+                                    "https://api.groq.com/openai/v1/audio/transcriptions",
+                                    headers={"Authorization": f"Bearer {groq_key}"},
+                                    files={"file": ("audio.wav", wav_data, "audio/wav")},
+                                    data={
+                                        "model": "whisper-large-v3",
+                                        "response_format": "json",
+                                        "language": "hi",
+                                        "prompt": dynamic_prompt
+                                    }
+                                )
+                            if groq_resp.status_code == 200:
+                                groq_data = groq_resp.json()
+                                text = (groq_data.get("text") or "").strip()
+                                if text:
+                                    stt_model_used = "groq_whisper_large_v3"
+                                    stt_confidence = 1.0
+                                    stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
+                                    logger.info(f"[TIMING-STT] Groq Whisper v3 fallback completed in {stt_elapsed_ms}ms | Transcribed: '{text}'")
+                except Exception as groq_err:
+                    logger.warning(f"[STT-GROQ] Groq Whisper failed ({groq_err}), falling back to WebSpeech...")
 
-                if isinstance(result, dict) and "alternative" in result and len(result["alternative"]) > 0:
-                    text = result["alternative"][0].get("transcript", "")
-                    stt_confidence = result["alternative"][0].get("confidence", 1.0)
-                elif isinstance(result, list) and len(result) > 0:
-                    text = result[0].get("transcript", "") if isinstance(result[0], dict) else str(result[0])
-                    stt_confidence = 1.0
-                else:
-                    text = ""
-                    stt_confidence = 0.0
+            # ── Tier 1: Fast Google Web Speech Recognizer (hi-IN) ──
+            if not text:
+                stt_start_time = time.time()
+                try:
+                    import speech_recognition as sr
+                    recognizer = sr.Recognizer()
+                    recognizer.interim_results = True
+                    setattr(recognizer, 'interimResults', True)
 
-                stt_model_used = f"google_web_speech_{lang}"
-                stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
-                logger.info(f"[TIMING-STT] Google WebSpeech STT ({lang}) completed in {stt_elapsed_ms}ms | field={current_field} | Transcribed: '{text}'")
-                # ── [DIAG-INVESTIGATION] Tier 1 succeeded ──
-                logger.info(
-                    "[DIAG-INVESTIGATION][STT-TIER] session=%s | Tier1_Google_WebSpeech=SUCCESS | "
-                    "transcript=%r | confidence=%.4f",
-                    session.session_id, text, stt_confidence
-                )
-            except Exception as ws_err:
-                logger.warning(f"[STT-WEBSPEECH] WebSpeech primary attempt failed: {ws_err}, trying Gemini fallback...")
-                # ── [DIAG-INVESTIGATION] Tier 1 failed ──
-                logger.info(
-                    "[DIAG-INVESTIGATION][STT-TIER] session=%s | Tier1_Google_WebSpeech=FAILED | error=%s",
-                    session.session_id, ws_err,
-                )
+                    audio_file = sr.AudioFile(io.BytesIO(wav_data))
+                    with audio_file as source:
+                        audio = recognizer.record(source)
+
+                    current_field = None
+                    if hasattr(session, "onboarding_state") and session.onboarding_state:
+                        idx = session.onboarding_state.get("current_field_index", 0)
+                        fields = session.onboarding_state.get("fields", [])
+                        if idx < len(fields):
+                            current_field = fields[idx]
+
+                    lang = "hi-IN"
+
+                    # Robust dual-check for purely numeric/phone/email fields and complex fields like education
+                    client_field = session.context_data.get("client_active_field")
+                    bypass_fields = ["pandit-phone", "phone", "pandit-email", "email", "pandit-gurukul", "education"]
+                    if current_field in bypass_fields or client_field in bypass_fields:
+                        raise Exception(f"Skipping Tier 1 Google WebSpeech for field '{current_field}'/'{client_field}' to use explicit Gemini prompt")
+
+                    try:
+                        result = await asyncio.to_thread(recognizer.recognize_google, audio, language=lang, show_all=True)
+                    except Exception as first_attempt_err:
+                        logger.info(f"[STT-WEBSPEECH] First attempt error ({first_attempt_err}), retrying Google WebSpeech once more...")
+                        result = await asyncio.to_thread(recognizer.recognize_google, audio, language=lang, show_all=True)
+
+                    if isinstance(result, dict) and "alternative" in result and len(result["alternative"]) > 0:
+                        text = result["alternative"][0].get("transcript", "")
+                        stt_confidence = result["alternative"][0].get("confidence", 1.0)
+                    elif isinstance(result, list) and len(result) > 0:
+                        text = result[0].get("transcript", "") if isinstance(result[0], dict) else str(result[0])
+                        stt_confidence = 1.0
+                    else:
+                        text = ""
+                        stt_confidence = 0.0
+
+                    stt_model_used = f"google_web_speech_{lang}"
+                    stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
+                    logger.info(f"[TIMING-STT] Google WebSpeech STT ({lang}) completed in {stt_elapsed_ms}ms | field={current_field} | Transcribed: '{text}'")
+                    # ── [DIAG-INVESTIGATION] Tier 1 succeeded ──
+                    logger.info(
+                        "[DIAG-INVESTIGATION][STT-TIER] session=%s | Tier1_Google_WebSpeech=SUCCESS | "
+                        "transcript=%r | confidence=%.4f",
+                        session.session_id, text, stt_confidence
+                    )
+                except Exception as ws_err:
+                    logger.warning(f"[STT-WEBSPEECH] WebSpeech primary attempt failed: {ws_err}, trying Gemini fallback...")
+                    # ── [DIAG-INVESTIGATION] Tier 1 failed ──
+                    logger.info(
+                        "[DIAG-INVESTIGATION][STT-TIER] session=%s | Tier1_Google_WebSpeech=FAILED | error=%s",
+                        session.session_id, ws_err,
+                    )
 
 
 
@@ -171,7 +247,7 @@ class WhisperAdapter(ISpeechRecognizer):
                             prompt_msg
                         ]
                         
-                        candidate_models = ["gemini-2.0-flash", "gemini-flash-lite-latest"]
+                        candidate_models = ["gemini-3.6-flash", "gemini-flash-lite-latest"]
                         
                         for model_name in candidate_models:
                             import asyncio

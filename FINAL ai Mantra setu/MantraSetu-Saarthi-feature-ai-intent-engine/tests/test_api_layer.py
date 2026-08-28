@@ -23,6 +23,7 @@ from app.api.websocket.state_machine import ConnectionState, InvalidStateTransit
 from app.orchestrator.ai_orchestrator import AIOrchestrator
 from app.schemas.api.interaction import InteractionResponse
 from app.schemas.context import Intent
+from jose import jwt
 
 
 class TestAPILayerEnterprise(IsolatedAsyncioTestCase):
@@ -115,7 +116,8 @@ class TestAPILayerEnterprise(IsolatedAsyncioTestCase):
 
     def test_websocket_connect_ping_and_disconnect(self) -> None:
         """Verify WebSocket endpoint processes CONNECT, PING, and DISCONNECT frames cleanly."""
-        with self.client.websocket_connect("/ws/voice") as websocket:
+        ticket = jwt.encode({"type": "guest", "client_ip": "127.0.0.1"}, "mantrasetu_voice_ticket_secret_shared_2026", algorithm="HS256")
+        with self.client.websocket_connect(f"/ws/voice?ticket={ticket}") as websocket:
             # 1. Send CONNECT frame
             connect_frame = WebSocketEnvelope(
                 type=ProtocolMessageType.CONNECT,
@@ -129,6 +131,12 @@ class TestAPILayerEnterprise(IsolatedAsyncioTestCase):
             self.assertIsNotNone(connected_frame.session_id)
             self.assertEqual(connected_frame.protocol_version, "1.0")
 
+            # After CONNECTED, the server now automatically sends an AI_RESPONSE greeting.
+            # We must consume it before sending PING.
+            greeting_reply_text = websocket.receive_text()
+            greeting_frame = WebSocketEnvelope.model_validate_json(greeting_reply_text)
+            self.assertEqual(greeting_frame.type, ProtocolMessageType.AI_RESPONSE)
+
             # 2. Send PING frame
             ping_frame = WebSocketEnvelope(
                 type=ProtocolMessageType.PING,
@@ -138,6 +146,13 @@ class TestAPILayerEnterprise(IsolatedAsyncioTestCase):
 
             pong_reply_text = websocket.receive_text()
             pong_frame = WebSocketEnvelope.model_validate_json(pong_reply_text)
+            
+            # Since the greeting AI_RESPONSE triggers TTS AUDIO_CHUNKs, 
+            # we need to skip any audio chunks that were queued before our PONG arrives.
+            while pong_frame.type != ProtocolMessageType.PONG:
+                pong_reply_text = websocket.receive_text()
+                pong_frame = WebSocketEnvelope.model_validate_json(pong_reply_text)
+                
             self.assertEqual(pong_frame.type, ProtocolMessageType.PONG)
 
             # 3. Send DISCONNECT frame

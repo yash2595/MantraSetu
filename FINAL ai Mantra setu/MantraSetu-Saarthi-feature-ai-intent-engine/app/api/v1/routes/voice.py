@@ -4,7 +4,10 @@ Provides HTTP endpoints for speech-to-text transcription, voice pipeline chat,
 text-to-speech synthesis, and voice system health status via ConversationService.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+import jwt
+from datetime import datetime, timedelta, timezone
+from app.core.config import settings
 
 from app.core.exceptions import (
     AppException,
@@ -59,6 +62,21 @@ def _raise_http_exception(exc: Exception) -> None:
         status_code=500,
         detail="Unexpected internal server error.",
     ) from exc
+
+@router.post("/ticket", summary="Generate a WebSocket connection ticket")
+async def generate_voice_ticket(request: Request):
+    """Generate a short-lived JWT ticket for WebSocket authentication."""
+    ticket_secret = getattr(settings, "voice_ticket_secret", None) or "mantrasetu_voice_ticket_secret_shared_2026"
+    
+    # Generate a ticket valid for 5 minutes
+    payload = {
+        "type": "guest",
+        "client_ip": request.client.host if request.client else "unknown",
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=5)
+    }
+    
+    ticket = jwt.encode(payload, ticket_secret, algorithm="HS256")
+    return {"ticket": ticket}
 
 
 @router.post(

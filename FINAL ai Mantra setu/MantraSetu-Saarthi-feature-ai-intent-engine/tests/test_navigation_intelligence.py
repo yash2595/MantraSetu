@@ -341,7 +341,7 @@ class TestNavigationIntelligenceFrameworkV41(IsolatedAsyncioTestCase):
         self.assertIn("context", res)
         self.assertIn("decision", res)
         self.assertIn("directive", res)
-        self.assertEqual(res["directive"]["target"], "/kundali")
+        self.assertEqual(res["directive"]["target"], "/kundali-creation")
 
         diag = nav_service.get_diagnostics()
         self.assertIn("registered_routes_count", diag)

@@ -68,7 +68,7 @@ STATIC_ONBOARDING_PROMPTS = [
     "Maaf kijiye, main email address samajh nahi paya. Kripya sahi email address bataiye.",
     "Kripya confirm password enter karke mujhe 'ho gaya' ya 'submit kar do' boliye.",
     "Password kam se kam 8 characters ka hona chahiye. Kripya naya password set karein.",
-    "Aapka password aur confirm password match nahi kar rahe. Kripya screen par matching password type kijiye.",
+    "Panditji, aapne password galat daala hai, dono password match nahi ho rahe. Kripya dobara try karein.",
     "Kya saari jaankari sahi hai? Form submit karne ke liye 'Haan' ya 'Submit' boliye, ya kisi detail ko badalne ke liye field ka naam bataiye."
 ]
 
@@ -174,9 +174,11 @@ class TTSCacheManager:
 
             audio_data = b""
             try:
-                async for chunk in tts_provider.stream(req):
-                    if chunk.data:
-                        audio_data += chunk.data
+                import asyncio
+                async with asyncio.timeout(10.0):
+                    async for chunk in tts_provider.stream(req):
+                        if chunk.data:
+                            audio_data += chunk.data
                 
                 if audio_data:
                     self.put(key, audio_data)

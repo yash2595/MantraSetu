@@ -9,17 +9,20 @@ from app.voice.stt.factory import build_speech_recognizer
 from app.voice.websocket import WebSocketVoiceHandler
 
 
+import os
+
 def build_voice_gateway(
     ai_orchestrator: AIOrchestrator | None = None,
     session_manager: VoiceSessionManager | None = None,
-    stt_provider: str = "whisper",
+    stt_provider: str | None = None,
     **stt_kwargs,
 ) -> VoiceGateway:
     """Build and return a fully configured VoiceGateway instance."""
     from app.orchestrator.defaults import build_ai_orchestrator
     ai_orch = ai_orchestrator or build_ai_orchestrator()
     sess_mgr = session_manager or VoiceSessionManager()
-    recognizer = build_speech_recognizer(provider=stt_provider, **stt_kwargs)
+    provider_to_use = stt_provider or os.environ.get("DEFAULT_STT_PROVIDER", "whisper")
+    recognizer = build_speech_recognizer(provider=provider_to_use, **stt_kwargs)
 
     return VoiceGateway(
         ai_orchestrator=ai_orch,

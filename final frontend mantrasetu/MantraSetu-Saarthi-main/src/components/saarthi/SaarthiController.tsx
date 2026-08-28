@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useSaarthi } from './SaarthiContext';
@@ -9,6 +10,15 @@ import { useSaarthiVoice } from '../../hooks/useSaarthiVoice';
 
 export const SaarthiController: React.FC = () => {
   const { } = useSaarthiVoice();
+  const location = useLocation();
+
+  useEffect(() => {
+    const currentPage = location.pathname + location.search;
+    if ((window as any)._saarthiNotifyPageChange) {
+      console.log('[SaarthiController] Route changed -> notifying WS:', currentPage);
+      (window as any)._saarthiNotifyPageChange(currentPage);
+    }
+  }, [location.pathname, location.search]);
 
   const {
     state,

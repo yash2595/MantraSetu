@@ -33,7 +33,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174"],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -49,6 +49,9 @@ app.include_router(pandit_router)
 app.include_router(contact_router)
 app.include_router(user_router)
 app.include_router(voice_router)
+
+from app.api.routes.admin import router as admin_router
+app.include_router(admin_router)
 
 @app.get("/")
 def home():

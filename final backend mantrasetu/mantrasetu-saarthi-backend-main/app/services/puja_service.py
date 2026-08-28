@@ -1,4 +1,5 @@
-from app.database.puja_db import get_all_pujas, create_booking, get_bookings_by_user
+from fastapi import HTTPException
+from app.database.puja_db import get_all_pujas, create_booking, get_bookings_by_user, get_puja_by_id
 from app.schemas.puja_schema import (
     PujaResponse,
     BookPujaRequest,
@@ -13,6 +14,10 @@ async def execute_get_puja_list() -> list[PujaResponse]:
 
 
 async def execute_book_puja(request: BookPujaRequest, user_id: str) -> BookPujaResponse:
+    puja = await get_puja_by_id(request.puja_id)
+    if not puja:
+        raise HTTPException(status_code=404, detail="Puja not found")
+        
     booking_id = await create_booking(
         user_id=user_id,
         puja_id=request.puja_id,

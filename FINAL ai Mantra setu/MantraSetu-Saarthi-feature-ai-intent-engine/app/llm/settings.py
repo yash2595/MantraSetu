@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class LLMSettings(BaseSettings):
-    provider: str = Field(default="gemini")
+    provider: str = Field(default="gemini", validation_alias="LLM_PROVIDER")
 
     # Required
     api_key: SecretStr | None = Field(
