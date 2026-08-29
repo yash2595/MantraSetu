@@ -6,6 +6,14 @@ that generic English models tend to hallucinate.
 """
 
 STT_CUSTOM_VOCABULARY = [
+    "Indian English",
+    "Hindi conversation",
+    "Indian names",
+    "surnames",
+    "Sharma",
+    "Mishra",
+    "Verma",
+    "Singh",
     "MantraSetu",
     "Pandit",
     "Puja",

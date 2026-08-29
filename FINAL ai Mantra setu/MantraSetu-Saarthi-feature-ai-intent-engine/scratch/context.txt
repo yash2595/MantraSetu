@@ -1,0 +1,237 @@
+SECRETS
+=======
+
+--- mock_test_c.py:8 ---
+   7:     print("--- SECTION C: STT Accuracy & Handling ---")
+>> 8:     adapter = GroqSTTAdapter(api_key="fake")
+   9:     session = VoiceSession(session_id="test", language="hi")
+
+--- test_rate_limiting.py:6 ---
+   5: 
+>> 6: SECRET = "mantrasetu_voice_ticket_secret_shared_2026"
+   7: ALGO = "HS256"
+
+--- app/api/dependencies/auth.py:10 ---
+   9:     """Dependency provider validating API key if required by configuration."""
+>> 10:     if x_api_key == "invalid_key":
+   11:         raise HTTPException(
+
+--- app/config/production.env.example:78 ---
+   77: # Qdrant authentication token for cluster access.
+>> 78: QDRANT_API_KEY=your_production_qdrant_api_key_here
+   79: 
+
+--- app/config/production.env.example:87 ---
+   86: # OpenAI Platform API key for GPT-4o and text-embedding-3-small models.
+>> 87: OPENAI_API_KEY=your_production_openai_api_key_here
+   88: 
+
+--- app/config/production.env.example:90 ---
+   89: # Sarvam AI API key for Hinglish LLM, STT, and TTS synthesis.
+>> 90: SARVAM_API_KEY=your_production_sarvam_ai_api_key_here
+   91: 
+
+--- app/config/production.env.example:93 ---
+   92: # Qwen 3 Omni / Qwen Voice API key for multimodal streaming.
+>> 93: QWEN_API_KEY=your_production_qwen_api_key_here
+   94: 
+
+--- app/llm/providers/gemini.py:54 ---
+   53: 
+>> 54:         api_key = os.getenv("GEMINI_API_KEY")
+   55:         if not api_key:
+
+--- app/llm/providers/gemini.py:59 ---
+   58:         else:
+>> 59:             self._client = genai.Client(api_key=api_key)
+   60: 
+
+--- app/llm/providers/groq.py:36 ---
+   35:         self._settings = settings or llm_settings
+>> 36:         self._api_key = (
+   37:             api_key
+
+--- app/llm/providers/groq.py:112 ---
+   111: 
+>> 112:             client = AsyncGroq(api_key=self._api_key)
+   113: 
+
+--- app/llm/providers/groq.py:171 ---
+   170:                         from groq import AsyncGroq
+>> 171:                         fallback_client = AsyncGroq(api_key=self._api_key)
+   172:                         fallback_kw = {
+
+--- app/llm/providers/groq.py:229 ---
+   228: 
+>> 229:             client = AsyncGroq(api_key=self._api_key)
+   230: 
+
+--- app/orchestrator/pandit_onboarding.py:28 ---
+   27:         fast_model = os.getenv("GROQ_LLM_MODEL_FAST", "openai/gpt-oss-20b")
+>> 28:         api_key = os.getenv("GROQ_API_KEY", "")
+   29:         logger.info("[TOKEN-CONSERVATION] Initializing fast extraction AIService with model=%s", fast_model)
+
+--- app/orchestrator/pandit_onboarding.py:30 ---
+   29:         logger.info("[TOKEN-CONSERVATION] Initializing fast extraction AIService with model=%s", fast_model)
+>> 30:         fast_provider = GroqProvider(api_key=api_key, model=fast_model)
+   31:         # Register under unique name to avoid factory conflict
+
+--- app/speech/providers/sarvam.py:21 ---
+   20:         """Initialize the Sarvam provider."""
+>> 21:         self._api_key = api_key
+   22:         logger.info("SarvamProvider initialized")
+
+--- app/tts/providers/cosyvoice.py:15 ---
+   14:     def __init__(self, api_key: str | None = None) -> None:
+>> 15:         self._api_key = api_key
+   16:         logger.info("CosyVoiceProvider initialized")
+
+--- app/tts/providers/elevenlabs_provider.py:82 ---
+   81:         import os
+>> 82:         self._api_key = os.environ.get("ELEVENLABS_API_KEY", "")
+   83:         self._voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "pFZP5JQG7iQjIQuC4Bku")
+
+--- app/voice/stt/groq_adapter.py:28 ---
+   27:     ) -> None:
+>> 28:         self._api_key = api_key or os.environ.get("GROQ_API_KEY", "")
+   29:         self._model = model or os.environ.get("GROQ_STT_MODEL", "whisper-large-v3-turbo")
+
+--- app/voice/stt/groq_adapter.py:105 ---
+   104: 
+>> 105:             client = AsyncGroq(api_key=self._api_key)
+   106: 
+
+--- app/voice/stt/sarvam_adapter.py:20 ---
+   19:     def __init__(self, api_key: str | None = None, model: str = "saarika:v1") -> None:
+>> 20:         self._api_key = api_key
+   21:         self._model = model
+
+--- app/voice/stt/whisper_adapter.py:22 ---
+   21:         import os
+>> 22:         self._api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
+   23:         self._model = model
+
+--- app/voice/stt/whisper_adapter.py:207 ---
+   206:                         from google.genai import types
+>> 207:                         client = genai.Client(api_key=gemini_key)
+   208:                         
+
+--- app/voice/tts/elevenlabs_adapter.py:31 ---
+   30:     ) -> None:
+>> 31:         self._api_key = api_key or os.environ.get("ELEVENLABS_API_KEY", "")
+   32:         self._model = model
+
+--- app/voice/tts/openai_adapter.py:24 ---
+   23:     def __init__(self, api_key: str | None = None, model: str = "tts-1") -> None:
+>> 24:         self._api_key = api_key
+   25:         self._model = model
+
+--- app/voice/tts/sarvam_adapter.py:24 ---
+   23:     def __init__(self, api_key: str | None = None, model: str = "bulbul:v1") -> None:
+>> 24:         self._api_key = api_key
+   25:         self._model = model
+
+--- scripts/ai_intelligence_validation_v2.py:254 ---
+   253:     load_dotenv()
+>> 254:     api_key = os.getenv("API_KEY", "").strip()
+   255:     base_url = os.getenv("BASE_URL", "https://openrouter.ai/api/v1").strip()
+
+--- scripts/ai_intelligence_validation_v2.py:590 ---
+   589:     load_dotenv()
+>> 590:     api_key = os.getenv("API_KEY", "").strip()
+   591:     base_url = os.getenv("BASE_URL", "https://openrouter.ai/api/v1").strip()
+
+--- scripts/llm_certification_benchmark.py:137 ---
+   136:     load_dotenv()
+>> 137:     api_key = os.getenv("API_KEY", "").strip()
+   138:     base_url = os.getenv("BASE_URL", "https://openrouter.ai/api/v1").strip()
+
+--- tests/test_groq_llm_contract.py:16 ---
+   15:     def setUp(self):
+>> 16:         self.provider = GroqProvider(api_key="mock_groq_key", model="llama-3.3-70b-versatile")
+   17: 
+
+--- tests/test_groq_stt_contract.py:17 ---
+   16:     def setUp(self):
+>> 17:         self.adapter = GroqSTTAdapter(api_key="mock_groq_key", model="whisper-large-v3-turbo")
+   18:         self.session = VoiceSession(session_id="test_sess_001", sample_rate=16000, language="hi-IN")
+
+--- tests/test_groq_stt_contract.py:27 ---
+   26:         """Test lookup from build_speech_recognizer factory."""
+>> 27:         recognizer = build_speech_recognizer("groq", api_key="mock_key")
+   28:         self.assertIsInstance(recognizer, GroqSTTAdapter)
+
+--- tests/test_inworld_tts_contract.py:24 ---
+   23:         self.adapter = InWorldTTSAdapter(
+>> 24:             api_key="mock_inworld_key",
+   25:             model="inworld-tts-2-flash",
+
+--- tests/test_inworld_tts_contract.py:40 ---
+   39:         adapter = InWorldTTSAdapter(
+>> 40:             api_key="mock_inworld_key",
+   41:             model="inworld-tts-2-flash",
+
+--- tests/test_inworld_tts_contract.py:52 ---
+   51:         """Test lookup from build_tts_provider factory."""
+>> 52:         provider = build_tts_provider("inworld", api_key="mock_key")
+   53:         self.assertIsInstance(provider, InWorldTTSAdapter)
+
+FALLBACKS
+=========
+
+--- app/api/dependencies/voice.py ---
+   27: stt_provider = os.environ.get("DEFAULT_STT_PROVIDER", "whisper")
+   40: provider_name = os.environ.get("DEFAULT_TTS_PROVIDER", "sarvam")
+
+--- app/api/v1/routes/stubs.py ---
+   93: mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017/mantrasetu")
+
+--- app/dependencies/providers.py ---
+   44: _default_provider = os.getenv("LLM_PROVIDER", "gemini").lower()
+
+--- app/llm/settings.py ---
+   19: model_name: str = Field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest"))
+
+--- app/llm/providers/gemini.py ---
+   54: api_key = os.getenv("GEMINI_API_KEY")
+   61: self._model = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
+
+--- app/llm/providers/groq.py ---
+   39: or os.getenv("GROQ_API_KEY", "")
+   41: self._model = model or os.getenv("GROQ_LLM_MODEL", "llama-3.3-70b-versatile")
+   163: fast_model = os.getenv("GROQ_LLM_MODEL_FAST", "openai/gpt-oss-20b")
+
+--- app/orchestrator/defaults.py ---
+   153: provider_name = os.getenv("LLM_PROVIDER", "gemini").lower()
+
+--- app/orchestrator/pandit_onboarding.py ---
+   27: fast_model = os.getenv("GROQ_LLM_MODEL_FAST", "openai/gpt-oss-20b")
+   28: api_key = os.getenv("GROQ_API_KEY", "")
+
+--- app/tts/providers/elevenlabs_provider.py ---
+   82: self._api_key = os.environ.get("ELEVENLABS_API_KEY", "")
+   83: self._voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "pFZP5JQG7iQjIQuC4Bku")
+   146: "speed": float(os.environ.get("ELEVENLABS_SPEED", "0.88"))
+
+--- app/voice/stt/groq_adapter.py ---
+   28: self._api_key = api_key or os.environ.get("GROQ_API_KEY", "")
+   29: self._model = model or os.environ.get("GROQ_STT_MODEL", "whisper-large-v3-turbo")
+
+--- app/voice/stt/whisper_adapter.py ---
+   22: self._api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
+   88: groq_key = os.environ.get("GROQ_API_KEY", "")
+   202: gemini_key = os.environ.get("GEMINI_API_KEY", "")
+
+--- app/voice/tts/elevenlabs_adapter.py ---
+   31: self._api_key = api_key or os.environ.get("ELEVENLABS_API_KEY", "")
+   34: self._default_voice_id = default_voice_id or os.environ.get("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB")
+   80: "speed": float(os.environ.get("ELEVENLABS_SPEED", "1.00"))
+
+--- app/voice/tts/inworld_adapter.py ---
+   81: self._api_key: str = api_key or os.environ.get("INWORLD_API_KEY", "")
+   90: or os.environ.get("INWORLD_TTS_MODEL", "inworld-tts-2-flash")
+   96: or os.environ.get("INWORLD_VOICE_ID", "Aarav")
+   103: or os.environ.get("INWORLD_STYLE_HINT", "")
+   105: self._speed: float = float(os.environ.get("INWORLD_SPEED", "1.00"))
+   200: "audioEncoding": os.environ.get("INWORLD_AUDIO_ENCODING", "MP3"),
+   201: "sampleRateHertz": int(os.environ.get("INWORLD_SAMPLE_RATE", "44100")),

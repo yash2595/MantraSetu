@@ -1,0 +1,20 @@
+[
+  {
+    "candidate": 1,
+    "voice_id": null,
+    "desc": "A warm, friendly, conversational Indian male voice with a clear accent. Natural pacing with slight pauses, suitable for a helpful spiritual assistant. Sounds genuine and approachable, not formal or robotic.",
+    "error": "{\"code\":5, \"message\":\"Not Found\", \"details\":[]}"
+  },
+  {
+    "candidate": 2,
+    "voice_id": null,
+    "desc": "A calm, clear male voice with a gentle Indian accent. Measured and composed, like a knowledgeable spiritual guide. Warm and unhurried, with natural breath marks, not overly deep or pompous.",
+    "error": "{\"code\":5, \"message\":\"Not Found\", \"details\":[]}"
+  },
+  {
+    "candidate": 3,
+    "voice_id": null,
+    "desc": "A youthful, energetic Indian male voice, conversational and bright. Clear Hindi pronunciation, friendly and encouraging, like a helpful assistant from India. Natural speech rhythm, not newsreader tone.",
+    "error": "{\"code\":5, \"message\":\"Not Found\", \"details\":[]}"
+  }
+]

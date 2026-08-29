@@ -1,0 +1,13 @@
+{
+  "transcription": {
+    "transcript": "\u092e\u0947\u0930\u093e \u0928\u093e\u092e \u0930\u093e\u0918\u0935 \u0936\u0930\u094d\u092e\u093e \u0939\u0948\u0964",
+    "isFinal": true,
+    "wordTimestamps": [],
+    "voiceProfile": null,
+    "silenceDurationMs": 0
+  },
+  "usage": {
+    "transcribedAudioMs": 2376,
+    "modelId": "inworld/inworld-stt-1"
+  }
+}

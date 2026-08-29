@@ -18,19 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 def _build_whisper_prompt(session: VoiceSession | None) -> str:
-    """Dynamically construct Whisper prompt biasing based on session context and general domain terms."""
-    base_terms = [
-        "MantraSetu", "Pandit", "Puja", "Kundali", "Muhurat", "login", "signup", "onboarding",
-        "Varanasi", "name", "phone", "email", "@gmail.com", "@yahoo.com", "@outlook.com",
-        "at the rate", "9876543210", "spellings", "digits", "Hinglish", "Hindi", "English",
-        "submit", "sahi hai", "galat hai", "haan", "nahi"
-    ]
-    if session and hasattr(session, "context_data") and session.context_data:
-        for key in ["pandit_first_name", "first_name", "pandit_last_name", "last_name", "pandit_email", "email", "client_active_field"]:
-            val = session.context_data.get(key)
-            if val and isinstance(val, str) and val not in base_terms:
-                base_terms.append(val)
-    return ", ".join(base_terms)
+    """Return a generalized phonetic hint prompt for Groq Whisper."""
+    return "Indian English, Hindi conversation, Indian names, surnames, Sharma, Mishra, Verma, Singh, Varanasi, mobile digits, email address"
 
 
 class WhisperAdapter(ISpeechRecognizer):
@@ -62,6 +51,7 @@ class WhisperAdapter(ISpeechRecognizer):
         )
 
     async def finish_session(self, session: VoiceSession, buffer: AudioBuffer) -> TranscriptResult:
+        t_session_start = time.monotonic()
         logger.info("Whisper STT finish_session called", extra={"session_id": session.session_id, "size_bytes": buffer.size})
         
         try:
@@ -70,7 +60,8 @@ class WhisperAdapter(ISpeechRecognizer):
             import os
             import re
             
-            # Convert raw PCM16 to WAV in memory
+            # ── Step 1: Convert raw PCM16 to WAV in memory ──
+            t_pcm_start = time.monotonic()
             raw_pcm = buffer.flush()
             wav_io = io.BytesIO()
             with wave.open(wav_io, 'wb') as wav_file:
@@ -80,37 +71,43 @@ class WhisperAdapter(ISpeechRecognizer):
                 wav_file.writeframes(raw_pcm)
             
             wav_data = wav_io.getvalue()
+            pcm_to_wav_ms = round((time.monotonic() - t_pcm_start) * 1000, 2)
+
             # ── [DIAG-INVESTIGATION] Short-audio gate ──
             logger.info(
                 "[DIAG-INVESTIGATION][STT-AUDIO-GATE] session=%s | wav_bytes=%d | "
-                "threshold=6000 | will_skip=%s | audio_dur_sec=%.3f",
+                "threshold=6000 | will_skip=%s | audio_dur_sec=%.3f | pcm_to_wav_ms=%.2f",
                 session.session_id,
                 len(wav_data),
                 len(wav_data) < 6000,
                 round(buffer.size / (session.sample_rate * 2), 3) if session.sample_rate else 0.0,
+                pcm_to_wav_ms,
             )
             if len(wav_data) < 6000:
                 logger.warning("[STT] Audio too short (%d bytes < 6000), skipping STT processing", len(wav_data))
+                total_duration_ms = round((time.monotonic() - t_session_start) * 1000, 2)
                 return TranscriptResult(
                     text="",
                     confidence=0.0,
                     language=session.language,
                     provider=self.provider_name,
                     duration_seconds=round(buffer.size / (session.sample_rate * 2), 2) if session.sample_rate else 0.0,
-                    metadata={"model": "short_audio_skip", "status": "skipped"}
+                    metadata={"model": "short_audio_skip", "status": "skipped", "timings": {"pcm_to_wav_ms": pcm_to_wav_ms, "total_ms": total_duration_ms}}
                 )
 
             text = ""
             stt_confidence = 0.0
             stt_model_used = "google_web_speech_hi-IN"
+            groq_net_ms = 0.0
+            fallback_ms = 0.0
 
             # Dynamic prompt construction from session context
             dynamic_prompt = _build_whisper_prompt(session)
 
             # ── Tier 0: Groq Whisper STT (Fastest whisper-large-v3-turbo / whisper-large-v3) ──
-            stt_start_time = time.time()
             groq_key = os.environ.get("GROQ_API_KEY", "")
             if groq_key:
+                t_groq_start = time.monotonic()
                 try:
                     import httpx
                     async with _STT_CONCURRENCY_SEMAPHORE:
@@ -123,19 +120,21 @@ class WhisperAdapter(ISpeechRecognizer):
                                     "model": "whisper-large-v3-turbo",
                                     "response_format": "json",
                                     "language": "hi",
-                                    "prompt": dynamic_prompt
+                                    "prompt": dynamic_prompt,
+                                    "temperature": "0"
                                 }
                             )
+                        groq_net_ms = round((time.monotonic() - t_groq_start) * 1000, 2)
                         if groq_resp.status_code == 200:
                             groq_data = groq_resp.json()
                             text = (groq_data.get("text") or "").strip()
                             if text:
                                 stt_model_used = "groq_whisper_large_v3_turbo"
                                 stt_confidence = 1.0
-                                stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
-                                logger.info(f"[TIMING-STT] Groq Whisper Turbo STT completed in {stt_elapsed_ms}ms | Transcribed: '{text}'")
+                                logger.info(f"[TIMING-STT] Groq Whisper Turbo STT network call completed in {groq_net_ms}ms | Transcribed: '{text}'")
                         elif groq_resp.status_code != 200:
                             logger.warning(f"[STT-GROQ] Groq Whisper Turbo returned HTTP {groq_resp.status_code}: {groq_resp.text[:200]}, retrying with whisper-large-v3...")
+                            t_retry_start = time.monotonic()
                             async with httpx.AsyncClient(timeout=10.0) as client:
                                 groq_resp = await client.post(
                                     "https://api.groq.com/openai/v1/audio/transcriptions",
@@ -145,18 +144,21 @@ class WhisperAdapter(ISpeechRecognizer):
                                         "model": "whisper-large-v3",
                                         "response_format": "json",
                                         "language": "hi",
-                                        "prompt": dynamic_prompt
+                                        "prompt": dynamic_prompt,
+                                        "temperature": "0"
                                     }
                                 )
+                            retry_ms = round((time.monotonic() - t_retry_start) * 1000, 2)
+                            groq_net_ms += retry_ms
                             if groq_resp.status_code == 200:
                                 groq_data = groq_resp.json()
                                 text = (groq_data.get("text") or "").strip()
                                 if text:
                                     stt_model_used = "groq_whisper_large_v3"
                                     stt_confidence = 1.0
-                                    stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
-                                    logger.info(f"[TIMING-STT] Groq Whisper v3 fallback completed in {stt_elapsed_ms}ms | Transcribed: '{text}'")
+                                    logger.info(f"[TIMING-STT] Groq Whisper v3 fallback completed in {retry_ms}ms | Transcribed: '{text}'")
                 except Exception as groq_err:
+                    groq_net_ms = round((time.monotonic() - t_groq_start) * 1000, 2)
                     logger.warning(f"[STT-GROQ] Groq Whisper failed ({groq_err}), falling back to WebSpeech...")
 
             # ── Tier 1: Fast Google Web Speech Recognizer (hi-IN) ──
@@ -287,6 +289,7 @@ class WhisperAdapter(ISpeechRecognizer):
 
 
             # ── Hallucination Filter: Remove repetitive garbled tokens (e.g., "जिन जिनजिन", "पानी पानी") ──
+            t_filter_start = time.monotonic()
             clean_text = text.strip()
             if clean_text:
                 words = clean_text.split()
@@ -294,9 +297,15 @@ class WhisperAdapter(ISpeechRecognizer):
                 if len(words) >= 6 and len(set(words)) <= 2:
                     logger.warning(f"[STT-HALLUCINATION-FILTER] Rejected repetitive garbled STT transcript: '{clean_text}'")
                     clean_text = ""
+            filter_ms = round((time.monotonic() - t_filter_start) * 1000, 2)
+            total_elapsed_ms = round((time.monotonic() - t_session_start) * 1000, 2)
 
             logger.info("================================================")
-            logger.info(f"[STT-RAW-DEBUG] STT Raw Transcript received: '{clean_text}' | confidence: {stt_confidence:.2f} | model: {stt_model_used}")
+            logger.info(
+                f"[TIMING-BREAKDOWN] Total: {total_elapsed_ms}ms | PCM->WAV: {pcm_to_wav_ms}ms | "
+                f"Groq API: {groq_net_ms}ms | Filter: {filter_ms}ms | Model: {stt_model_used} | "
+                f"Transcript: '{clean_text}'"
+            )
             logger.info("================================================")
             
             return TranscriptResult(
@@ -305,9 +314,19 @@ class WhisperAdapter(ISpeechRecognizer):
                 language=session.language,
                 provider=self.provider_name,
                 duration_seconds=round(buffer.size / (session.sample_rate * 2), 2) if session.sample_rate else 0.0,
-                metadata={"model": stt_model_used, "status": "success" if clean_text else "empty_or_hallucination"},
+                metadata={
+                    "model": stt_model_used,
+                    "status": "success" if clean_text else "empty_or_hallucination",
+                    "timings": {
+                        "total_ms": total_elapsed_ms,
+                        "pcm_to_wav_ms": pcm_to_wav_ms,
+                        "groq_net_ms": groq_net_ms,
+                        "filter_ms": filter_ms
+                    }
+                },
             )
         except Exception as e:
+            total_elapsed_ms = round((time.monotonic() - t_session_start) * 1000, 2)
             logger.error(f"STT could not transcribe audio: {e}")
             return TranscriptResult(
                 text="",
@@ -315,7 +334,7 @@ class WhisperAdapter(ISpeechRecognizer):
                 language=session.language,
                 provider=self.provider_name,
                 duration_seconds=round(buffer.size / (session.sample_rate * 2), 2) if session.sample_rate else 0.0,
-                metadata={"model": "stt_error", "status": "error", "error": str(e)},
+                metadata={"model": "stt_error", "status": "error", "error": str(e), "total_ms": total_elapsed_ms},
             )
 
     async def cancel_session(self, session: VoiceSession) -> None:

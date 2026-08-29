@@ -1,0 +1,1609 @@
+INVENTORY
+=========
+app\main.py: Application entrypoint for MantraSetu AI Assistant.
+app\__init__.py: MantraSetu AI Assistant application package.
+app\agent\base.py: Abstract contracts and interfaces for the Agent Core subsystem in MantraSetu AgentOS.
+app\agent\context.py: Agent Context Service orchestration layer for MantraSetu AgentOS.
+app\agent\executor.py: Agent Executor Service orchestration layer for MantraSetu AgentOS.
+app\agent\models.py: Domain models and schemas for the Agent Core subsystem in MantraSetu AgentOS.
+app\agent\planner.py: Agent Planner Service orchestration layer for MantraSetu AgentOS.
+app\agent\service.py: Agent Core Application Service Facade for MantraSetu AgentOS.
+app\agent\__init__.py: Agent Core domain subsystem for MantraSetu AgentOS.
+app\agents\agent_executor.py: Thread-Pool Parallel Agent Task Executor v1.0.
+app\agents\agent_lifecycle.py: Enterprise Agent Lifecycle & Health Manager v1.0.
+app\agents\agent_message_bus.py: Inter-Agent Event Distribution & Message Bus v1.0.
+app\agents\agent_models.py: Domain models, value objects, and enums for Enterprise Multi-Agent Collaboration Framework v1.0.
+app\agents\agent_registry.py: Central Enterprise Registry for Specialized AI Agents v1.0.
+app\agents\agent_router.py: Capability Matching, Load Balancing & Failover Router v1.0.
+app\agents\agent_telemetry.py: Dedicated Telemetry Aggregator Engine for Multi-Agent Framework v1.0.
+app\agents\result_aggregator.py: Multi-Agent Result Aggregation & Conflict Resolution Engine v1.0.
+app\agents\supervisor_agent.py: Master Orchestrator Supervisor Agent Engine v1.0.
+app\agents\task_planner.py: Goal Decomposition & DAG Task Dependency Planner v1.0.
+app\agents\__init__.py: Enterprise Multi-Agent Collaboration Framework v1.0 domain subsystem for MantraSetu AgentOS.
+app\ai\base.py: Abstract contracts and interfaces for the AI subsystem in MantraSetu AgentOS.
+app\ai\factory.py: AI Provider Factory for MantraSetu AgentOS.
+app\ai\models.py: Provider-independent domain models and schemas for the AI subsystem in MantraSetu AgentOS.
+app\ai\registry.py: AI Provider Registry for MantraSetu AgentOS.
+app\ai\service.py: AI Subsystem Service Facade for MantraSetu AgentOS.
+app\ai\__init__.py: AI domain subsystem for MantraSetu AgentOS.
+app\ai\intent\intent_types.py: Defines classes: IntentType
+app\ai\intent\__init__.py: No explicit docstring, classes, functions, or imports
+app\ai\providers\__init__.py: AI provider implementations package for MantraSetu AgentOS.
+app\aiops\adaptive_router.py: Adaptive Router Engine for Enterprise AIOps Layer Sprint 7B v1.0.
+app\aiops\aiops_telemetry.py: AIOps Telemetry Engine for Enterprise AIOps Layer Sprint 7B v1.0.
+app\aiops\optimization_dashboard.py: AIOps Optimization Dashboard for Enterprise AIOps Layer Sprint 7B v1.0.
+app\aiops\prompt_optimizer.py: Prompt Optimizer Engine for Enterprise AIOps Layer Sprint 7B v1.0.
+app\aiops\provider_optimizer.py: Provider Optimizer Engine for Enterprise AIOps Layer Sprint 7B v1.0.
+app\aiops\root_cause_analyzer.py: Root Cause Analysis Engine for Enterprise AIOps Layer Sprint 7B v1.0.
+app\aiops\self_healing_engine.py: Self Healing Engine for Enterprise AIOps Layer Sprint 7B v1.0.
+app\aiops\system_optimizer.py: System Optimizer Coordinator for Enterprise AIOps Layer Sprint 7B v1.0.
+app\aiops\workflow_optimizer.py: Workflow Optimizer Engine for Enterprise AIOps Layer Sprint 7B v1.0.
+app\aiops\__init__.py: Enterprise AIOps, Self-Improving Intelligence & Autonomous Optimization Platform for MantraSetu Agen
+app\ai_governance\approval_workflow.py: Approval Workflow Engine for Enterprise AI Governance Layer Sprint 7C v1.0.
+app\ai_governance\compliance_manager.py: Compliance Manager for Enterprise AI Governance Layer Sprint 7C v1.0.
+app\ai_governance\explainability_engine.py: Explainability Engine for Enterprise AI Governance Layer Sprint 7C v1.0.
+app\ai_governance\governance_dashboard.py: Enterprise AI Governance Dashboard for Enterprise AI Governance Layer Sprint 7C v1.0.
+app\ai_governance\governance_telemetry.py: Governance Telemetry Engine for Enterprise AI Governance Layer Sprint 7C v1.0.
+app\ai_governance\lineage_manager.py: Lineage Manager for Enterprise AI Governance Layer Sprint 7C v1.0.
+app\ai_governance\model_lifecycle_manager.py: Model Lifecycle Manager for Enterprise AI Governance Layer Sprint 7C v1.0.
+app\ai_governance\model_registry.py: Model Registry for Enterprise AI Governance Layer Sprint 7C v1.0.
+app\ai_governance\policy_governance.py: Policy Governance Engine for Enterprise AI Governance Layer Sprint 7C v1.0.
+app\ai_governance\__init__.py: Enterprise AI Governance, Explainability & Model Lifecycle Platform for MantraSetu AgentOS Sprint 7C
+app\ai_quality\ai_quality_dashboard.py: Enterprise AI Quality Dashboard for Enterprise AI Quality Layer Sprint 7 v1.0.
+app\ai_quality\benchmark_manager.py: Benchmark Engine for Enterprise AI Quality Layer Sprint 7 v1.0.
+app\ai_quality\continuous_quality_telemetry.py: Continuous Quality Telemetry Engine for Enterprise AI Quality Layer Sprint 7A v1.0.
+app\ai_quality\cost_optimizer.py: AI Cost Optimizer for Enterprise AI Quality Layer Sprint 7A v1.0.
+app\ai_quality\data_drift_detector.py: Data Drift Detection Engine for Enterprise AI Quality Layer Sprint 7A v1.0.
+app\ai_quality\evaluation_scheduler.py: Continuous Evaluation Scheduler for Enterprise AI Quality Layer Sprint 7A v1.0.
+app\ai_quality\experiment_dashboard.py: Enterprise AI Experiment Dashboard for Enterprise AI Quality Layer Sprint 7A v1.0.
+app\ai_quality\failure_dataset_builder.py: Failure Dataset Builder for Enterprise AI Quality Layer Sprint 7A v1.0.
+app\ai_quality\feedback_manager.py: Human Feedback Learning Manager for Enterprise AI Quality Layer Sprint 7 v1.0.
+app\ai_quality\golden_dataset_manager.py: Golden Dataset Manager for Enterprise AI Quality Layer Sprint 7 v1.0.
+app\ai_quality\hallucination_detector.py: Hallucination Detection Engine for Enterprise AI Quality Layer Sprint 7 v1.0.
+app\ai_quality\judge_framework.py: LLM-as-a-Judge Evaluation Framework for Enterprise AI Quality Layer Sprint 7 v1.0.
+app\ai_quality\model_drift_detector.py: Model Drift Detection Engine for Enterprise AI Quality Layer Sprint 7A v1.0.
+app\ai_quality\production_ai_monitor.py: Production AI Monitor Engine for Enterprise AI Quality Layer Sprint 7A v1.0.
+app\ai_quality\prompt_evaluator.py: Prompt Evaluator Engine for Enterprise AI Quality Layer Sprint 7 v1.0.
+app\ai_quality\prompt_experiment_manager.py: Prompt Experiment Manager for Enterprise AI Quality Layer Sprint 7A v1.0.
+app\ai_quality\prompt_library.py: Prompt Library Repository for Enterprise AI Quality Layer Sprint 7 v1.0.
+app\ai_quality\quality_telemetry.py: Quality Telemetry Engine for Enterprise AI Quality Layer Sprint 7 v1.0.
+app\ai_quality\regression_manager.py: AI Regression Testing Engine for Enterprise AI Quality Layer Sprint 7 v1.0.
+app\ai_quality\safety_evaluator.py: AI Safety Evaluation Engine for Enterprise AI Quality Layer Sprint 7 v1.0.
+app\ai_quality\shadow_evaluator.py: Shadow Evaluation Engine for Enterprise AI Quality Layer Sprint 7A v1.0.
+app\ai_quality\__init__.py: Enterprise AI Quality Engineering, Evaluation & Continuous Monitoring Platform for MantraSetu AgentO
+app\api\dependencies.py: FastAPI dependency injection providers.
+app\api\metrics.py: Thread-safe transport metrics collector for Module 4 telemetry.
+app\api\voice.py: Voice REST API router module.
+app\api\__init__.py: Module 4 Transport Layer package (REST API + WebSocket Integration).
+app\api\dependencies\auth.py: Dependency injection providers for authentication hooks.
+app\api\dependencies\orchestrator.py: Dependency injection providers for AIOrchestrator and ChatOrchestrator.
+app\api\dependencies\voice.py: Dependency injection providers for Voice Gateway, Session Manager, and TTS Pipeline.
+app\api\dependencies\__init__.py: Dependencies subpackage for Transport Layer.
+app\api\middleware\auth.py: Authentication hooks and middleware component.
+app\api\middleware\correlation.py: Correlation ID tracking middleware and ContextVar state management.
+app\api\middleware\exception.py: Global HTTP exception handling middleware transforming errors into ErrorEnvelope responses.
+app\api\middleware\logging.py: Structured access logging middleware for HTTP requests.
+app\api\middleware\rate_limit.py: Rate limiting middleware hooks.
+app\api\middleware\__init__.py: Middleware subpackage for Transport Layer.
+app\api\rest\chat.py: Synchronous chat REST API endpoints.
+app\api\rest\health.py: Health, version, and metrics system REST endpoints.
+app\api\rest\voice.py: Voice session and control REST API endpoints.
+app\api\rest\__init__.py: REST routes subpackage for Transport Layer.
+app\api\schemas\rest.py: Pydantic REST request and response schemas for Module 4 Transport Layer.
+app\api\schemas\websocket.py: Pydantic WebSocket message protocol schemas for Module 4 Transport Layer.
+app\api\schemas\__init__.py: Transport layer API schemas subpackage.
+app\api\v1\conversation.py: Conversation API route — POST /api/v1/conversation/chat.
+app\api\v1\router.py: Top-level API router for version 1.
+app\api\v1\schemas.py: Pydantic v2 request/response schemas for the Chat and Health API endpoints.
+app\api\v1\__init__.py: Version 1 API package.
+app\api\v1\routes\auth.py: Defines classes: LoginPayload, GooglePayload, SignupPayload
+app\api\v1\routes\chat.py: Chat API route for MantraSetu Saarthi AI Backend.
+app\api\v1\routes\health.py: Health check API route for MantraSetu Saarthi AI Backend.
+app\api\v1\routes\stubs.py: Imports: fastapi, pydantic
+app\api\v1\routes\voice.py: Voice REST API router module for API v1.
+app\api\v1\routes\__init__.py: Route collection for API v1.
+app\api\websocket\handler.py: WebSocket frame handler coordinator for Module 4 Transport Layer.
+app\api\websocket\rate_limiter.py: In-memory sliding window rate limiter for WebSocket voice sessions.
+app\api\websocket\router.py: WebSocket frame router definition for Module 4 Transport Layer with state machine and flow control.
+app\api\websocket\state_machine.py: Explicit connection state machine for WebSocket connection lifecycle management.
+app\api\websocket\__init__.py: WebSocket subpackage for Transport Layer.
+app\archive\voice_legacy_router.py: Legacy Voice REST API router module — Archived for backward compatibility reference.
+app\archive\voice_service.py: Voice Processing Orchestration Service module.
+app\autonomous_agents\agent_dashboard.py: Agent Dashboard for Enterprise Autonomous Agent Layer Sprint 8C v1.0.
+app\autonomous_agents\agent_runtime.py: Agent Runtime for Enterprise Autonomous Agent Layer Sprint 8C v1.0.
+app\autonomous_agents\agent_telemetry.py: Agent Telemetry Engine for Enterprise Autonomous Agent Layer Sprint 8C v1.0.
+app\autonomous_agents\approval_checkpoint_manager.py: Approval Checkpoint Manager for Enterprise Autonomous Agent Layer Sprint 8C v1.0.
+app\autonomous_agents\collaboration_manager.py: Collaboration Manager for Enterprise Autonomous Agent Layer Sprint 8C v1.0.
+app\autonomous_agents\execution_supervisor.py: Execution Supervisor for Enterprise Autonomous Agent Layer Sprint 8C v1.0.
+app\autonomous_agents\task_delegation_engine.py: Task Delegation Engine for Enterprise Autonomous Agent Layer Sprint 8C v1.0.
+app\autonomous_agents\workflow_negotiation_engine.py: Workflow Negotiation Engine for Enterprise Autonomous Agent Layer Sprint 8C v1.0.
+app\autonomous_agents\__init__.py: Enterprise Autonomous AI Agent Execution & Collaboration Platform for MantraSetu AgentOS Sprint 8C v
+app\browser\base.py: Abstract contracts and interfaces for the Browser Automation subsystem in MantraSetu AgentOS.
+app\browser\browser_dashboard.py: Enterprise Browser Dashboard for MantraSetu AgentOS Sprint 9B v1.0.
+app\browser\browser_executor.py: Enterprise Browser Executor Primitives for MantraSetu AgentOS Sprint 9B v1.0.
+app\browser\browser_manager.py: Enterprise Browser Manager for MantraSetu AgentOS Sprint 9B v1.0.
+app\browser\browser_safety_manager.py: Enterprise Browser Safety Manager for MantraSetu AgentOS Sprint 9B v1.0.
+app\browser\browser_state_manager.py: Enterprise Browser State Manager for MantraSetu AgentOS Sprint 9B v1.0.
+app\browser\browser_telemetry.py: Enterprise Browser Telemetry Engine for MantraSetu AgentOS Sprint 9B v1.0.
+app\browser\controller.py: Browser Controller module for MantraSetu AgentOS.
+app\browser\dom_analyzer.py: Enterprise DOM Analyzer for MantraSetu AgentOS Sprint 9B v1.0.
+app\browser\executor.py: Browser Action Executor implementation for MantraSetu AgentOS.
+app\browser\models.py: Domain models and schemas for the Browser Automation subsystem in MantraSetu AgentOS.
+app\browser\page_reasoning_engine.py: Enterprise Page Reasoning Engine for MantraSetu AgentOS Sprint 9B v1.0.
+app\browser\playwright_client.py: Playwright browser automation client driver for MantraSetu AgentOS.
+app\browser\registry.py: Browser Provider Registry for MantraSetu AgentOS.
+app\browser\screenshot_validator.py: Enterprise Screenshot Validator for MantraSetu AgentOS Sprint 9B v1.0.
+app\browser\service.py: Browser Automation Application Service facade for MantraSetu AgentOS.
+app\browser\session.py: Browser Session Manager for MantraSetu AgentOS.
+app\browser\__init__.py: Browser Automation subsystem for MantraSetu AgentOS.
+app\business\donation_workflow.py: Donation Workflow for Enterprise Business Layer Sprint 6D v1.0.
+app\business\kundali_workflow.py: Kundali Query Workflow for Enterprise Business Layer Sprint 6D v1.0.
+app\business\muhurat_workflow.py: Muhurat Search Workflow for Enterprise Business Layer Sprint 6D v1.0.
+app\business\pandit_onboarding_workflow.py: Pandit Onboarding Workflow for Enterprise Business Layer Sprint 6D v1.0.
+app\business\profile_management_workflow.py: Profile Management Workflow for Enterprise Business Layer Sprint 6D v1.0.
+app\business\puja_booking_workflow.py: Puja Booking Workflow for Enterprise Business Layer Sprint 6D v1.0.
+app\business\temple_discovery_workflow.py: Temple Discovery Workflow for Enterprise Business Layer Sprint 6D v1.0.
+app\business\workflow_coordinator.py: Workflow Coordinator for Enterprise Business Layer Sprint 6D v1.0.
+app\business\workflow_telemetry.py: Workflow Telemetry Engine for Enterprise Business Workflows Sprint 6D v1.0.
+app\business\__init__.py: Enterprise Production Business Workflow Layer for MantraSetu AgentOS Sprint 6D v1.0.
+app\config\production.env.example: ENVIRONMENT=production
+app\conversation\base.py: Abstract contracts and interfaces for the Conversation subsystem in MantraSetu AgentOS.
+app\conversation\conversation_context.py: Conversational Context Snapshot Builder for Prompt & AI Orchestrator Integration v1.0.
+app\conversation\conversation_manager.py: Core Dialogue Orchestrating Engine for AI Conversation Framework v1.0.
+app\conversation\conversation_models.py: Domain models, value objects, and enums for Enterprise AI Conversation Framework v1.0.
+app\conversation\conversation_policy_engine.py: Security, Authentication, and Governance Policy Engine for AI Conversation v1.0.
+app\conversation\conversation_recovery_engine.py: Zero-Loss Dialogue Recovery Engine for Failure Fallbacks v1.0.
+app\conversation\conversation_strategy_engine.py: Strategy Selection Engine for Multi-Intent Prioritization & Clarifications v1.0.
+app\conversation\conversation_telemetry.py: Dedicated Telemetry Aggregator Engine for AI Conversation Framework v1.0.
+app\conversation\conversation_workflow_graph.py: Deterministic State Machine Governing Dialogue State Transitions & Checkpoints for v1.0.
+app\conversation\entity_extractor.py: Named Entity Recognition & Type Normalization Engine v1.0.
+app\conversation\intent_engine.py: Multi-Intent Classification & Confidence Scoring Engine v1.0.
+app\conversation\manager.py: Conversation Manager coordinator for MantraSetu AgentOS.
+app\conversation\memory.py: Conversation Memory module for MantraSetu AgentOS.
+app\conversation\models.py: Domain models and schemas for the Conversation subsystem in MantraSetu AgentOS.
+app\conversation\response_manager.py: Clarification, Confirmation & Response Formatting Manager v1.0.
+app\conversation\service.py: Conversation Application Service facade for MantraSetu AgentOS.
+app\conversation\session.py: Conversation Session Manager module for MantraSetu AgentOS.
+app\conversation\slot_manager.py: Thread-Safe Slot Tracking, Validation, and Filling Engine v1.0.
+app\conversation\__init__.py: Enterprise AI Conversation Framework v1.0 domain subsystem for MantraSetu AgentOS.
+app\conversation_intelligence\conversation_coach.py: Conversation Coach for Enterprise Conversation Intelligence Layer Sprint 8B v1.0.
+app\conversation_intelligence\conversation_dashboard.py: Conversation Dashboard for Enterprise Conversation Intelligence Layer Sprint 8B v1.0.
+app\conversation_intelligence\conversation_quality_manager.py: Conversation Quality Manager for Enterprise Conversation Intelligence Layer Sprint 8B v1.0.
+app\conversation_intelligence\conversation_telemetry.py: Conversation Telemetry Engine for Enterprise Conversation Intelligence Layer Sprint 8B v1.0.
+app\conversation_intelligence\dialogue_manager.py: Dialogue Manager for Enterprise Conversation Intelligence Layer Sprint 8B v1.0.
+app\conversation_intelligence\emotion_engine.py: Emotion Engine for Enterprise Conversation Intelligence Layer Sprint 8B v1.0.
+app\conversation_intelligence\interruption_manager.py: Interruption Manager for Enterprise Conversation Intelligence Layer Sprint 8B v1.0.
+app\conversation_intelligence\personalization_engine.py: Personalization Engine for Enterprise Conversation Intelligence Layer Sprint 8B v1.0.
+app\conversation_intelligence\__init__.py: Enterprise AI Conversation Intelligence & Human Interaction Platform for MantraSetu AgentOS Sprint 8
+app\copilot\action_recommender.py: Action Recommender for Enterprise AI Copilot Layer Sprint 8D v1.0.
+app\copilot\contextual_assistant.py: Contextual Assistant for Enterprise AI Copilot Layer Sprint 8D v1.0.
+app\copilot\copilot_dashboard.py: Copilot Dashboard for Enterprise AI Copilot Layer Sprint 8D v1.0.
+app\copilot\copilot_manager.py: Copilot Manager for Enterprise AI Copilot Layer Sprint 8D v1.0.
+app\copilot\copilot_telemetry.py: Copilot Telemetry Engine for Enterprise AI Copilot Layer Sprint 8D v1.0.
+app\copilot\predictive_assistant.py: Predictive Assistant for Enterprise AI Copilot Layer Sprint 8D v1.0.
+app\copilot\productivity_optimizer.py: Productivity Optimizer for Enterprise AI Copilot Layer Sprint 8D v1.0.
+app\copilot\recommendation_engine.py: Recommendation Engine for Enterprise AI Copilot Layer Sprint 8D v1.0.
+app\copilot\__init__.py: Enterprise AI Copilot, Predictive Assistance & Productivity Platform for MantraSetu AgentOS Sprint 8
+app\core\app.py: FastAPI application factory with AI subsystem lifecycle integration.
+app\core\bootstrap.py: Centralized Application Bootstrap and Lifespan Orchestration for MantraSetu AgentOS.
+app\core\config.py: Application settings and environment configuration.
+app\core\container.py: Enterprise Dependency Injection Container for MantraSetu AgentOS runtime services.
+app\core\dependency.py: Centralized Dependency Injection Container for MantraSetu AgentOS.
+app\core\health.py: Core Health Monitoring and Aggregation Module for MantraSetu AgentOS.
+app\core\lifecycle.py: Centralized Application Lifecycle Management Module for MantraSetu AgentOS.
+app\core\logging.py: Centralized structured logging configuration for MantraSetu AgentOS.
+app\core\models.py: Reusable core domain models and schemas for MantraSetu AgentOS.
+app\core\registry.py: Centralized Runtime Service Registry for MantraSetu AgentOS.
+app\core\settings.py: Centralized Application Configuration Module for MantraSetu AgentOS.
+app\core\shutdown.py: Graceful shutdown manager for MantraSetu AgentOS runtime services.
+app\core\validation.py: Startup validation engine for MantraSetu AgentOS bootstrap phase.
+app\core\__init__.py: Core application infrastructure subpackage for MantraSetu AgentOS.
+app\core\exceptions\api.py: Domain-specific API exceptions module.
+app\core\exceptions\base.py: Base application exception module for MantraSetu AgentOS.
+app\core\exceptions\error_response.py: Global FastAPI exception handlers.
+app\core\exceptions\handlers.py: Global FastAPI exception handlers and registration logic.
+app\core\exceptions\__init__.py: Exception framework package exports.
+app\core\utils\constants.py: Centralized application constants.
+app\core\utils\datetime.py: DateTime utility module.
+app\core\utils\ids.py: Identifier utilities.
+app\core\utils\strings.py: String utility functions.
+app\core\utils\__init__.py: Utility layer package exports.
+app\dependencies\composition.py: Application composition layer for MantraSetu Saarthi AI Backend.
+app\dependencies\providers.py: Dependency injection wiring module for application services and provider adapters.
+app\dependencies\__init__.py: Dependencies package exports.
+app\deployment\deployment_manager.py: Production Deployment Manager for Enterprise Go-Live Sprint 6 v1.0.
+app\deployment\__init__.py: Production Deployment Subsystem for MantraSetu AgentOS Sprint 6 v1.0.
+app\execution\base.py: Abstract base class and error types for the Execution Engine.
+app\execution\models.py: Domain models for the Execution Engine.
+app\execution\service.py: Concrete Execution Engine implementation.
+app\execution\__init__.py: Execution Engine package.
+app\forms\confirmation_manager.py: Interactive Review & User Confirmation Flow Manager v1.0.
+app\forms\draft_manager.py: Form Draft Auto-Save, Snapshot & Recovery Manager v1.0.
+app\forms\field_mapper.py: Semantic Slot-to-Field Mapping Engine v1.0.
+app\forms\form_discovery.py: Dynamic Form Schema Discovery & Registration Engine v1.0.
+app\forms\form_models.py: Domain models, value objects, and enums for Enterprise Voice Form Automation Framework v1.0.
+app\forms\form_progress_manager.py: Form Completion & Missing Field Progress Calculator v1.0.
+app\forms\form_sync_manager.py: Live WebSocket Form Directive Synchronization Manager v1.0.
+app\forms\form_telemetry.py: Dedicated Telemetry Aggregator Engine for Voice Form Automation v1.0.
+app\forms\form_validator.py: Field Type, Regex & Form Constraint Validator Engine v1.0.
+app\forms\voice_form_controller.py: Voice Form Automation Master Controller Engine v1.0.
+app\forms\__init__.py: Enterprise Voice Form Automation Framework v1.0 domain subsystem for MantraSetu AgentOS.
+app\infrastructure\api_gateway.py: API Gateway for Enterprise Infrastructure Sprint 6A v1.1.
+app\infrastructure\background_task_manager.py: Background Task Manager for Enterprise Infrastructure Sprint 6A v1.1.
+app\infrastructure\configuration_manager.py: Thread-Safe Configuration Manager & Live Reload Engine v1.0.
+app\infrastructure\configuration_validator.py: Configuration Schema & Profile Compatibility Validator v1.0.
+app\infrastructure\connection_pool_manager.py: Connection Pool Manager for Enterprise Infrastructure Sprint 6A v1.1.
+app\infrastructure\deployment_manager.py: Provider-Independent Cloud Deployment Manifest Abstraction Manager v1.0.
+app\infrastructure\distributed_lock_manager.py: Distributed Lock Manager for Enterprise Infrastructure Sprint 6A v1.1.
+app\infrastructure\environment_manager.py: Environment Context & Profile Switching Manager v1.0.
+app\infrastructure\failover_manager.py: Circuit Breaker & Runtime Failover Recovery Manager v1.0.
+app\infrastructure\load_balancer.py: Infrastructure Request Load Balancer & Traffic Router v1.0.
+app\infrastructure\production_database_adapters.py: Production Database Persistence Adapters for Enterprise Infrastructure Sprint 6A v1.1.
+app\infrastructure\resource_manager.py: Hardware Resource Allocation & Limits Manager v1.0.
+app\infrastructure\runtime_cache.py: Thread-Safe Infrastructure TTL Cache v1.0.
+app\infrastructure\runtime_health.py: Infrastructure Liveness, Readiness & Startup Health Aggregator v1.0.
+app\infrastructure\runtime_manager.py: Master Runtime Lifecycle Controller & Graceful Shutdown Engine v1.0.
+app\infrastructure\runtime_models.py: Domain models, value objects, and enums for Enterprise Deployment, Runtime & Infrastructure Framewor
+app\infrastructure\runtime_scheduler.py: Infrastructure Background Task Scheduler v1.0.
+app\infrastructure\runtime_telemetry.py: Dedicated Telemetry Aggregator Engine for Deployment & Infrastructure Framework v1.0.
+app\infrastructure\scaling_manager.py: Auto-Scaling Policy & Replicas Trigger Engine v1.0.
+app\infrastructure\service_discovery.py: Provider-Independent Dynamic Service Discovery Engine v1.0.
+app\infrastructure\service_registry.py: Central Infrastructure Service Instance Registry v1.0.
+app\infrastructure\storage_adapter.py: File Storage Adapter for Enterprise Infrastructure Sprint 6A v1.1.
+app\infrastructure\__init__.py: Enterprise Infrastructure Layer for MantraSetu AgentOS Sprint 6A v1.1.
+app\integrations\analytics_provider_manager.py: Analytics Provider Manager & Adapters for Enterprise AI Integration Framework v1.0.
+app\integrations\api_orchestration_engine.py: Enterprise API Orchestration Engine for MantraSetu AgentOS Sprint 9D v1.0.
+app\integrations\authentication_provider_manager.py: Authentication Provider Manager & Adapters for Enterprise AI Integration Framework v1.0.
+app\integrations\cache_manager.py: Cache Manager & Adapters for Enterprise AI Integration Framework v1.0.
+app\integrations\calendar_provider_manager.py: Calendar Provider Manager & Adapters for Enterprise AI Integration Framework v1.0.
+app\integrations\connector_manager.py: Enterprise Connector Manager for MantraSetu AgentOS Sprint 9D v1.0.
+app\integrations\connector_marketplace.py: Enterprise Connector Marketplace for MantraSetu AgentOS Sprint 9D v1.0.
+app\integrations\connector_registry.py: Enterprise Connector Registry for MantraSetu AgentOS Sprint 9D v1.0.
+app\integrations\database_manager.py: Database Manager & Adapters for Enterprise AI Integration Framework v1.0.
+app\integrations\embedding_provider_manager.py: Embedding Provider Manager & Adapters for Enterprise AI Integration Framework v1.0.
+app\integrations\event_sync_engine.py: Enterprise Event Synchronization Engine for MantraSetu AgentOS Sprint 9D v1.0.
+app\integrations\integration_dashboard.py: Enterprise Integration Dashboard for MantraSetu AgentOS Sprint 9D v1.0.
+app\integrations\integration_health.py: Provider Health Monitoring & Status Engine for Enterprise AI Integration Framework v1.0.
+app\integrations\integration_models.py: Domain models, value objects, and enums for Enterprise AI Integration & Production Readiness Framewo
+app\integrations\integration_registry.py: Centralized dynamic Provider Registry for Enterprise AI Integration Framework v1.0.
+app\integrations\integration_telemetry.py: Integration Telemetry Engine for Enterprise AI Integration Framework v1.0.
+app\integrations\llm_provider_manager.py: LLM Provider Manager & Adapters for Enterprise AI Integration Framework v1.0.
+app\integrations\maps_provider_manager.py: Maps Provider Manager & Adapters for Enterprise AI Integration Framework v1.0.
+app\integrations\message_queue_manager.py: Message Queue Manager & Adapters for Enterprise AI Integration Framework v1.0.
+app\integrations\monitoring_exporter.py: Monitoring Exporter for Enterprise AI Integration Framework v1.0.
+app\integrations\notification_provider_manager.py: Notification Provider Manager & Adapters for Enterprise AI Integration Framework v1.0.
+app\integrations\oauth_manager.py: Enterprise OAuth Manager for MantraSetu AgentOS Sprint 9D v1.0.
+app\integrations\ocr_provider_manager.py: OCR Provider Manager & Adapters for Enterprise AI Integration Framework v1.0.
+app\integrations\payment_provider_manager.py: Payment Provider Manager & Adapters for Enterprise AI Integration Framework v1.0.
+app\integrations\production_websocket_manager.py: Production WebSocket Manager for Enterprise Infrastructure Sprint 6A v1.1.
+app\integrations\search_provider_manager.py: Search Provider Manager & Adapters for Enterprise AI Integration Framework v1.0.
+app\integrations\storage_manager.py: Cloud Object Storage Manager & Adapters for Enterprise AI Integration Framework v1.0.
+app\integrations\vector_database_manager.py: Vector Database Manager & Adapters for Enterprise AI Integration Framework v1.0.
+app\integrations\webhook_manager.py: Enterprise Webhook Manager for MantraSetu AgentOS Sprint 9D v1.0.
+app\integrations\__init__.py: Enterprise AI Integration & Production Readiness Framework v1.0.
+app\interfaces\chat_orchestrator.py: Frozen abstract interface contracts for MantraSetu AI Orchestration Subsystem.
+app\interfaces\__init__.py: Interfaces module for MantraSetu AI Assistant.
+app\knowledge\knowledge_sync_manager.py: Knowledge Synchronization Manager for Enterprise RAG Layer Sprint 6C v1.1.
+app\knowledge\production_chunking_engine.py: Production Chunking Engine for Enterprise RAG Layer Sprint 6C v1.1.
+app\knowledge\production_citation_manager.py: Production Citation Manager for Enterprise RAG Layer Sprint 6C v1.1.
+app\knowledge\production_document_ingestion.py: Production Document Ingestion Engine for Enterprise RAG Layer Sprint 6C v1.1.
+app\knowledge\production_embedding_pipeline.py: Production Embedding Pipeline for Enterprise RAG Layer Sprint 6C v1.1.
+app\knowledge\production_hybrid_retriever.py: Production Hybrid Retriever for Enterprise RAG Layer Sprint 6C v1.1.
+app\knowledge\production_knowledge_cache.py: Production Knowledge Cache Manager for Enterprise RAG Layer Sprint 6C v1.1.
+app\knowledge\production_knowledge_telemetry.py: Production Knowledge Telemetry Engine for Enterprise RAG Layer Sprint 6C v1.1.
+app\knowledge\production_reranking_engine.py: Production Reranking Engine for Enterprise RAG Layer Sprint 6C v1.1.
+app\knowledge\production_vector_store.py: Qdrant Production Vector Store Integration for Enterprise RAG Layer Sprint 6C v1.1.
+app\knowledge\__init__.py: Enterprise Knowledge & RAG Intelligence Layer for MantraSetu AgentOS Sprint 6C v1.1.
+app\learning\capability_evolution_manager.py: Capability Evolution Manager for Enterprise Agent Learning Layer Sprint 7E v1.0.
+app\learning\experience_manager.py: Experience Manager for Enterprise Agent Learning Layer Sprint 7E v1.0.
+app\learning\knowledge_acquisition_engine.py: Knowledge Acquisition Engine for Enterprise Agent Learning Layer Sprint 7E v1.0.
+app\learning\learning_dashboard.py: Enterprise Learning Dashboard for Enterprise Agent Learning Layer Sprint 7E v1.0.
+app\learning\learning_telemetry.py: Learning Telemetry Engine for Enterprise Agent Learning Layer Sprint 7E v1.0.
+app\learning\skill_builder.py: Skill Builder Engine for Enterprise Agent Learning Layer Sprint 7E v1.0.
+app\learning\skill_composer.py: Skill Composer Engine for Enterprise Agent Learning Layer Sprint 7E v1.0.
+app\learning\skill_registry.py: Skill Registry for Enterprise Agent Learning Layer Sprint 7E v1.0.
+app\learning\workflow_learning_engine.py: Workflow Learning Engine for Enterprise Agent Learning Layer Sprint 7E v1.0.
+app\learning\__init__.py: Enterprise Agent Learning, Skill Evolution & Autonomous Knowledge Acquisition Platform for MantraSet
+app\llm\base.py: Abstract contracts for Large Language Model providers.
+app\llm\config.py: LLM configuration module alias pointing to app.llm.settings.
+app\llm\exceptions.py: LLM-specific exception hierarchy.
+app\llm\factory.py: Provider factory for registering and retrieving LLM provider classes.
+app\llm\models.py: Strongly typed LLM request and response schema models.
+app\llm\settings.py: Defines classes: LLMSettings
+app\llm\__init__.py: LLM Abstraction Layer package exports.
+app\llm\providers\gemini.py: Google Gemini LLM provider implementation.
+app\llm\providers\groq.py: Groq LLM provider implementation.
+app\llm\providers\__init__.py: Concrete LLM provider implementations.
+app\memory\base.py: Memory abstractions for conversation state and persistence.
+app\memory\memory_consolidator.py: Memory Deduplication, Compression & Summarization Engine v1.0.
+app\memory\memory_manager.py: Master Orchestrator Engine for AI Memory Framework v1.0.
+app\memory\memory_models.py: Domain models, value objects, and enums for Enterprise AI Memory Framework v1.0.
+app\memory\memory_privacy.py: Privacy Controls, Data Retention & "Forget Me" Engine v1.0.
+app\memory\memory_retriever.py: Contextual Memory Retrieval & Semantic Ranking Engine v1.0.
+app\memory\memory_store.py: Thread-Safe Multi-Tier Memory Storage Repository v1.0.
+app\memory\memory_telemetry.py: Dedicated Telemetry Aggregator Engine for AI Memory Framework v1.0.
+app\memory\preference_manager.py: Long-Term User Preference & Profile Manager v1.0.
+app\memory\__init__.py: Enterprise AI Memory Framework v1.0 domain subsystem for MantraSetu AgentOS.
+app\models\base.py: Shared Pydantic base models.
+app\models\health.py: Health-related response models.
+app\models\__init__.py: Domain and transport models package.
+app\multimodal\document_understanding.py: Enterprise Document Understanding for MantraSetu AgentOS Sprint 9A v1.0.
+app\multimodal\multimodal_context_builder.py: Enterprise Multimodal Context Builder for MantraSetu AgentOS Sprint 9A v1.0.
+app\multimodal\multimodal_dashboard.py: Enterprise Multimodal Dashboard for MantraSetu AgentOS Sprint 9A v1.0.
+app\multimodal\multimodal_manager.py: Enterprise Multimodal Manager for MantraSetu AgentOS Sprint 9A v1.0.
+app\multimodal\multimodal_provider_router.py: Enterprise Multimodal Provider Router for MantraSetu AgentOS Sprint 9A v1.0.
+app\multimodal\multimodal_telemetry.py: Enterprise Multimodal Telemetry Engine for MantraSetu AgentOS Sprint 9A v1.0.
+app\multimodal\ocr_manager.py: Enterprise OCR Manager for MantraSetu AgentOS Sprint 9A v1.0.
+app\multimodal\vision_manager.py: Enterprise Vision Manager for MantraSetu AgentOS Sprint 9A v1.0.
+app\multimodal\__init__.py: Enterprise Multimodal Intelligence Platform for MantraSetu AgentOS Sprint 9A v1.0.
+app\navigation\action_planner.py: UI Action Planning Engine decomposing navigation plans into atomic UI interaction sequences.
+app\navigation\action_validator.py: Pre-execution UI action validation engine for MantraSetu AgentOS.
+app\navigation\alternate_planner.py: Alternate and fallback route planning engine for MantraSetu AgentOS.
+app\navigation\analyzer.py: Website Structure Analyzer Service orchestration layer for MantraSetu AgentOS.
+app\navigation\backtracking.py: Navigation Backtracking Service orchestration layer for MantraSetu AgentOS.
+app\navigation\base.py: Abstract contracts and interfaces for the Navigation Intelligence subsystem in MantraSetu AgentOS.
+app\navigation\command_builder.py: Platform-neutral command builder engine for MantraSetu AgentOS.
+app\navigation\context_builder.py: Dynamic Navigation Context Builder for MantraSetu AgentOS v4.1.
+app\navigation\context_cache.py: Lightweight static metadata cache for MantraSetu AgentOS.
+app\navigation\conversation_memory.py: Persistent Conversation Memory Manager for MantraSetu AgentOS.
+app\navigation\decision_engine.py: Autonomous Navigation Decision Engine for MantraSetu AgentOS.
+app\navigation\discovery.py: Automatic frontend route discovery engine for MantraSetu AgentOS.
+app\navigation\execution_events.py: Enterprise diagnostic execution events for MantraSetu AgentOS.
+app\navigation\execution_models.py: Strongly typed immutable domain models and enums for Navigation Execution Layer in MantraSetu AgentO
+app\navigation\execution_monitor.py: Directive lifecycle state monitoring engine for MantraSetu AgentOS.
+app\navigation\execution_telemetry.py: Execution Telemetry and Diagnostic Metrics Aggregator for MantraSetu AgentOS.
+app\navigation\executor.py: Structured Navigation Directive Executor and Orchestration Engine for MantraSetu AgentOS.
+app\navigation\graph.py: In-memory website structure graph implementation for MantraSetu AgentOS.
+app\navigation\intent_mapper.py: Semantic Intent to Route Mapping engine for MantraSetu AgentOS.
+app\navigation\journey_analytics.py: Enterprise Read-Only Navigation Journey Analytics Subsystem for MantraSetu AgentOS v4.1.
+app\navigation\journey_graph.py: Versioned Weighted Directed Transition Graph for Enterprise Navigation Journey Intelligence v4.1.
+app\navigation\journey_models.py: Domain models, enums, and schemas for Enterprise Navigation Journey Intelligence v4.1.
+app\navigation\journey_persistence.py: Pluggable Storage Engine Abstraction for Navigation Journey Intelligence v4.1.
+app\navigation\journey_store.py: Enterprise Thread-Safe Navigation Journey Lifecycle Store for MantraSetu AgentOS v4.1.
+app\navigation\journey_timeline.py: Chronological History Timeline & Safe Read-Only Session Replay Engine for Navigation Journey v4.1.
+app\navigation\knowledge_graph.py: Navigation Knowledge Graph construction and traversal algorithms.
+app\navigation\models.py: Domain models and schemas for the Navigation Intelligence subsystem in MantraSetu AgentOS.
+app\navigation\pathfinder.py: Enterprise shortest path and graph traversal engine for MantraSetu AgentOS.
+app\navigation\planner.py: Navigation Planner Service orchestration layer for MantraSetu AgentOS.
+app\navigation\planner_models.py: Strongly typed immutable domain models and enums for Navigation Planning Layer in MantraSetu AgentOS
+app\navigation\planning_cache.py: Lightweight version-aware cache for immutable planning artifacts in MantraSetu AgentOS.
+app\navigation\planning_constraints.py: Pre-traversal constraint validation engine for MantraSetu AgentOS.
+app\navigation\planning_cost.py: Multi-dimensional planning cost and execution latency calculation engine for MantraSetu AgentOS.
+app\navigation\planning_events.py: Enterprise diagnostic planning events for MantraSetu AgentOS.
+app\navigation\planning_strategy.py: Planning Strategy Selector Engine for MantraSetu AgentOS.
+app\navigation\planning_telemetry.py: Planning Telemetry and Diagnostic Metrics Aggregator for MantraSetu AgentOS.
+app\navigation\plan_validator.py: Post-planning safety, parameter, and cycle validation engine for MantraSetu AgentOS.
+app\navigation\policy_engine.py: Deterministic Navigation Policy Engine for MantraSetu AgentOS.
+app\navigation\recovery_planner.py: Interruption and failure recovery route planning engine for MantraSetu AgentOS.
+app\navigation\registry.py: Centralized Frontend Route Registry for MantraSetu AgentOS.
+app\navigation\retry_engine.py: Fault-tolerant retry management engine for MantraSetu AgentOS.
+app\navigation\route_guard.py: Route Guard Engine & Recovery Path Generator for MantraSetu AgentOS.
+app\navigation\service.py: Navigation Intelligence Application Service facade for MantraSetu AgentOS.
+app\navigation\session_recovery.py: Session recovery and state restoration engine for MantraSetu AgentOS.
+app\navigation\state_store.py: Enterprise thread-safe Navigation State Store for MantraSetu AgentOS.
+app\navigation\store.py: In-memory storage layer for Navigation Intelligence in MantraSetu AgentOS.
+app\navigation\sync_manager.py: Real-time Frontend-AI Event Synchronization Manager for MantraSetu AgentOS v4.1.
+app\navigation\ui_registry.py: Centralized UI Element Knowledge Registry for MantraSetu AgentOS.
+app\navigation\validation.py: Pre-registration metadata validation engine and exception hierarchy for MantraSetu AgentOS.
+app\navigation\workflow_graph.py: Branching, Checkpointed, and Resumable Workflow Graph Engine for MantraSetu AgentOS.
+app\navigation\workflow_tracker.py: Workflow Memory & Progress Continuation Tracker for MantraSetu AgentOS.
+app\navigation\__init__.py: Navigation Intelligence domain subsystem for MantraSetu AgentOS.
+app\observability\alert_manager.py: Alert Rule Evaluation & Escalation Manager v1.0.
+app\observability\anomaly_detector.py: Operational Anomaly Detection & Performance Deviation Engine v1.0.
+app\observability\dashboard_manager.py: Executive Operational Dashboard Assembly Manager v1.0.
+app\observability\health_manager.py: System Subsystem Health & Availability Aggregator v1.0.
+app\observability\logging_manager.py: Structured JSON Logging & Correlation Manager v1.0.
+app\observability\metrics_manager.py: Multi-Dimensional Metrics Collection & Aggregation Registry v1.0.
+app\observability\observability_models.py: Domain models, value objects, and enums for Enterprise Observability, Monitoring & Operations Framew
+app\observability\observability_telemetry.py: Dedicated Telemetry Aggregator Engine for Observability Framework v1.0.
+app\observability\operations_manager.py: Operational Summary & Incident Management Engine v1.0.
+app\observability\sla_manager.py: Service Level Agreement (SLA) Compliance & Uptime Reporter v1.0.
+app\observability\tracing_manager.py: Distributed Tracing & Span Lifecycle Manager v1.0.
+app\observability\__init__.py: Enterprise Observability, Monitoring & Operations Framework v1.0 domain subsystem for MantraSetu Age
+app\orchestrator\ai_capability_registry.py: AI Capability Registry mapping providers to capability descriptors in MantraSetu AgentOS.
+app\orchestrator\ai_orchestrator.py: Defines classes: AIOrchestrator
+app\orchestrator\ai_session_manager.py: AI Session Manager for MantraSetu AgentOS.
+app\orchestrator\base.py: Abstract contracts and interfaces for the Orchestrator subsystem in MantraSetu AgentOS.
+app\orchestrator\builder.py: Composition builder for assembling AIOrchestrator and dependency graph.
+app\orchestrator\catalog_retriever.py: Defines classes: CatalogRetriever
+app\orchestrator\chat_orchestrator.py: Backward-compatibility adapter for legacy Chat API routes.
+app\orchestrator\context.py: Orchestrator runtime context and dependency containers.
+app\orchestrator\context_compressor.py: Context Compression Engine for token budgeting in MantraSetu AgentOS.
+app\orchestrator\defaults.py: Default dependency composition for the MantraSetu AI Backend.
+app\orchestrator\e2e_pipeline_context.py: Distributed Context Synchronization for Enterprise AgentOS Pipeline v1.1.
+app\orchestrator\e2e_pipeline_diagnostics.py: Production Diagnostics for Enterprise AgentOS Pipeline v1.1.
+app\orchestrator\e2e_pipeline_health_monitor.py: Pipeline Health Monitor for Enterprise AgentOS Pipeline v1.1.
+app\orchestrator\e2e_pipeline_middleware.py: Pipeline Middleware Engine for Enterprise AgentOS Pipeline v1.1.
+app\orchestrator\e2e_pipeline_orchestrator.py: Hardened Enterprise End-to-End Pipeline Orchestrator for MantraSetu AgentOS v1.1.
+app\orchestrator\e2e_pipeline_recovery.py: Global Exception Recovery Coordinator for Enterprise AgentOS Pipeline v1.1.
+app\orchestrator\e2e_pipeline_stage_registry.py: Pipeline Stage Registry for Enterprise AgentOS Pipeline v1.1.
+app\orchestrator\e2e_pipeline_timeline.py: Execution Timeline Recorder for Enterprise AgentOS Pipeline v1.1.
+app\orchestrator\events.py: Structured domain events and abstract event publishing system for AIOrchestrator.
+app\orchestrator\execution_context.py: Controlled internal execution context container for AIOrchestrator pipeline stages.
+app\orchestrator\execution_engine.py: Concrete Execution Engine for the Orchestrator subsystem in MantraSetu AgentOS.
+app\orchestrator\executor.py: Execution Manager Service for MantraSetu AgentOS.
+app\orchestrator\frontend_bridge.py: Frontend Integration Layer Bridge for MantraSetu AgentOS.
+app\orchestrator\gemini_bridge.py: Gemini LLM Provider Bridge for AI Orchestrator.
+app\orchestrator\groq_bridge.py: Groq LLM Provider Bridge for AI Orchestrator.
+app\orchestrator\intent.py: Intent Detection Service orchestration layer for MantraSetu AgentOS.
+app\orchestrator\intent_router.py: Fast-path Intent Router bypassing unnecessary LLM invocations in MantraSetu AgentOS.
+app\orchestrator\models.py: Domain models and schemas for the Orchestrator subsystem in MantraSetu AgentOS.
+app\orchestrator\navigation_intent_detector.py: Defines functions: is_navigation_command, resolve_navigation_target
+app\orchestrator\null_objects.py: Null Object pattern implementations for optional orchestrator dependencies.
+app\orchestrator\observability_manager.py: Enterprise Observability Manager for MantraSetu AgentOS.
+app\orchestrator\orchestrator.py: Concrete orchestrator shell for dependency injection.
+app\orchestrator\orchestrator_config.py: Centralized Runtime Configuration Manager for MantraSetu AgentOS.
+app\orchestrator\orchestrator_contracts.py: Contract interface layer defining abstract protocols between Orchestrator and subsystems.
+app\orchestrator\orchestrator_event_bus.py: Internal Event Bus for Orchestrator loose-coupling in MantraSetu AgentOS.
+app\orchestrator\orchestrator_exceptions.py: Standardized enterprise exception hierarchy for Part 5 AI Orchestrator.
+app\orchestrator\orchestrator_models.py: Strongly typed immutable domain models and enums for Part 5 AI Orchestrator Layer in MantraSetu Agen
+app\orchestrator\orchestrator_state_machine.py: Orchestrator Lifecycle State Machine for MantraSetu AgentOS.
+app\orchestrator\pandit_onboarding.py: Defines classes: FieldValidationResult
+app\orchestrator\pipeline.py: Orchestration pipeline definitions.
+app\orchestrator\pipeline_executor.py: Plugin-based PipelineExecutor iterating over registered pipeline stages.
+app\orchestrator\planner.py: Orchestrator Planner module for MantraSetu AgentOS.
+app\orchestrator\plugin_manager.py: Future Plugin Architecture Manager for MantraSetu AgentOS.
+app\orchestrator\prompt_builder.py: Dynamic Prompt Builder for MantraSetu AgentOS.
+app\orchestrator\prompt_template_registry.py: Prompt Template Registry managing reusable prompt templates in MantraSetu AgentOS.
+app\orchestrator\provider_manager.py: Provider Abstraction and Failover Manager for MantraSetu AgentOS.
+app\orchestrator\rag_manager.py: RAG Knowledge Manager for MantraSetu AgentOS.
+app\orchestrator\request_lifecycle.py: AI Request Lifecycle Manager for MantraSetu AgentOS.
+app\orchestrator\request_scheduler.py: Lightweight Request Scheduler for MantraSetu AgentOS.
+app\orchestrator\resource_manager.py: Centralized Runtime Resource Manager for MantraSetu AgentOS.
+app\orchestrator\response_builder.py: Response Normalization Engine for MantraSetu AgentOS.
+app\orchestrator\response_validator.py: Response Validation Component for LLM output verification in MantraSetu AgentOS.
+app\orchestrator\router.py: Router Service orchestration layer for MantraSetu AgentOS.
+app\orchestrator\security_manager.py: Enterprise Security Manager for MantraSetu AgentOS.
+app\orchestrator\service.py: Orchestrator Application Service Facade for MantraSetu AgentOS.
+app\orchestrator\state.py: Orchestrator State Manager module for MantraSetu AgentOS.
+app\orchestrator\store.py: Orchestrator Context Store for MantraSetu AgentOS.
+app\orchestrator\streaming_manager.py: Streaming Manager Engine for token and directive streaming in MantraSetu AgentOS.
+app\orchestrator\telemetry_manager.py: Master Telemetry Aggregator for AI Orchestrator in MantraSetu AgentOS.
+app\orchestrator\tool_registry.py: Centralized Tool Registry for MantraSetu AgentOS.
+app\orchestrator\tool_router.py: Enterprise Tool Router for MantraSetu AgentOS.
+app\orchestrator\voice_gateway.py: Voice Gateway Integration for STT/TTS coordination in MantraSetu AgentOS.
+app\orchestrator\websocket_gateway.py: Bidirectional WebSocket Gateway for MantraSetu AgentOS.
+app\orchestrator\__init__.py: AI Orchestrator and Frontend Integration subsystem for MantraSetu AgentOS.
+app\orchestrator\providers\booking_handler.py: Booking execution handler for the Orchestrator subsystem.
+app\orchestrator\providers\catalog_retriever.py: Defines classes: CatalogRetriever
+app\orchestrator\providers\intent_router.py: Intent-based routing provider for the Orchestrator subsystem.
+app\orchestrator\providers\llm_chat_handler.py: LLM chat execution handler for the Orchestrator subsystem.
+app\orchestrator\providers\llm_intent_detector.py: LLM-powered intent detection provider for the Orchestrator subsystem.
+app\orchestrator\providers\navigation_handler.py: Navigation execution handler for the Orchestrator subsystem.
+app\orchestrator\providers\rag_handler.py: RAG execution handler for the Orchestrator subsystem.
+app\orchestrator\providers\__init__.py: Providers package initialization.
+app\orchestrator\stages\base.py: Concrete single-responsibility pipeline stage implementations for AIOrchestrator.
+app\orchestrator\stages\__init__.py: Pipeline stages module for AIOrchestrator.
+app\planner\base.py: Planner abstractions for task orchestration.
+app\planner\__init__.py: Planning and orchestration package.
+app\plugins\capability_registry.py: Dynamic Capability Directory & Plugin Lookup Engine v1.0.
+app\plugins\dependency_resolver.py: DAG Dependency Graph Resolver & Circular Dependency Detector v1.0.
+app\plugins\mcp_connector.py: Model Context Protocol (MCP) Transport Abstraction & Integration Connector v1.0.
+app\plugins\plugin_cache.py: Thread-Safe TTL Execution Cache for Plugins v1.0.
+app\plugins\plugin_executor.py: Thread-Pool Parallel Plugin Executor & Task Scheduler v1.0.
+app\plugins\plugin_health.py: Plugin Health Monitor & Heartbeat Collector v1.0.
+app\plugins\plugin_lifecycle.py: Enterprise Plugin Lifecycle Transition Manager v1.0.
+app\plugins\plugin_loader.py: Hot-Loading, Reloading & Dynamic Plugin Module Loader v1.0.
+app\plugins\plugin_models.py: Domain models, value objects, and enums for Enterprise Plugin Ecosystem & MCP Integration Framework
+app\plugins\plugin_permission_manager.py: Least-Privilege Plugin Permission & Authorization Manager v1.0.
+app\plugins\plugin_registry.py: Central Dynamic Plugin Registry v1.0.
+app\plugins\plugin_result_builder.py: Plugin Execution Result Normalization Builder v1.0.
+app\plugins\plugin_telemetry.py: Dedicated Telemetry Aggregator Engine for Plugin Ecosystem v1.0.
+app\plugins\sandbox_runtime.py: Isolated Contract Sandbox Runtime Engine v1.0.
+app\plugins\__init__.py: Enterprise Plugin Ecosystem & MCP Integration Framework v1.0 domain subsystem for MantraSetu AgentOS
+app\prompts\base.py: Shared prompt abstractions and typed prompt metadata.
+app\prompts\prompt_manager.py: Prompt manager for versioned and dynamic prompt resolution.
+app\prompts\system.py: System prompt placeholders for assistant behavior.
+app\prompts\system_prompt.py: Canonical prompt registry for MantraSetu.
+app\prompts\__init__.py: Prompt templates and instructions package.
+app\prompt_runtime\context_budget_manager.py: Context Budget Manager for Enterprise Prompt Runtime Layer Sprint 8A v1.0.
+app\prompt_runtime\prompt_cache.py: Prompt Cache for Enterprise Prompt Runtime Layer Sprint 8A v1.0.
+app\prompt_runtime\prompt_composer.py: Prompt Composer for Enterprise Prompt Runtime Layer Sprint 8A v1.0.
+app\prompt_runtime\prompt_execution_manager.py: Prompt Execution Manager for Enterprise Prompt Runtime Layer Sprint 8A v1.0.
+app\prompt_runtime\prompt_runtime_dashboard.py: Prompt Runtime Dashboard for Enterprise Prompt Runtime Layer Sprint 8A v1.0.
+app\prompt_runtime\prompt_runtime_telemetry.py: Prompt Runtime Telemetry Engine for Enterprise Prompt Runtime Layer Sprint 8A v1.0.
+app\prompt_runtime\provider_prompt_formatter.py: Provider Prompt Formatter for Enterprise Prompt Runtime Layer Sprint 8A v1.0.
+app\prompt_runtime\system_prompt_manager.py: System Prompt Manager for Enterprise Prompt Runtime Layer Sprint 8A v1.0.
+app\prompt_runtime\__init__.py: Enterprise AI Production Intelligence & Prompt Orchestration Platform for MantraSetu AgentOS Sprint
+app\providers\ai_configuration.py: AI Runtime Configuration for Enterprise AI Layer Sprint 6B v1.0.
+app\providers\embedding_provider_manager.py: Production Embedding Provider Manager for Enterprise AI Layer Sprint 6B v1.0.
+app\providers\llm_provider_manager.py: Production LLM Provider Manager for Enterprise AI Layer Sprint 6B v1.0.
+app\providers\provider_registry.py: AI Provider Registry for Enterprise AI Layer Sprint 6B v1.0.
+app\providers\provider_router.py: AI Request Router for Enterprise AI Layer Sprint 6B v1.0.
+app\providers\provider_telemetry.py: AI Provider Telemetry Engine for Enterprise AI Layer Sprint 6B v1.0.
+app\providers\stt_provider_manager.py: Production STT Provider Manager for Enterprise AI Layer Sprint 6B v1.0.
+app\providers\tts_provider_manager.py: Production TTS Provider Manager for Enterprise AI Layer Sprint 6B v1.0.
+app\providers\__init__.py: Enterprise AI Provider Layer for MantraSetu AgentOS Sprint 6B v1.0.
+app\rag\base.py: Abstract contracts and interfaces for the RAG (Retrieval-Augmented Generation) subsystem in MantraSe
+app\rag\contracts.py: Abstract contracts and interfaces for the RAG subsystem in MantraSetu AgentOS.
+app\rag\embeddings.py: Embedding Service orchestration layer for MantraSetu AgentOS.
+app\rag\models.py: Provider-independent domain models and schemas for the RAG subsystem in MantraSetu AgentOS.
+app\rag\retriever.py: Retriever Service orchestration layer for MantraSetu AgentOS.
+app\rag\service.py: RAG Subsystem Application Service Facade for MantraSetu AgentOS.
+app\rag\vectordb.py: Vector Store Service orchestration layer for MantraSetu AgentOS.
+app\rag\__init__.py: RAG domain subsystem for MantraSetu AgentOS.
+app\reasoning\confidence_engine.py: Confidence Engine for Enterprise AI Reasoning Layer Sprint 7D v1.0.
+app\reasoning\decision_engine.py: Decision Engine for Enterprise AI Reasoning Layer Sprint 7D v1.0.
+app\reasoning\planner_engine.py: Planner Engine for Enterprise AI Reasoning Layer Sprint 7D v1.0.
+app\reasoning\plan_optimizer.py: Plan Optimizer Engine for Enterprise AI Reasoning Layer Sprint 7D v1.0.
+app\reasoning\reasoning_dashboard.py: Reasoning Dashboard for Enterprise AI Reasoning Layer Sprint 7D v1.0.
+app\reasoning\reasoning_engine.py: Reasoning Engine for Enterprise AI Reasoning Layer Sprint 7D v1.0.
+app\reasoning\reasoning_telemetry.py: Reasoning Telemetry Engine for Enterprise AI Reasoning Layer Sprint 7D v1.0.
+app\reasoning\uncertainty_manager.py: Uncertainty Manager for Enterprise AI Reasoning Layer Sprint 7D v1.0.
+app\reasoning\verification_engine.py: Verification Engine for Enterprise AI Reasoning Layer Sprint 7D v1.0.
+app\reasoning\__init__.py: Enterprise AI Reasoning, Planning & Decision Intelligence Platform for MantraSetu AgentOS Sprint 7D
+app\release\artifact_manager.py: Artifact Manager for Enterprise Release Management Framework v1.0.
+app\release\compatibility_checker.py: Cross-Framework Compatibility Checker for Production Validation Framework v1.0.
+app\release\compatibility_manager.py: Compatibility Manager for Enterprise Release Management Framework v1.0.
+app\release\deployment_validator.py: Deployment Validator for Production Validation Framework v1.0.
+app\release\integration_validator.py: End-to-End Integration Validator for Production Validation Framework v1.0.
+app\release\load_test_manager.py: Load Test Manager for Production Validation Framework v1.0.
+app\release\performance_benchmark.py: Performance Benchmarking Engine for Production Validation Framework v1.0.
+app\release\production_readiness.py: Production Readiness Evaluator & Scoring Engine for Production Validation Framework v1.0.
+app\release\regression_manager.py: Regression Testing & Baseline Comparison Manager for Production Validation Framework v1.0.
+app\release\release_certification.py: Release Certification for Enterprise Release Management Framework v1.0.
+app\release\release_models.py: Domain models, value objects, and enums for Enterprise Release Management & Production Readiness Fra
+app\release\release_pipeline.py: Release Pipeline Coordinator for Enterprise Release Management Framework v1.0.
+app\release\release_planner.py: Release Planner for Enterprise Release Management Framework v1.0.
+app\release\release_report.py: Release Report Engine for Enterprise Release Management Framework v1.0.
+app\release\release_report_generator.py: Immutable Release Report Generator for Production Validation Framework v1.0.
+app\release\release_telemetry.py: Release Telemetry Engine for Enterprise Production Validation Framework v1.0.
+app\release\release_validator.py: Release & Startup Validator for Production Validation Framework v1.0.
+app\release\rollback_manager.py: Rollback Manager for Enterprise Release Management Framework v1.0.
+app\release\stress_test_manager.py: Stress Test Manager for Production Validation Framework v1.0.
+app\release\version_manager.py: Version Manager for Enterprise Release Management Framework v1.0.
+app\release\__init__.py: Enterprise Release Management & Production Readiness Framework v1.0.
+app\saas\admin_dashboard.py: Enterprise Admin Dashboard for MantraSetu AgentOS Sprint 9E v1.0.
+app\saas\billing_manager.py: Enterprise Billing Manager for MantraSetu AgentOS Sprint 9E v1.0.
+app\saas\enterprise_analytics.py: Enterprise Analytics Manager for MantraSetu AgentOS Sprint 9E v1.0.
+app\saas\license_manager.py: Enterprise License Manager for MantraSetu AgentOS Sprint 9E v1.0.
+app\saas\organization_manager.py: Enterprise Organization Manager for MantraSetu AgentOS Sprint 9E v1.0.
+app\saas\quota_manager.py: Enterprise Quota Manager for MantraSetu AgentOS Sprint 9E v1.0.
+app\saas\saas_telemetry.py: Enterprise SaaS Telemetry Engine for MantraSetu AgentOS Sprint 9E v1.0.
+app\saas\subscription_manager.py: Enterprise Subscription Manager for MantraSetu AgentOS Sprint 9E v1.0.
+app\saas\tenant_manager.py: Enterprise Tenant Manager for MantraSetu AgentOS Sprint 9E v1.0.
+app\saas\__init__.py: Enterprise SaaS Platform & Multi-Tenant Management v1.0.
+app\schemas\base.py: Shared schema primitives for the MantraSetu backend.
+app\schemas\chat.py: Chat and AI response schemas.
+app\schemas\context.py: Core conversation schemas shared across the backend.
+app\schemas\conversation.py: Pydantic v2 request/response schemas for the Conversation API endpoint.
+app\schemas\interaction.py: Unified schema access module re-exporting API and Domain interaction models.
+app\schemas\memory.py: Memory schema for persisted conversation and agent state.
+app\schemas\planner.py: Planner schemas for orchestration and execution planning.
+app\schemas\tools.py: Tool calling schemas shared by planner, LLM, and API layers.
+app\schemas\__init__.py: Shared schema layer for the MantraSetu backend.
+app\schemas\api\interaction.py: API models for normalized transport-agnostic interaction payloads.
+app\schemas\domain\interaction.py: Domain contracts and stage result models for internal orchestration pipeline.
+app\security\audit_manager.py: Immutable Security Audit Trail & Compliance Logger v1.0.
+app\security\authentication_manager.py: Authentication & Session Validation Manager v1.0.
+app\security\authorization_manager.py: Role-Based (RBAC) & Attribute-Based (ABAC) Access Control Authorization Engine v1.0.
+app\security\identity_manager.py: User, Service & Session Identity Resolution Manager v1.0.
+app\security\secret_manager.py: Secrets, API Keys & Automated Key Rotation Manager v1.0.
+app\security\security_models.py: Domain models, value objects, and enums for Enterprise Security, Identity & Governance Framework v1.
+app\security\security_policy.py: Governance & Security Access Policy Engine v1.0.
+app\security\security_telemetry.py: Dedicated Telemetry Aggregator Engine for Security & Identity Framework v1.0.
+app\security\threat_detector.py: Realtime Anomaly Detection & Threat Analysis Engine v1.0.
+app\security\token_manager.py: JWT & OAuth2 Token Management, Signature Verification & Revocation Engine v1.0.
+app\security\__init__.py: Enterprise Security, Identity & Governance Framework v1.0 domain subsystem for MantraSetu AgentOS.
+app\services\action_engine.py: Action Execution Planning Engine module.
+app\services\ai_service.py: AI Orchestration Service module.
+app\services\base.py: Service abstractions and shared interfaces.
+app\services\browser_bridge.py: Browser Bridge Service module.
+app\services\conversation_service.py: Conversation Orchestration Service module.
+app\services\navigation_service.py: Navigation Intelligence Service module.
+app\services\session_service.py: Session Service module.
+app\services\speech_to_text_service.py: Speech-to-Text Abstraction Service module.
+app\services\text_to_speech_service.py: Text-to-Speech orchestration service.
+app\services\__init__.py: Service layer package.
+app\services\booking\base.py: Abstract base class and error types for the Booking Service.
+app\services\booking\models.py: Domain models for the Booking Service.
+app\services\booking\service.py: Concrete Booking Service implementation.
+app\services\booking\__init__.py: Booking Service package.
+app\services\browser\actions_base.py: Abstract base class and error types for the Browser Actions abstraction.
+app\services\browser\actions_models.py: Domain models for the Browser Actions abstraction.
+app\services\browser\actions_service.py: Concrete Browser Actions implementation.
+app\services\browser\automation_engine_base.py: Abstract base class and error types for Browser Automation Engine.
+app\services\browser\automation_engine_service.py: Default implementation of the Browser Automation Engine abstraction.
+app\services\browser\base.py: Abstract base class and error types for the Browser Session abstraction.
+app\services\browser\browser_executor_base.py: Abstract base class and error types for the Browser Command Executor abstraction.
+app\services\browser\browser_executor_models.py: Domain models for the Browser Command Executor abstraction.
+app\services\browser\browser_executor_service.py: Default implementation of the Browser Command Executor abstraction.
+app\services\browser\command_resolver_base.py: Abstract base class and error types for the Command Resolver.
+app\services\browser\command_resolver_models.py: Domain models for the Command Resolver.
+app\services\browser\command_resolver_service.py: Default implementation of the Command Resolver abstraction.
+app\services\browser\context_base.py: Abstract base class and error types for the Browser Context abstraction.
+app\services\browser\context_models.py: Domain models for the Browser Context abstraction.
+app\services\browser\context_service.py: Concrete Browser Context implementation.
+app\services\browser\driver_base.py: Abstract base class and error types for the Browser Driver abstraction.
+app\services\browser\driver_models.py: Domain models for the Browser Driver abstraction.
+app\services\browser\driver_service.py: Concrete Browser Driver implementation.
+app\services\browser\models.py: Domain models for the Browser Session abstraction.
+app\services\browser\navigation_base.py: Abstract base class and error types for the Browser Navigation abstraction.
+app\services\browser\navigation_models.py: Domain models for the Browser Navigation abstraction.
+app\services\browser\page_base.py: Abstract base class and error types for the Browser Page abstraction.
+app\services\browser\page_models.py: Domain models for the Browser Page abstraction.
+app\services\browser\page_service.py: Concrete Browser Page implementation.
+app\services\browser\playwright_actions.py: Concrete Playwright Actions implementation.
+app\services\browser\playwright_driver.py: Concrete Playwright Browser Driver implementation.
+app\services\browser\playwright_navigation.py: Concrete Playwright Navigation implementation.
+app\services\browser\service.py: Concrete Browser Session implementation.
+app\services\browser\session_manager_base.py: Abstract base class and error types for Browser Session Manager.
+app\services\browser\session_manager_models.py: Domain models for the Browser Session Manager.
+app\services\browser\session_manager_service.py: Default implementation of the Browser Session Manager.
+app\services\browser\target_resolver_base.py: Abstract base class and error types for Target Resolution.
+app\services\browser\target_resolver_service.py: Default dictionary-based implementation of TargetResolver.
+app\services\browser\__init__.py: Browser Session package.
+app\services\browser_intelligence\dom_intelligence_base.py: Abstract base class and error types for DOM Intelligence Service.
+app\services\browser_intelligence\dom_intelligence_models.py: Domain models for DOM Intelligence analysis.
+app\services\browser_intelligence\dom_intelligence_service.py: Default implementation of the DOM Intelligence Service abstraction.
+app\services\browser_intelligence\navigation_graph_base.py: Abstract base class and error types for the Navigation Graph Builder.
+app\services\browser_intelligence\navigation_graph_models.py: Domain models for Navigation Graph Builder.
+app\services\browser_intelligence\navigation_graph_service.py: Default implementation of the Navigation Graph Service abstraction.
+app\services\browser_intelligence\page_context_base.py: Abstract base class and error types for the Page Context Extractor.
+app\services\browser_intelligence\page_context_models.py: Domain models for the Browser Intelligence Page Context.
+app\services\browser_intelligence\page_context_service.py: Default implementation of the Page Context Extractor abstraction.
+app\services\browser_intelligence\task_context_base.py: Abstract base class and error types for Task Context Builder.
+app\services\browser_intelligence\task_context_models.py: Domain models for Task Context Builder.
+app\services\browser_intelligence\task_context_service.py: Default implementation of the Task Context Builder abstraction.
+app\services\decision\base.py: Abstract base class and error types for the Decision Engine.
+app\services\decision\models.py: Domain models for the Decision Engine.
+app\services\decision\service.py: Concrete rule-based Decision Engine implementation.
+app\services\decision\__init__.py: Decision Engine package.
+app\services\execution\execution_pipeline_base.py: Abstract base class and error types for the Execution Pipeline abstraction.
+app\services\execution\execution_pipeline_service.py: Default implementation of the Execution Pipeline abstraction.
+app\services\execution\execution_plan_models.py: Domain models for the Execution Plan abstraction.
+app\services\execution\execution_runner_base.py: Abstract base class and error types for the Execution Runner abstraction.
+app\services\execution\execution_runner_models.py: Domain models for the Execution Plan Runner abstraction.
+app\services\execution\execution_runner_service.py: Default implementation of the Execution Runner abstraction.
+app\services\execution\workflow_planner_base.py: Abstract base class and error types for the Workflow Planner.
+app\services\execution\workflow_planner_service.py: Default implementation of the Workflow Planner abstraction.
+app\services\knowledge\base.py: Abstract base class and error types for the Knowledge Service.
+app\services\knowledge\models.py: Domain models for the Knowledge Service.
+app\services\knowledge\service.py: Concrete Knowledge Service implementation.
+app\services\knowledge\__init__.py: Knowledge Service package.
+app\services\navigation\base.py: Abstract base class and error types for the Navigation Service.
+app\services\navigation\models.py: Domain models for the Navigation Service.
+app\services\navigation\service.py: Concrete Navigation Service implementation.
+app\services\navigation\__init__.py: Navigation Service package.
+app\services\recommendation\base.py: Abstract base class and error types for the Recommendation Service.
+app\services\recommendation\models.py: Domain models for the Recommendation Service.
+app\services\recommendation\service.py: Concrete Recommendation Service implementation.
+app\services\recommendation\__init__.py: Recommendation Service package.
+app\services\rule_engine\base.py: Abstract base class and error types for the Rule Engine.
+app\services\rule_engine\models.py: Domain models for the Rule Engine.
+app\services\rule_engine\service.py: Concrete Rule Engine implementation.
+app\services\rule_engine\__init__.py: Rule Engine package.
+app\services\tools\tool_registry_base.py: Abstract base class and error types for the Tool Registry abstraction.
+app\services\tools\tool_registry_models.py: Domain models for the Tool Registry abstraction.
+app\services\tools\tool_registry_service.py: Default implementation of the Tool Registry abstraction.
+app\services\workflow\base.py: Abstract base class and error types for the Workflow Planner.
+app\services\workflow\models.py: Domain models for the Workflow Planner.
+app\services\workflow\service.py: Concrete Workflow Planner implementation.
+app\services\workflow\__init__.py: Workflow Planner package.
+app\session\base.py: Abstract contracts and interfaces for the Session subsystem in MantraSetu AgentOS.
+app\session\models.py: Domain models for application session management in MantraSetu AgentOS.
+app\session\service.py: Application Session Service facade for MantraSetu AgentOS.
+app\session\settings.py: Configuration settings model for the Session subsystem in MantraSetu AgentOS.
+app\session\store.py: In-memory session storage layer for MantraSetu AgentOS.
+app\session\__init__.py: Session domain subsystem for MantraSetu AgentOS.
+app\skills\capability_router.py: Enterprise Capability Router for MantraSetu AgentOS Sprint 8E v1.0.
+app\skills\sandbox_execution_manager.py: Enterprise Sandbox Execution Manager for MantraSetu AgentOS Sprint 8E v1.0.
+app\skills\skill_dashboard.py: Enterprise Skill Dashboard for MantraSetu AgentOS Sprint 8E v1.0.
+app\skills\skill_dependency_manager.py: Enterprise Skill Dependency Manager for MantraSetu AgentOS Sprint 8E v1.0.
+app\skills\skill_loader.py: Enterprise Skill Loader for MantraSetu AgentOS Sprint 8E v1.0.
+app\skills\skill_registry.py: Enterprise Skill Registry for MantraSetu AgentOS Sprint 8E v1.0.
+app\skills\skill_telemetry.py: Enterprise Skill Telemetry Engine for MantraSetu AgentOS Sprint 8E v1.0.
+app\skills\tool_composer.py: Enterprise Tool Composer for MantraSetu AgentOS Sprint 8E v1.0.
+app\skills\__init__.py: Enterprise AI Skill Marketplace, Dynamic Tool Ecosystem & Capability Platform for MantraSetu AgentOS
+app\speech\base.py: Abstract Base Provider interface for Speech-to-Text services.
+app\speech\factory.py: Speech-to-Text Provider Factory module.
+app\speech\models.py: Speech-to-Text canonical Pydantic models.
+app\speech\settings.py: Environment-driven settings for Speech-to-Text providers.
+app\speech\__init__.py: Speech package exports.
+app\speech\providers\sarvam.py: Sarvam Speech-to-Text Provider implementation.
+app\speech\providers\whisper.py: Whisper Speech-to-Text Provider implementation module.
+app\speech\providers\__init__.py: Speech providers package exports.
+app\system\dependency_manager.py: Dependency Manager & DAG Resolver for Enterprise AgentOS Integration Framework v1.0.
+app\system\framework_registry.py: Framework Registry for Enterprise AgentOS Integration Framework v1.0.
+app\system\integration_router.py: Integration Router for Enterprise AgentOS Integration Framework v1.0.
+app\system\shutdown_manager.py: Shutdown Manager for Enterprise AgentOS Integration Framework v1.0.
+app\system\startup_manager.py: Startup Manager for Enterprise AgentOS Integration Framework v1.0.
+app\system\system_configuration.py: System Configuration for Enterprise AgentOS Integration Framework v1.0.
+app\system\system_diagnostics.py: System Diagnostics for Enterprise AgentOS Integration Framework v1.0.
+app\system\system_event_bus.py: System Event Bus for Enterprise AgentOS Integration Framework v1.0.
+app\system\system_health_manager.py: System Health Manager for Enterprise AgentOS Integration Framework v1.0.
+app\system\system_models.py: Domain models, value objects, and enums for Enterprise AgentOS Integration & System Orchestrator Fra
+app\system\system_orchestrator.py: System Orchestrator for Enterprise AgentOS Integration Framework v1.0.
+app\system\system_state_manager.py: System State Manager for Enterprise AgentOS Integration Framework v1.0.
+app\system\system_telemetry.py: System Telemetry for Enterprise AgentOS Integration Framework v1.0.
+app\system\__init__.py: Enterprise AgentOS Integration & System Orchestrator Framework v1.0.
+app\tools\base.py: Tool interfaces for external integrations.
+app\tools\tool_cache.py: Thread-Safe TTL Result Cache with Parameter Hashing v1.1.
+app\tools\tool_chain_manager.py: Multi-Tool Workflow Chaining & Fallback Chain Manager v1.1.
+app\tools\tool_executor.py: Tool Orchestration & Execution Engine for AI Tool Calling Framework v1.1.
+app\tools\tool_lifecycle.py: Enterprise Tool Lifecycle & Hot-Swapping Manager v1.1.
+app\tools\tool_models.py: Domain models, value objects, and enums for Enterprise AI Tool Calling Framework v1.1.
+app\tools\tool_permission_manager.py: Enterprise Role-Based Access Control (RBAC) & Capability Manager v1.1.
+app\tools\tool_policy.py: Enterprise Tool Policy Engine for Rate Limits, Quotas & Feature Governance v1.1.
+app\tools\tool_registry.py: Central Enterprise Registry for Tool Discovery & MCP Capability Lookup v1.1.
+app\tools\tool_result_builder.py: Tool Output Payload Normalization & Result Builder v1.1.
+app\tools\tool_scheduler.py: Enterprise Tool Scheduler for Priority Queuing & Execution Ordering v1.1.
+app\tools\tool_selector.py: Optimal Tool Selection Engine for Intent & Capability Matching v1.1.
+app\tools\tool_telemetry.py: Dedicated Telemetry Aggregator Engine for AI Tool Calling Framework v1.1.
+app\tools\tool_validator.py: Parameter Type Checking, Regex & Auth Validator Engine for Tools v1.1.
+app\tools\__init__.py: Enterprise AI Tool Calling Framework v1.1 domain subsystem for MantraSetu AgentOS.
+app\tts\base.py: Abstract Base Provider interface for Text-to-Speech services.
+app\tts\factory.py: Text-to-Speech Provider Factory module.
+app\tts\models.py: Text-to-Speech canonical Pydantic models.
+app\tts\settings.py: Environment-driven settings for Text-to-Speech providers.
+app\tts\__init__.py: Text-to-Speech package exports.
+app\tts\providers\cosyvoice.py: CosyVoice Text-to-Speech Provider implementation module.
+app\tts\providers\elevenlabs_provider.py: ElevenLabs Text-to-Speech Provider implementation module.
+app\tts\providers\fish_speech.py: Fish Speech Text-to-Speech Provider implementation module.
+app\tts\providers\__init__.py: TTS providers package exports.
+app\utils\exceptions.py: Application-specific exceptions.
+app\utils\__init__.py: Utility helpers package.
+app\validation\business_flow_certifier.py: Business Flow Certifier for Enterprise Validation Layer Sprint 6E v1.0.
+app\validation\performance_validator.py: Performance SLA Validator for Enterprise Validation Layer Sprint 6E v1.0.
+app\validation\production_configuration_validator.py: Production Configuration Validator for Enterprise Validation Layer Sprint 6E v1.0.
+app\validation\production_readiness_report.py: Production Readiness Report Engine for Enterprise Validation Layer Sprint 6E v1.0.
+app\validation\reliability_validator.py: Reliability & Recovery Validator for Enterprise Validation Layer Sprint 6E v1.0.
+app\validation\security_validator.py: Security & Permission Validator for Enterprise Validation Layer Sprint 6E v1.0.
+app\validation\system_certification.py: System Certification Engine for Enterprise Validation Layer Sprint 6E v1.0.
+app\validation\system_integration_validator.py: Cross Framework Integration Validator for Enterprise Validation Layer Sprint 6E v1.0.
+app\validation\__init__.py: Enterprise Validation & System Certification Layer for MantraSetu AgentOS Sprint 6E v1.0.
+app\voice\audio_buffer.py: Thread-Safe Streaming Audio Buffer & Queue Manager for Voice AI v1.0.
+app\voice\exceptions.py: Normalized exception hierarchy for Voice Gateway and Speech-to-Text subsystem.
+app\voice\factory.py: Factory module for building VoiceGateway and WebSocketVoiceHandler.
+app\voice\gateway.py: Lightweight VoiceGateway coordinator integrating STT stream processing with AIOrchestrator.
+app\voice\schemas.py: Schemas for Voice Gateway WebSocket framing and Speech-to-Text streaming models.
+app\voice\session.py: VoiceSession data model representing a live streaming microphone session.
+app\voice\session_manager.py: VoiceSessionManager owning lifecycle operations for active voice sessions.
+app\voice\streaming_manager.py: Realtime Bidirectional Audio Streaming Controller v1.0.
+app\voice\stt_manager.py: Speech-to-Text (STT) Orchestration & Provider Dispatch Engine v1.0.
+app\voice\transcript.py: Session-safe TranscriptAggregator for merging partial transcripts, deduplicating fragments, and orde
+app\voice\tts_manager.py: Text-to-Speech (TTS) Orchestration & Streaming Synthesis Engine v1.0.
+app\voice\vad.py: Pure Python Acoustic Voice Activity Detector (VAD) Gate for Voice AI v1.0.
+app\voice\voice_gateway.py: Enterprise Realtime Communication Voice Gateway v1.0.
+app\voice\voice_interrupt_manager.py: Barge-In Voice Activity Detection & Interruption Manager v1.0.
+app\voice\voice_models.py: Domain models, value objects, and enums for Enterprise Voice AI Framework v1.0.
+app\voice\voice_provider_manager.py: Voice Provider Abstraction & Failover Manager for Speech AI v1.0.
+app\voice\voice_telemetry.py: Dedicated Telemetry Aggregator Engine for Voice AI Framework v1.0.
+app\voice\websocket.py: WebSocket connection handler and frame demuxer for Voice Gateway streaming.
+app\voice\__init__.py: Enterprise Voice AI Framework v1.0 domain subsystem for MantraSetu AgentOS.
+app\voice\stt\base.py: Abstract protocol contract for Speech-to-Text (STT) provider adapters.
+app\voice\stt\factory.py: Factory module for building SpeechRecognizer provider adapters.
+app\voice\stt\groq_adapter.py: Groq Whisper Speech-to-Text provider adapter implementation.
+app\voice\stt\sarvam_adapter.py: Sarvam AI Indic Speech-to-Text provider adapter implementation.
+app\voice\stt\whisper_adapter.py: Whisper Speech-to-Text provider adapter implementation.
+app\voice\stt\__init__.py: Speech-to-Text provider adapters module.
+app\voice\tts\audio_stream.py: AudioStream async iterator wrapper for streaming audio chunk frames.
+app\voice\tts\base.py: Abstract protocol interface for Text-to-Speech (TTS) provider adapters.
+app\voice\tts\cache_manager.py: TTS Cache Manager for caching pre-generated static audio prompts.
+app\voice\tts\elevenlabs_adapter.py: ElevenLabs Text-to-Speech (TTS) provider adapter implementation.
+app\voice\tts\exceptions.py: Normalized exception hierarchy for Text-to-Speech (TTS) subsystem.
+app\voice\tts\factory.py: Registry-based factory for constructing ITTSProvider instances.
+app\voice\tts\inworld_adapter.py: InWorld AI Text-to-Speech (TTS) provider adapter — Phase 2a.
+app\voice\tts\openai_adapter.py: OpenAI Text-to-Speech (TTS) provider adapter implementation.
+app\voice\tts\sarvam_adapter.py: Sarvam AI Indic Text-to-Speech (TTS) provider adapter implementation.
+app\voice\tts\schemas.py: Schemas for Text-to-Speech (TTS) synthesis and audio streaming models.
+app\voice\tts\voice_response_pipeline.py: VoiceResponsePipeline streaming coordinator converting OrchestratorResponse into audio streams.
+app\voice\tts\__init__.py: Text-to-Speech (TTS) and Voice Response Pipeline subsystem (Module 3).
+app\voice\tts\.cache\002ec2499fdd0bbc1b6e7d1126e357aba7598d8373447b7fb6d00048164762bf.mp3: Cannot read
+app\voice\tts\.cache\004700a9dfd966fd800db964005771e639d3b59ae6f63e39576b40749fca38dc.mp3: Cannot read
+app\voice\tts\.cache\01f20040c245573aa1335dcfbfbf2b9628c93c3283d04dfa490330090fa6987e.mp3: Cannot read
+app\voice\tts\.cache\027e27096c53053eb0eb9357a055d545e073d1a7834b62e35706a20e0f2b6452.mp3: Cannot read
+app\voice\tts\.cache\033b9c0bc4a9d80dc8e58759d09ef456789695873ce59dd912f252b24225d0fb.mp3: Cannot read
+app\voice\tts\.cache\037334d072da297cf667cf535fbaeb0896d0d303156301656cf735ed6418dcec.mp3: Cannot read
+app\voice\tts\.cache\039f7e86cb00fd155e10f66ee22effca8e2c8c3eb877dcde5bda2056aea30af2.mp3: Cannot read
+app\voice\tts\.cache\03c7df726667499e800756fb8f6f6cacb84463730db5d6586d42f2fd2d8e7181.mp3: Cannot read
+app\voice\tts\.cache\03e7a04a6b3d75623ac1c553af4a2668cdf7bb937a13b2277e8db986ccd52890.mp3: Cannot read
+app\voice\tts\.cache\040ad7e629e2a1d458ad6c7b8a51780f1252b2a2728797478fdadd6b6529a287.mp3: Cannot read
+app\voice\tts\.cache\041e17ef1f52f424ac75e64ff6777c441651d5a3f6398ea34362376336a07e91.mp3: Cannot read
+app\voice\tts\.cache\04ca1876e73ddc04c2d91c5dc329de25d8f92245f40a138179b8dcf88c99ed1d.mp3: Cannot read
+app\voice\tts\.cache\04ca401162c1d07b4b4c4efc8dab7a9640be3c0da22e68bee1a9050194690822.mp3: Cannot read
+app\voice\tts\.cache\051f0e5375a9316169854acbed649628eb7ffb2d2af62bf459a407fa4f592bc4.mp3: Cannot read
+app\voice\tts\.cache\054843d006933f53f7d5b879916830dedc983ba606b2d22d5a3b958161332977.mp3: Cannot read
+app\voice\tts\.cache\0618ed320bf9f657b88a3d0bef2fb04e33dffcaf2bef730db6f9542b8f13dc4f.mp3: Cannot read
+app\voice\tts\.cache\064e989db1c5d7e7effc7a0abce84df40f265af348fb519c61ca3cb1402a7cc3.mp3: Cannot read
+app\voice\tts\.cache\066109fdb5c2e881c187c96b926382dbe22f9f6bb89d4cafd505b7e20b29174f.mp3: Cannot read
+app\voice\tts\.cache\069df946b1b3dd175d8505ea7b92f4bab080243e7cb9ccf8b6a905872f93adeb.mp3: Cannot read
+app\voice\tts\.cache\07467f32ab12555c191602da621560f6cb7ed7daca2b6482329521e031766698.mp3: Cannot read
+app\voice\tts\.cache\07e7e57bef349a26da3a5e3e825d47bf2c07e637213f5c316317af63a4114dc4.mp3: Cannot read
+app\voice\tts\.cache\07f4c55f2864b9d7f914690742b7c92a35eb6ec69699ec354777d377c85dfedc.mp3: Cannot read
+app\voice\tts\.cache\086c748ab4949dfe53d9ad78182f183073da408569246d03a81b9ed2e6bce9c1.mp3: Cannot read
+app\voice\tts\.cache\088d54043165da150b701bd292b941da367827d3088b919fc7f4eda5394cd13e.mp3: Cannot read
+app\voice\tts\.cache\0941a410211af76f68e229aa4793065f12a23bfc14e3326e038a3420ea6de24b.mp3: Cannot read
+app\voice\tts\.cache\09d4c7c5d1012b00879c9b02c9586408f25b49067cce0d5a19605461735c7200.mp3: Cannot read
+app\voice\tts\.cache\0aca672b06ce3148bd895ad1e28cb4b9514f4b1095286a32499c5414df4408d0.mp3: Cannot read
+app\voice\tts\.cache\0b6afa4fd8db264fa0ea026f9f56a8917dbd224020aa515cffad1945ed1d3f70.mp3: Cannot read
+app\voice\tts\.cache\0b947a1775068261c933f7239b4d8ab8cda5467451045b129a754b5109461066.mp3: Cannot read
+app\voice\tts\.cache\0b9da3c73d0aba1e4b94d3871e7c2b63bbd3f01b8d11f3f06827d75d8ac83ff6.mp3: Cannot read
+app\voice\tts\.cache\0c44738098eafcf2a7dd7c298ac5335c301781e94b649d48cdbbe6fa0105b1a2.mp3: Cannot read
+app\voice\tts\.cache\0ce5b794b05766fd8a01af56c8c0a819dfc8769acefeb381d54513b4e77f7f7c.mp3: Cannot read
+app\voice\tts\.cache\0d9a170aad018242a59876980d7b208fd04f4ccf6fa8c309288b0192f7dec414.mp3: Cannot read
+app\voice\tts\.cache\0e84153bca477254dd1c0cb873d3915d7b85dcc94d6d34b3501dd3f4500624fb.mp3: Cannot read
+app\voice\tts\.cache\0ef4bb9c34fff5efef4b4b3131ae219f0965705092cb28e5d68afcf823e48458.mp3: Cannot read
+app\voice\tts\.cache\0f75f56569e1a140c3fcdf01860d7fbe2ddcb9fb97ba2724b307590f624c0b95.mp3: Cannot read
+app\voice\tts\.cache\0fca160556ff5b57314f59d38200248ba9c68e393ee19fe54510d652729c0a3a.mp3: Cannot read
+app\voice\tts\.cache\0fd4b61f5bcc692911d3ec3222874dcbd7bc9399d905aaf64733d1078e8c6fc6.mp3: Cannot read
+app\voice\tts\.cache\10d292a1c1458fcf9665b20f41c9f0c803e240bbc29ba6c9e27a8dc1b9272d80.mp3: Cannot read
+app\voice\tts\.cache\11e4a01c2d14f5d0718ea83631a1a5562b6e300046a790983c45943d3b71dbe6.mp3: Cannot read
+app\voice\tts\.cache\11ffe4c0759f51663357db40e0bd4e705e3a8abcf0f5a45021299c35772c7ca7.mp3: Cannot read
+app\voice\tts\.cache\122615300e3c504718e46ad785e633e08f307c4e8bb5b33a69f6da752912740a.mp3: Cannot read
+app\voice\tts\.cache\123c48e30f8d795125f2a7a806dfc30ef5fe6e6d56b84d5deb244c489775ce74.mp3: MOCK_TTS_CHUNK_0MOCK_TTS_CHUNK_1MOCK_TTS_CHUNK_2
+app\voice\tts\.cache\129a73691da95dc4a708b2a0f4eb8a69670a6a42d4213c6501b087fc8569312a.mp3: Cannot read
+app\voice\tts\.cache\12eabbe1986807130e5cee0e03dbb84492c5c666fe3a17b3ebb96b7cb98e7621.mp3: Cannot read
+app\voice\tts\.cache\130d983c7e9faab44070fd1eafccf6ef7109270f2a6fe64ac3ce1b17cffeef73.mp3: Cannot read
+app\voice\tts\.cache\1320fa7f89bb63cf174fd4b312ee90f7b55ebe0513c1e9d4c5a758d6cb369d07.mp3: Cannot read
+app\voice\tts\.cache\136e983379bfb0b178791d7529bd14fa423e2f6fdb3ff87af2ef8ad94a120794.mp3: Cannot read
+app\voice\tts\.cache\1432b5ef697d9a7b4c717e701ae84037678cca53d716b1fce4ca69efcb16d808.mp3: Cannot read
+app\voice\tts\.cache\15a35b05d010b335ea6a8426a1fb68bba31bd5bf523711335199ec1ab187f684.mp3: Cannot read
+app\voice\tts\.cache\15d226351ac5b229c38f5aa95749e87c6bec3c3ef3032c7d90d62e8458c9be5d.mp3: Cannot read
+app\voice\tts\.cache\165f4d69e1b52d1dc1e575e227fdb052e4bfbc199561ac24b4a72d46dd50e2d1.mp3: Cannot read
+app\voice\tts\.cache\17880aeef91d738c09869a1e1e8ac7af0040f8034f77b98393d3850981dffa2d.mp3: Cannot read
+app\voice\tts\.cache\17a1c639f18ed6cf632ef50ee604ef362cc71117287976809239f28fa314eda9.mp3: Cannot read
+app\voice\tts\.cache\183b4d23737341638d1e86f8ae29595518b57733c6a22002c848db561fd4b49a.mp3: Cannot read
+app\voice\tts\.cache\192644a9c24bb86d6ba62dc93ea38c9f867a4a4ad27e7f83c4c592486275b288.mp3: Cannot read
+app\voice\tts\.cache\197f160910cb6d8c391c34c68eea1aa57ed00ea44beee99274ca2e6bcb96d66a.mp3: Cannot read
+app\voice\tts\.cache\1a99f7ad05e7ed907cfae30e986b6d930398b610411683ac1dc4261b3130c89c.mp3: Cannot read
+app\voice\tts\.cache\1ac2d5181e9ba280c04647a37dfe69ce29b798952f668695144619bb0a571392.mp3: Cannot read
+app\voice\tts\.cache\1b54c4472f32534b7b46e2648b7aa560a3af0daf0c04a11ecb683228304ef7ca.mp3: Cannot read
+app\voice\tts\.cache\1cd4c596201f1cfac21a988c8d2ae492ddc2490aae28a7a996dac1dff57af2bc.mp3: Cannot read
+app\voice\tts\.cache\1cd8fd46811f47b3de18270569f6407000708a8b0b62a526a9603f70204fdbad.mp3: Cannot read
+app\voice\tts\.cache\1d1720ff4c27234de3fc5c0f1d5ab3c80b4153759b9799486834bf15b00aafd2.mp3: Cannot read
+app\voice\tts\.cache\1db28abce3e997a4430e1b5a0b77794e8122a452569bc253aa93d3b1daaa40a2.mp3: Cannot read
+app\voice\tts\.cache\1db4979797600bebaf9f1637c3d15475f47005c12b57731bceb77d7e1520f239.mp3: Cannot read
+app\voice\tts\.cache\1e502c63e484f96f4bc740060d1fe3e6df2f12c90203fab21a1870413c726b66.mp3: MOCK_TTS_CHUNK_0MOCK_TTS_CHUNK_1MOCK_TTS_CHUNK_2
+app\voice\tts\.cache\1e7ad550c8f972b9369a962630dca083995a213844cc7129347b21f610060da1.mp3: Cannot read
+app\voice\tts\.cache\1f05b0f2fec75942f2ee97f8cb2de7cdc8801b66f6a8ba25f2ac11850c1356b7.mp3: Cannot read
+app\voice\tts\.cache\1f183fe529a837e6f54983892a3832360f234250058b1d2f9aca57b62c305f14.mp3: Cannot read
+app\voice\tts\.cache\1f884b5db88cc54ccec552241a615d276baf973bc261dec5ba9f2858f2e20246.mp3: Cannot read
+app\voice\tts\.cache\1f93b8b38bf3c1cea6eb23efd89c499842277333b2296ff562cdb9d944ba2bcc.mp3: Cannot read
+app\voice\tts\.cache\1fa94baa4eedab89c449535b26603f1e6fe8b4ba69ffdb0d804ac98734d66397.mp3: Cannot read
+app\voice\tts\.cache\202e277c259577bff4cf4baa41563c930c1e52015952bede056c9c90e246029b.mp3: Cannot read
+app\voice\tts\.cache\216cf387752051380d4235d5e6aeee79152cd88a74a581748f73690122980a85.mp3: Cannot read
+app\voice\tts\.cache\21a7476a97a8924d6a1520361f9d2de6f0a74b6ca259d29b97e4ecf9bb86df44.mp3: Cannot read
+app\voice\tts\.cache\21c63427f791348c1ca4e7807b45a76cac5d0b5ac773f63348b1700845469507.mp3: Cannot read
+app\voice\tts\.cache\22a12d2658de3a18bfd9fecb0b7bdb1410ea31dab2c0df6c356b1120d41a7e77.mp3: Cannot read
+app\voice\tts\.cache\22f40336ceb24e125ac9b640ea58a13c9c87402add7e468c833587d480d2d44f.mp3: Cannot read
+app\voice\tts\.cache\2387080c751b98778b3fd85202a52cdcf153f996292af54f92a08f683605af32.mp3: Cannot read
+app\voice\tts\.cache\239eb9d7a3f4051a90860bef6cf7b792ccd36642e768930f9e0da33bc07e9b04.mp3: Cannot read
+app\voice\tts\.cache\244ed1498cc43ee214778558abf8b7bd9a65749ef7dd65b4a2d0be76084faadb.mp3: Cannot read
+app\voice\tts\.cache\2467402ef93bf3058ef61821c4d4c17f3c5df6f90f4a12946a347211d548010c.mp3: Cannot read
+app\voice\tts\.cache\24acf3af8af125149881fe3d2dac179cb17dde1287a3340e634f9618489f1918.mp3: Cannot read
+app\voice\tts\.cache\24f560f4ee2ab60f876b60bc367ef2cb17687e7beaaaae05b02cc2dfbe0d17a7.mp3: Cannot read
+app\voice\tts\.cache\25483b954a821b31f88f8270d416293cab647282c3893002985ad2de28782a0e.mp3: Cannot read
+app\voice\tts\.cache\256fb4bc4cdfc6101225ffba7273b58e40c03b45536d787ae624556de7b0bb5f.mp3: Cannot read
+app\voice\tts\.cache\25b47197821f62ce5f517366a866caa945ce1923be0f3450239f9c5028602cee.mp3: Cannot read
+app\voice\tts\.cache\2625a795eae4b2d50657e194122cd03899f7f1a03ada7ac202daa8456508b05d.mp3: Cannot read
+app\voice\tts\.cache\288dc9c9a27b8204a5197015f11e29cf72717aa0ff94f7f30ca8ffa5b429c144.mp3: Cannot read
+app\voice\tts\.cache\2894c19d0f2dfe05f86d53296c5dba93f4200636e52e20917f6cc84828c46b81.mp3: Cannot read
+app\voice\tts\.cache\2959120592fa29068539155e20deedd7f3d03f54bcb548a1988901e315a2791d.mp3: Cannot read
+app\voice\tts\.cache\2a27db233791816b92c3f95c0089ae02eac75da1621bd3eb84605261aa137078.mp3: Cannot read
+app\voice\tts\.cache\2a86c917ac98e4855047fdb50115eed4aff69df1e7559d8a09540ca7035279e7.mp3: Cannot read
+app\voice\tts\.cache\2af2488a9e3c9775d70fc957ebd5b0c5d0e9863e64389bde7924d6928e79906c.mp3: Cannot read
+app\voice\tts\.cache\2b26814f6273ff526e8fc46c48a02b2fa891f8cefae651238348d6d3335f55bb.mp3: Cannot read
+app\voice\tts\.cache\2b27f1095e7e33d662dfd235a297a0696cdf4c7608ab04c16f4bc2ddd541adf7.mp3: Cannot read
+app\voice\tts\.cache\2b2e0a14529ad329e22ad0cacd86326007a611aa5b230e2b6c7a5135cb7fe631.mp3: Cannot read
+app\voice\tts\.cache\2b45c5cb580090b157eb7e6f10c5553f878ce5624d9a372ad922e6d7c710e68e.mp3: Cannot read
+app\voice\tts\.cache\2b4cdfefe414c758ec03d967de34f66d9df57c81801a1417a47563094e2dfd5e.mp3: Cannot read
+app\voice\tts\.cache\2b61770245e0db801d68d9da3481a352b221cce0efde82b938a9d340e2f53159.mp3: Cannot read
+app\voice\tts\.cache\2bda5b52be44346912df6b6c8f47baf1ff8501147941f76d365cd3b2c2c96822.mp3: Cannot read
+app\voice\tts\.cache\2beb083d33e37fa2540f0f12ddfaae37d79b6cd2de1430700de80e3130b78de8.mp3: Cannot read
+app\voice\tts\.cache\2c0470daa3c7ce22d1e63d7d1e6ff955f6d9c35512653b87a8483b17133bbd65.mp3: Cannot read
+app\voice\tts\.cache\2c1af4b0df94ee30fb798fed3b99ddbb6cf50377a8689f5e25f0c7c7c191b282.mp3: Cannot read
+app\voice\tts\.cache\2c5e7083d9b08b09504667b298f8c7e5225e0bf039369a79199c9d4e59519746.mp3: Cannot read
+app\voice\tts\.cache\2c7581752afa5044c41952d351e9b5cf8ece2a6eb3a323ce8df1a1532fc7c1ff.mp3: Cannot read
+app\voice\tts\.cache\2c81dee93173ce4556dc8a9beb49d78e6c98191554d197eda8217671fe28336e.mp3: Cannot read
+app\voice\tts\.cache\2c8d4aee17078dc64d2ffb41af84518f840e21e65d33cc3ba97c3abcf60eabd1.mp3: Cannot read
+app\voice\tts\.cache\2c94bf59f3206cc13e919bbefd6424c0f22fd61da2592bb4aa62e387f5bedbc9.mp3: Cannot read
+app\voice\tts\.cache\2ca1aafcb582eaa73238fc880f668bf8a4268133516d5210f6b5dc62d455d459.mp3: Cannot read
+app\voice\tts\.cache\2d627bbee4b30ffe498f16f6745ebb45f2b4dfaa0960d4e0957d5ef23e8e106d.mp3: Cannot read
+app\voice\tts\.cache\2d96dfa9d521cf3f02b694dcf6be2ddef5a628335e6ebf1b1a0379f288802ea9.mp3: Cannot read
+app\voice\tts\.cache\2e2ae8ef7294ae0bbb366f9bbab413f8f054b296269678969f8752f58874fe76.mp3: Cannot read
+app\voice\tts\.cache\2e9b7a3431fdb404cdb3c63a02b85ceac147bb70016830e266205bbdc5233152.mp3: Cannot read
+app\voice\tts\.cache\2ed665397c93eb7525df7f8db017320865d0747c637e68a51cdd9f2070a5e4c2.mp3: Cannot read
+app\voice\tts\.cache\2f187665935ea7bbc97cde33985cd975f27491bc8a4bf01de943c35526cc0d3f.mp3: Cannot read
+app\voice\tts\.cache\2f43b13ed4e763b47298dab5318291699bfb2e5fdb0cc4958fd08f876917fdb1.mp3: Cannot read
+app\voice\tts\.cache\2fcad73770f104a408d03d0498873c41ed1e4164d45f94b386ce7b54e665cca8.mp3: Cannot read
+app\voice\tts\.cache\303da15bafb027af19df626a1d0492a80649161efe323516a0976369a8385308.mp3: Cannot read
+app\voice\tts\.cache\3054029881e8f6f5a3111e5d41f842f631045090302084fc26f5156490d6d14f.mp3: Cannot read
+app\voice\tts\.cache\305a8456d610b3964ede0454602088bc64af8acd9da48e004d125cf6ef3be77d.mp3: Cannot read
+app\voice\tts\.cache\3106d59f5bd1fbc6b77bd51336c3e0987fa16a2f2f2f71904195182da8ad7073.mp3: Cannot read
+app\voice\tts\.cache\31342b49ba7b5ef7d97bd8b9435b7a86ec0e7e12ed68b385fe8398c7c94f640c.mp3: Cannot read
+app\voice\tts\.cache\319df116a788f3a90ae2acd9027ad09c90163cbdd6d8dc6039bf2e9de166c812.mp3: Cannot read
+app\voice\tts\.cache\31db7cfe090ca2185551edb6a855fd96b6297c20d9d49f0bc04f53e331d5b199.mp3: Cannot read
+app\voice\tts\.cache\31fc95a75833048041366f5f1d97590f5689c933f7776d61cb2ca8143cb0e0a4.mp3: Cannot read
+app\voice\tts\.cache\321d5bd0f13bb381ea2b9202ad454df5037247d55e31d35abf62bf6d9590cd07.mp3: Cannot read
+app\voice\tts\.cache\3224f6a8ca44020c0d1c94b4e747e689090519db50afad590f2d306ee4716cba.mp3: Cannot read
+app\voice\tts\.cache\322833b6b99953171c642390e7607786984fcac13d6e0755f639605b432c83c7.mp3: Cannot read
+app\voice\tts\.cache\325e34adff86588edb105641838f05bbf79a41a3f8c0009a9a1783e7b9683b8d.mp3: Cannot read
+app\voice\tts\.cache\32bec262134aa91c939d8b1b9336b108a6bb7c353a0ab9ccd872bb0db3a93863.mp3: Cannot read
+app\voice\tts\.cache\3308534169eb3dee4b52fff7f38d0c8f3ba816373fda372e3b0e9de316f0ad4b.mp3: Cannot read
+app\voice\tts\.cache\333857cef3f06b1106959e75e33b71af2136769f5c3c77d0d89d53f721d8618b.mp3: Cannot read
+app\voice\tts\.cache\33a39de974f8d5da3968f9e422eaffd10da3e26753bdc6f6c9580fd6c3f39d95.mp3: Cannot read
+app\voice\tts\.cache\341499bd8bcf7c1315839ec8dcd62e5e231b368b08ff98c65af5c92c3318fb92.mp3: Cannot read
+app\voice\tts\.cache\3442d3954d8d028f31936e3947c5fde6e2e0d0659a138dae6b90cb62bcd2b0c1.mp3: Cannot read
+app\voice\tts\.cache\34b2c3b4d1523a2472bfad09c7fec574e5e05e635f0ba154a70ca64f7bc6d1c2.mp3: Cannot read
+app\voice\tts\.cache\34bb35bbc83bdd928fa07450ca4a8107255e9fb6745eb7b4af295900129b883e.mp3: Cannot read
+app\voice\tts\.cache\34f925c50e2cf1d88e84e4c8bf14e389ac5fa5a80c25f72580607317f3e3062b.mp3: Cannot read
+app\voice\tts\.cache\353736cf9a5cbdec3f702f826c5dfbd68e0e98b92688433d10f5c02afbde1d1f.mp3: Cannot read
+app\voice\tts\.cache\35641a9d720e6b621ddac7cfed1c38c94cafbfab6efaa82a70c21f72893a7893.mp3: Cannot read
+app\voice\tts\.cache\35b95299fc6001cce95baca0cf99b611cd8a1de8728366488183b438c4bbed55.mp3: Cannot read
+app\voice\tts\.cache\3657f9a97b03efba0db8f5b968012fc5de10e6ec52ffdfc29a12ecbdd318a332.mp3: Cannot read
+app\voice\tts\.cache\36a16db64d36550272391ed229c8263e7743b2e1c7f410971e4a978936b0d053.mp3: Cannot read
+app\voice\tts\.cache\36c5fdb4d99220d43142141c05b61794e76ad1e60046daec98f54ff6f6f6c374.mp3: Cannot read
+app\voice\tts\.cache\37277775ca7b1ca2217bf5bd1530d138a5b5a55ae2e51b0a49d37609f19c79aa.mp3: Cannot read
+app\voice\tts\.cache\376fb98b275b515782d9915bed9d0df3257736984f1dd2a0b20f9310efa45b7d.mp3: Cannot read
+app\voice\tts\.cache\3776065db44457b4c0deec31388d14a2ff556c929d2690a84b50f5d42f205ee7.mp3: Cannot read
+app\voice\tts\.cache\37cd36f77d141256c333728b420854fa941d2259aecf3965ec5724ead861900d.mp3: Cannot read
+app\voice\tts\.cache\3809f9944b3cf0d6239ca701848807598883db8084f6696048b960752b273f11.mp3: Cannot read
+app\voice\tts\.cache\3822ea0a755ae67e81b2124209af38b3aefd03322a503ebd9176f41ed283bfa5.mp3: Cannot read
+app\voice\tts\.cache\388c431bf71fb07db53b6f5ba85ee9e3ca1d3c36ebb485a8bffb871343a2126f.mp3: Cannot read
+app\voice\tts\.cache\39845c2f2196d2a22cb3c3d872ff8b68f0c4af70fbaa6be2352c2fa7a077adad.mp3: Cannot read
+app\voice\tts\.cache\39ce450e15939efa42ba6cbfc0c5ce3b952e783620a40110b82daba353f72f17.mp3: Cannot read
+app\voice\tts\.cache\3a2f9e6595f403a181f14930c37baad2379b3d15d8ce869e94faf0cfe6e53296.mp3: Cannot read
+app\voice\tts\.cache\3a37b4e06c46c9644ea684b91aba4a3bb2cd8a6fea720e0a251660aaa41e95b0.mp3: Cannot read
+app\voice\tts\.cache\3b4f51e0454a1d3bf99eef35eb3022c4556e4bbee50e7087b2b2165cd70591d8.mp3: Cannot read
+app\voice\tts\.cache\3bb4505bd22d6d3bfa2a76114cda3544e6ed7c555985bc9f8b01789fe2085542.mp3: Cannot read
+app\voice\tts\.cache\3c298bb304120edb94b39a0e5e12e792835ddd2361229c66303f774c12d9fcf7.mp3: Cannot read
+app\voice\tts\.cache\3c824cd7978255a88789984a081f25e5d73ad7216e3cd5f935e60c240adc26a9.mp3: Cannot read
+app\voice\tts\.cache\3c82959e5411e92cfeb19bba7a611afb7a2b57abf7514a394c21e5a3fd9c5140.mp3: Cannot read
+app\voice\tts\.cache\3c8cc07f3f377367a2b58a1a3c7856ce39416847af6ea5495e916edd57b48b28.mp3: Cannot read
+app\voice\tts\.cache\3c92bd59c380f0657b433fc141beefa23f1977bd9b24843b063853d2a53bd9fb.mp3: Cannot read
+app\voice\tts\.cache\3cd7b31360af81d875c44f117c05e1d05da2957ce2de2b6ab2fd0279f93fadf5.mp3: Cannot read
+app\voice\tts\.cache\3ceff5d50c05a7a72e00264fa321e9dd41337475a267713f05f72391d79924d3.mp3: Cannot read
+app\voice\tts\.cache\3de32817ec488dc71538a917821ffab5dd8324003a2ce53173d56485a8497159.mp3: Cannot read
+app\voice\tts\.cache\3df060ced74b23eeb14a81190d180efd4e17cdc1f212e8f4a3beaeaa8f8a64b8.mp3: Cannot read
+app\voice\tts\.cache\3e9429da4e516fccc13c026f18d6436dd8d5598277d7a936ae1954a8743c892f.mp3: Cannot read
+app\voice\tts\.cache\3eb21ab5465267421642940e01feb454c953a9a2bf23b54c5fbeb42080c9afc7.mp3: Cannot read
+app\voice\tts\.cache\403e6c60c66800e4ea47340efe72f6eea27b4168fa5fcbea7af7e4f598902ac5.mp3: Cannot read
+app\voice\tts\.cache\40e8280b1720680005afb78436bcf24a89a14f51ffc5fe5751624396945374c6.mp3: Cannot read
+app\voice\tts\.cache\40f5718df40c6cd44f4f8f4174de4464449d1487115339ca62e660c3ac27e967.mp3: Cannot read
+app\voice\tts\.cache\4124fe51499f7d3ba4da32dfcb089b601447d0c1811442c245dae95db98d1dc5.mp3: Cannot read
+app\voice\tts\.cache\4128af99d5e267e522a0574c26f90850cf7d9b137309c3cf71fb39f2b44566ad.mp3: Cannot read
+app\voice\tts\.cache\417fb65fbf1a7f44ae92d5367dae2c26a316535be430f664f5b0dbd8e2710b13.mp3: Cannot read
+app\voice\tts\.cache\41835f95bcf16c58500cdcea6be4ddab1d411b518849e5769202a66b4f991633.mp3: Cannot read
+app\voice\tts\.cache\41b326be5c9eba31623a758a82b60fa16f35bf20cbf44c2fbf471ffb9cecd54d.mp3: Cannot read
+app\voice\tts\.cache\41d1b49fa888c619883590066e1dca05fa0f37ad40cc2b0b482548413add8458.mp3: Cannot read
+app\voice\tts\.cache\41d55f7c5b1f6ef00b80e7b2a2194da2d60da23e9eebc305b2a03d91f944d878.mp3: Cannot read
+app\voice\tts\.cache\425bacec822847b381f49ef9dca3629035d41656eb437965f4e5911469170e38.mp3: Cannot read
+app\voice\tts\.cache\42bb828c312a92072cce40575e1ccf1747dde4d8589df27b9f2b352bdfeb070c.mp3: Cannot read
+app\voice\tts\.cache\4351c6f26b0d7e733c03e9c33e44c95bb1965e084844b3dc553505161e468df5.mp3: Cannot read
+app\voice\tts\.cache\43cb241db99cd6ae423e4a217cef0cd57064e0ff25c3d4d83144ffd62d06bdbb.mp3: Cannot read
+app\voice\tts\.cache\440811626212b07a3c832c377ef3c1a6251fe43344541a0e1c5fdeae9d9e6a77.mp3: Cannot read
+app\voice\tts\.cache\444b6ae5b281d8f8d762b32f0b33c3b464fb3c7cc37f1d95aed7ccfe61b4bfe8.mp3: Cannot read
+app\voice\tts\.cache\44805eedc54ecd95b166c9d2f4d0434c289edc70acb87d3586b8803f85cccb21.mp3: Cannot read
+app\voice\tts\.cache\44f47f19da957cb215227a62c4c9a829e76b5bcc142a029b1fad17ce7af4094c.mp3: Cannot read
+app\voice\tts\.cache\45064d7e9388dd78fc2f27a6098b4c5ae2bc993bb9b40d76a8c081cf70910012.mp3: Cannot read
+app\voice\tts\.cache\454189861a01c2eeb5294d395d8e83fb0bc3aa6a102bfe4861baab38fd665a21.mp3: Cannot read
+app\voice\tts\.cache\4562ef1b3f4dddc2c057314f02da915c37a00742ee6f9558c7518b437187f4d9.mp3: Cannot read
+app\voice\tts\.cache\45a145943605362bb5befa003a17032480db5f6572f1cd31be699fbf885a3181.mp3: Cannot read
+app\voice\tts\.cache\461a3f6db93ba53fcb1fe30e5d9bb3fc6218c3d38cf1659412b32fc1f8d4eb06.mp3: Cannot read
+app\voice\tts\.cache\461bd87cc8d594e5e873c8ab1dce495b5941d5e5fe7caa840df49ba7b951c2be.mp3: Cannot read
+app\voice\tts\.cache\464bb07ed45ddb44d13b76a1a8bf4c3d78b69e8658e3971a543bdc9cf1334c34.mp3: Cannot read
+app\voice\tts\.cache\46903788ff9f4e8623bc330c31ab5c09b2e18646cdba21f57d64ac45501ce799.mp3: Cannot read
+app\voice\tts\.cache\4697b86caf44030b7e6834e700cf16c64750a9697ddb08fa27ee61414ac4ed6c.mp3: Cannot read
+app\voice\tts\.cache\46a01daf0bb207fd3480d73bf3dca788e67b0608a80aa2985a4681d7aa33178f.mp3: Cannot read
+app\voice\tts\.cache\46e8846ac2e7bf6fb3bf4e53843cb57bc5dc635e11a9c188ede895e4733876c6.mp3: Cannot read
+app\voice\tts\.cache\4719058be965098153c9f5a54550586c0ceac39f007e543b6a0410acdc286e48.mp3: Cannot read
+app\voice\tts\.cache\4761c28199d37787497c72a7d0f6c94752109d654708cbc3e9c354611b0f5d02.mp3: Cannot read
+app\voice\tts\.cache\47bd7b6106da06ca6b2cedbf262ea0d5953e505f06bb7dfad2039501d04848ae.mp3: Cannot read
+app\voice\tts\.cache\483a2543175b9a8eb24d360a8ebf8c02b75c9b957dd3c577cafeb159d893dd84.mp3: Cannot read
+app\voice\tts\.cache\4848cc53833a5a9c3c598a23a22bccab4d55da265aa2cdb5aa1a7c860a68953c.mp3: Cannot read
+app\voice\tts\.cache\4951ce02729a2b0837618a1e360eeac572edf74ad366e263d4ba8e58e72ab5b6.mp3: Cannot read
+app\voice\tts\.cache\49c26ce842d4ee30b0965ca033eab7c4a8edf1ecec7875553fb39a787c69d69c.mp3: Cannot read
+app\voice\tts\.cache\4a339615c1016b5e4c9da97054e43c4294e316f083b5b25def5654dae0e10f05.mp3: Cannot read
+app\voice\tts\.cache\4a730943579332729ec37b539cb61db977b964c7e591b00a5aa9dae26b50a4cf.mp3: Cannot read
+app\voice\tts\.cache\4a80c11bf9f0c5bae10b0b152be6d21581cb64c6a8ab1f7afe185ac0eaf32cd4.mp3: Cannot read
+app\voice\tts\.cache\4afa6600c9ecbc84dd9f784fc4b7f0923822cc508627cc58c92c8c5ca3969888.mp3: Cannot read
+app\voice\tts\.cache\4b08f74d360e7ac809262f0dfbbca71e9ce39f0506f693a07d6e3b1446bfa9f2.mp3: Cannot read
+app\voice\tts\.cache\4bac8d6fc99f73868fe276d449f74671207aeaa193262e90d788d413c3f66b65.mp3: Cannot read
+app\voice\tts\.cache\4cc039a592b7c72ffa2270faee3ce1c51087274ec30c2589a119df4e93d960ae.mp3: Cannot read
+app\voice\tts\.cache\4dfb2c5d532f73150938a1199361f0243556d3c68d7db0c7b855b9310eac357c.mp3: Cannot read
+app\voice\tts\.cache\4e2c6aeb7815a75c904d5fc32f38ff1169a05d45c094aa447bc6691ac1140f89.mp3: Cannot read
+app\voice\tts\.cache\4e982b64a89c0ef843a791226817e9a332b851d74ab29f5e4af28f0f28dd9688.mp3: Cannot read
+app\voice\tts\.cache\4f7fbd4e02d63bb273db4911206e236513984dd6351b4ee6a9f4f090a588b162.mp3: Cannot read
+app\voice\tts\.cache\4fdeb215da6db85e0b4273676331b6ec36405b761b248dd9501c48f1268f69c5.mp3: Cannot read
+app\voice\tts\.cache\50a0ca72ce228e80f17bb953ab8e52d3b08a84abd22fa53d008cf2c8e89d2da2.mp3: Cannot read
+app\voice\tts\.cache\50cf686259b34ded235a7f4b90c02f1f9fa41c106729d9a30caf77a66405eb72.mp3: Cannot read
+app\voice\tts\.cache\50eedeb89b53e68eb15873e04a9951825e7b31511deff2a917d42ab4d2d9cf92.mp3: Cannot read
+app\voice\tts\.cache\5184671f84269bcb91b905947f0b4d35c0d9f8900dba2de98b9cb5641b383e1a.mp3: Cannot read
+app\voice\tts\.cache\519301549c26659f90cc8e5fd2bc6fc970c82ca16f4e54d0ee5fef65bc972765.mp3: Cannot read
+app\voice\tts\.cache\51c1e68bfea2961dd29ba5f3be5e7803909e255974003f020f9d433d8c8e93c5.mp3: Cannot read
+app\voice\tts\.cache\51f4dc35db9539a4b581102b03bc9204923ef20aa32b72c90fc6854be58352a2.mp3: Cannot read
+app\voice\tts\.cache\5292de5e0f88bf7ee2851fb85dcf2383dc55abf0b2b5cad8aef2580e71845947.mp3: Cannot read
+app\voice\tts\.cache\53e2b0efb6f1e942f83440e5a9427d754b2adf4e1931b12e05b9b4baa8daf359.mp3: Cannot read
+app\voice\tts\.cache\5443aefb24e8902f398180d127d13ef8d424bc3c9fd659238c5de4ba03f100e9.mp3: Cannot read
+app\voice\tts\.cache\5458d0241ecdf1fabeb2b3c02a2dbcb5059a21c44df749e667039dfe65e0fc5b.mp3: Cannot read
+app\voice\tts\.cache\54882dde0091df0f66c74e24203c98e3301aa0fbbddcaa5c05d65e955b018b7a.mp3: Cannot read
+app\voice\tts\.cache\5489dff04471dfd99760daaadef75ad0028ebc05111b0eae7b04c21571b67edc.mp3: Cannot read
+app\voice\tts\.cache\548c98fc877e00c614b99d08e841dd86d50c9b2b47c0d0c528c8af7a1392521c.mp3: Cannot read
+app\voice\tts\.cache\55b4019f04836908d4e96f1419b616827091c457d2188f42917f0ae7245a1cd3.mp3: Cannot read
+app\voice\tts\.cache\55d687ad287672032a7bba9ab65fbbbcd5948121ae59207587aa1fd206123930.mp3: Cannot read
+app\voice\tts\.cache\56064e99ecb72fc105f1c53fe62591270c3ff0ff249d38038ab6dfe7dcfd9445.mp3: Cannot read
+app\voice\tts\.cache\5618881f472a82179d5c0f05d62447d6f4ab57ef99c0f2315590bc7f63eafb01.mp3: Cannot read
+app\voice\tts\.cache\565b93ffebbd57459284a980d51690ee17cbc4c118edc7b148e9a9e91a9f2ed8.mp3: Cannot read
+app\voice\tts\.cache\56653feea80a08e07ff68b989daa96eb77b9a3d9b00566491da89785c4cc94ed.mp3: Cannot read
+app\voice\tts\.cache\5679ca9658dcdedf39b68a40b6b556d66c563fb1e288cdc1da57563360710133.mp3: Cannot read
+app\voice\tts\.cache\5681094fca9c76d85655669bbc6754bc32f656a96fa5118fed987950905acaa0.mp3: Cannot read
+app\voice\tts\.cache\56a31d43ded70bfc9a33782734c12c295f9a911789b80a3a18e1770bee4dff59.mp3: Cannot read
+app\voice\tts\.cache\571b7033c0d95eaee27b41f8db16260a86f92764bc78333132d26ae0453b4f6f.mp3: Cannot read
+app\voice\tts\.cache\572e1733f9ba924e8f673d9dd41ff3b5a9fdffe4b9ff7e4c5037228f0bcf8942.mp3: Cannot read
+app\voice\tts\.cache\57675200489fe23523dac2c56a62f6970b9bdd1510c4177f127f6d68ac26f745.mp3: Cannot read
+app\voice\tts\.cache\57abd8b31bc9f264d2baff6d2440bf3ce2d128ca476511d8b41d5b5cb97db47c.mp3: Cannot read
+app\voice\tts\.cache\587b08027a1a7f14e7556fd232308162058ad4bab6629fd2c4c86ec2760a26fa.mp3: Cannot read
+app\voice\tts\.cache\59dfb21b3694902cf05cd5fc1e6e97250b305b5e851d0403c9d0467bc2326451.mp3: Cannot read
+app\voice\tts\.cache\59ec651a4250e741695e4d35e4de3687ed8340359fcb66c56edd4368f09117b8.mp3: Cannot read
+app\voice\tts\.cache\5a8c05baf6266bee3484862edf432b07a306029a9b5ee975833638beceabfa28.mp3: Cannot read
+app\voice\tts\.cache\5b4f9b4e025e46db711df4ef378dad6273c4e366122cc17c73246ab6efce3a6a.mp3: Cannot read
+app\voice\tts\.cache\5baa6fcc07c4156b2c6317825a493db6a952ee58a3cb14774a55ea507a980f2f.mp3: Cannot read
+app\voice\tts\.cache\5c2415fd801afae4f8dcb8d2305e9942bb8638c8275dd7cdead5f43a385f8f79.mp3: Cannot read
+app\voice\tts\.cache\5c27468a03c0d09d0ada4dfc4da83e4ea921a6254e5e1b92cae8746ce2f944c5.mp3: Cannot read
+app\voice\tts\.cache\5c58f67a60479fb820f343587abe6a0aeda68c930d99934305e1e0582cc4a75b.mp3: Cannot read
+app\voice\tts\.cache\5c689ed6fc15d9364f92ef06679e208e8b4464105f963e4b4a5bf0080536f7a9.mp3: Cannot read
+app\voice\tts\.cache\5daa68243853c8340a82d776c1bc3cb3472373ab5cbdfff59054b457d5e583a4.mp3: Cannot read
+app\voice\tts\.cache\5db68a68be6db808cb2d5bb4015efb412d65c3d77f23f263215535f28fc9c17f.mp3: Cannot read
+app\voice\tts\.cache\5e6762713454787dd49963df8db6f60733ad0071961c7f9fee68da41ad9a08b5.mp3: Cannot read
+app\voice\tts\.cache\5eaaa4386037002c41ea70382019087b65987a77d16a1350594d5b6859eb1b43.mp3: Cannot read
+app\voice\tts\.cache\5eb1aa0b27262b6ca072ae56b6afc401362ffc085dc1487dde03c1e9336822ca.mp3: Cannot read
+app\voice\tts\.cache\5f8eb4af9788df077f8fa9a4194359254085bdc38a8d0e2c362fc2a13c9c71e9.mp3: Cannot read
+app\voice\tts\.cache\600740cab0b01e54c1e652b330cc3a734d89afb29467b5fdd6541031362dc682.mp3: Cannot read
+app\voice\tts\.cache\60e1a4a4d082990937cf14bb3636006eb158a990bdb7dc4652f9367bf3f8a909.mp3: Cannot read
+app\voice\tts\.cache\616b789c953420fd6ac6ef5786d500903c74052462260e35c78188f0a8bdec05.mp3: Cannot read
+app\voice\tts\.cache\6178d33fab36476b3be2cf4411f3b4f3015a5c6cabf73c9cd3e7d72d7567d6e8.mp3: Cannot read
+app\voice\tts\.cache\61b6c3db5c5e55b22b4c9829eaf237d59267e6b6512052fd324e45cc97034dcf.mp3: Cannot read
+app\voice\tts\.cache\62328938f78b80f4ba8a91b3453ccb450bb916a0bf3f3a8f06a935329c0b3dc3.mp3: Cannot read
+app\voice\tts\.cache\62922c4c684430680647152a4cf9edb653b2815c4b3232b4a58892f99dbc36f3.mp3: Cannot read
+app\voice\tts\.cache\62ea22d59b9cf6fb924265da10de447622931d404acbd85a37aa25711a324287.mp3: Cannot read
+app\voice\tts\.cache\63e9e09b528f16b1ef1f7f6a777595cfd90564a0e5521bd54d6fe86850943933.mp3: Cannot read
+app\voice\tts\.cache\641f34c6cadd558b1ef2363788343c295ea74138fd4fa3941063388ef43b5183.mp3: Cannot read
+app\voice\tts\.cache\64693d71296b7f63ef916b708703ae07a5e1176e9131737e669eb3e1cd207a05.mp3: Cannot read
+app\voice\tts\.cache\6481d92227504e5c3181cfec5528edb77bae067df285b439ea033c64befacb8d.mp3: Cannot read
+app\voice\tts\.cache\649af8749a60028d58447391a1406775e43ead5074bfa4707e7b1ea87c4b2b5f.mp3: Cannot read
+app\voice\tts\.cache\64ab80a773d0303f61fd947822742938d87f6806a1b96ded290ec30fd092cbab.mp3: Cannot read
+app\voice\tts\.cache\663f835d63656f4ca19e3d35003788d88cbed1e37c1e0963d146051f2b431250.mp3: Cannot read
+app\voice\tts\.cache\67251566cb996331a6808fb1334d38d5e25cad0b7889e253c643b78a03a7de5b.mp3: Cannot read
+app\voice\tts\.cache\673ccebd720ab9fba7eedc0b085cb9c0623d8d2b91d29ed5c4dc3f858f5cbfde.mp3: Cannot read
+app\voice\tts\.cache\67898ff8e1f08b92424a622efe78ec7bc5bc4e4a61f03427d309087d66a7b945.mp3: Cannot read
+app\voice\tts\.cache\6959deaecf9d20725d12ee8ff65efd1cd4b303d6202a6f07896ccc9c2cceb316.mp3: Cannot read
+app\voice\tts\.cache\69cf35069fd801df906988ea26119aec4a919f31dd6599dbe6501baacab265ff.mp3: Cannot read
+app\voice\tts\.cache\6b1440cc039a35c56af5ec79d5c019255d435a76b362e714c53345a6315ef96b.mp3: Cannot read
+app\voice\tts\.cache\6b15fce7c0896e672906a71f3d3d47541a76278f847676bc0775e0b66b509f9b.mp3: Cannot read
+app\voice\tts\.cache\6b66a1d70c417c0310117e1d79dfcec4c3b62fb9120560f67179840bc64094a3.mp3: Cannot read
+app\voice\tts\.cache\6b909e58ddae83eac7ebfdf825fd72e51239428ec6c0a74b394574c02fda6225.mp3: Cannot read
+app\voice\tts\.cache\6b9e78455f3b2c660729651dd71fe688b50d806010aa909bbcea55b1f8751237.mp3: Cannot read
+app\voice\tts\.cache\6ba3eab0f7dc2cda6b1fa819713eb6d2298c64b3352e2e047c2b9adccee60654.mp3: Cannot read
+app\voice\tts\.cache\6ba9a5e4f6a69e8226b43b07129b99233239835eda59227de19feeae96d53c69.mp3: Cannot read
+app\voice\tts\.cache\6bd5108e1aa597e385e45bdbd911f38be36b339013700ae9976d39cf1494f6d1.mp3: Cannot read
+app\voice\tts\.cache\6c0a9f7709716c6b918e954420e015c5562255b15abe736601ce0b1cb2aae8ca.mp3: Cannot read
+app\voice\tts\.cache\6c98e67fef6167dfc15e5ee1a7680bdc2a951e94a449baf521cc6c46e9b07623.mp3: Cannot read
+app\voice\tts\.cache\6cc81db2be58a509a73fbfb324f766749441cadf9bcc9f88dc5b6800833cf8cf.mp3: Cannot read
+app\voice\tts\.cache\6d1044438b701acd8abe7d775c964720b9ae0e71cb2f7582e5ca9967e8c45e69.mp3: Cannot read
+app\voice\tts\.cache\6e2e76bab6c130716665db666d8df36d6abe03ec62ce660801b0e305b6273ee9.mp3: Cannot read
+app\voice\tts\.cache\6e439f963893908b61c5fd9c5603c79c90f5e8db633b59b2299c01e59a79bd01.mp3: Cannot read
+app\voice\tts\.cache\6ecb5d1fa957b5864835403f610759268a472ff93e4aee7841e8e5103e981612.mp3: Cannot read
+app\voice\tts\.cache\700b37c265e3bc4e7d3a0115ad09d80476314665bfcb29d7dce86e7f9cdec6be.mp3: Cannot read
+app\voice\tts\.cache\70c8d2b04c346aad2ddf1c77cefcb14972a1b0d8b500393ac82be008803a606d.mp3: Cannot read
+app\voice\tts\.cache\70dcd7c149d4c60793e981c88128d2ae57409221b9d9ff849875fb22261b9a13.mp3: Cannot read
+app\voice\tts\.cache\71ac69a6870404f4246c260f171b8002b440c639777c87bdcb38e30544485415.mp3: Cannot read
+app\voice\tts\.cache\71b3679e5c6610ed1a4cb8c530ae320edd2e9e65e4cdcb937ec62656bd937478.mp3: Cannot read
+app\voice\tts\.cache\71bee47d8a63faf53b1988b0f8b48f24c3bf880f760c246c601b66542640a645.mp3: Cannot read
+app\voice\tts\.cache\71d824dd34a95f2cdf2de31431767468dec456842295699fb38fc6fe09e6362b.mp3: Cannot read
+app\voice\tts\.cache\71e4330d34df7d2c54d1562b53b3d4f4a0716f52751494c0b4b52d9dcb935b99.mp3: Cannot read
+app\voice\tts\.cache\72312f390937d3e55daf4b8c98e9728b4440b262670c78420e4178613372bce1.mp3: Cannot read
+app\voice\tts\.cache\740562ea081beefbd3baaf02c41fd6ff57b281ff6a05a1c423193ba84dec783d.mp3: Cannot read
+app\voice\tts\.cache\744c7f7bc49f6eb06e8ad0cb85d2e4ccc82323ab6c7dbf801d2b152e463cd45b.mp3: Cannot read
+app\voice\tts\.cache\74dfc210c9156a72d43f3cfe3e92bc764b501148395b0086f6911028d9e60d52.mp3: Cannot read
+app\voice\tts\.cache\7514902645577cef403aed54f711e02331660e7b024a6d5db14bb88287c43f11.mp3: Cannot read
+app\voice\tts\.cache\753b344787c7fb9629c53a5f543610157b8b87800f0c98d9aa963db0d7c43e65.mp3: Cannot read
+app\voice\tts\.cache\75ca9e008046fcf281f811ac3a4f51e889bbca81cbe46ed54b49b89d5ea53f72.mp3: Cannot read
+app\voice\tts\.cache\763244196a56c86cbdf0fd91c6bc441db752f4289012990ef29c7f22090bb770.mp3: Cannot read
+app\voice\tts\.cache\76ca2d5be5f3aeab117b635ec9ea916f8d571c0fec92a4c33fb6b2f4a7b7856b.mp3: Cannot read
+app\voice\tts\.cache\76f48f73375a45b317f651e34203540dbd1d13abd6ca59f713c9f5f6c8364d8c.mp3: Cannot read
+app\voice\tts\.cache\77befb92590a54134909f903a353e46a4f7016d10c21223b39520539edbefb07.mp3: Cannot read
+app\voice\tts\.cache\78122a471c7ff32ae7cb95f1831eddd47d0d93e9f926669181362473c9c840c9.mp3: Cannot read
+app\voice\tts\.cache\78739487e527d54a372028699cb943cc642d01dcb0e0c7e2b4ea5bce52c8bfc6.mp3: Cannot read
+app\voice\tts\.cache\7896e47aa4b31816ccb944cb86a4bc206d7766e3d1e034c8888071e84ab4b0de.mp3: Cannot read
+app\voice\tts\.cache\78b77ffebcb976a628b5d3786c2b20d9c95b2285c422300e0ac3e826881db8de.mp3: Cannot read
+app\voice\tts\.cache\7941036297dfe32f0f2661d3c001e3370aae2ab199d2d5909783495c9c650540.mp3: Cannot read
+app\voice\tts\.cache\794f8d43a22a16de5d9584cb96ffa52e4e97b66f7e51dad6d06022ce9b5aa5c0.mp3: MOCK_TTS_CHUNK_0MOCK_TTS_CHUNK_1MOCK_TTS_CHUNK_2
+app\voice\tts\.cache\7962bb7894c159e771a62b0e19fd95c0f0e67fe22512fb5321f5d7e9938a26c1.mp3: Cannot read
+app\voice\tts\.cache\7975b7b381ecc4c14e6d26409a339cf46bd70522ae8c408a8ee70234b30cf7f6.mp3: Cannot read
+app\voice\tts\.cache\79ac5740ac9eb610cdca5c5a405c9a7dd7ac28efe86f82d8d07760d95965afc4.mp3: Cannot read
+app\voice\tts\.cache\7a1556b31a3f5061d9df45f7eced234b99f95f42be62457b454a5313a4928c45.mp3: Cannot read
+app\voice\tts\.cache\7a1f5b97ed4209afcfcd8241c7ec0431d2d15f04c1fd6fcb6ed2454e5dca915c.mp3: Cannot read
+app\voice\tts\.cache\7a4f9671408a82a70d0901bf42f9422cc642b4031cf186c94d595e1934b6b455.mp3: Cannot read
+app\voice\tts\.cache\7b27a05b0eb0e77bd2d957bbb41723582f3f37b71281dc4b9ed0082028f74fd6.mp3: Cannot read
+app\voice\tts\.cache\7bd73ae27743de21bdee7619955a40c6671b93af4e24796211d062bde29373a9.mp3: Cannot read
+app\voice\tts\.cache\7c60a5d9c33a183abdb0609c9f5b6703303969dac47e5b3f38d244a2009ed0aa.mp3: Cannot read
+app\voice\tts\.cache\7e4513e73301728a22a95825dbcfeb125447e61b8362d5d3eb6188557a6a3eaf.mp3: MOCK_TTS_CHUNK_0MOCK_TTS_CHUNK_1MOCK_TTS_CHUNK_2
+app\voice\tts\.cache\7e9524c92e6e19e068eb844a866fc815b7322610e86f3d6e200bcec5a0630645.mp3: Cannot read
+app\voice\tts\.cache\7f39a9bff3a5777795bd7aa722a3a8a76dd64f8aea3e3597b6f756ae13d90021.mp3: Cannot read
+app\voice\tts\.cache\7fb9bfbad2e63c1936a7edd91caa2d1763f304587a2b848d4181e61fa1e9a8be.mp3: Cannot read
+app\voice\tts\.cache\7fe6168fd01a93e108057ed1b21c5537d4d8ffb66779439ff1fe52c611649144.mp3: Cannot read
+app\voice\tts\.cache\810f9da78a84787785a5de617f63aa4e4fbf214d56d11f993ac5eb67381efb28.mp3: Cannot read
+app\voice\tts\.cache\812dd2c5b9688897031e8804bcb16005c262cc10c90536660f4fe88a319fc377.mp3: Cannot read
+app\voice\tts\.cache\818a71d550a8166dc2fa5667b314d8adb9d092f1d2082b5e70663843582b09bf.mp3: Cannot read
+app\voice\tts\.cache\818ec7428f9d4e60957279bddff3e1af61c6ca394cd7dca0596c56e7e2d5abd3.mp3: Cannot read
+app\voice\tts\.cache\820f6a6ae24f2061d33bcf56913e0c8a5a45b3d0543d7b390e6fecc91dbb0c76.mp3: Cannot read
+app\voice\tts\.cache\836c15aec74172d3958f89b8df212536fcfe1b2238eb44d96fc5acf3a92cdb06.mp3: Cannot read
+app\voice\tts\.cache\840c0220d755f4e6c0cb65980d1c3a5e0a67a82f86e1f089e8f3b24fae2b3377.mp3: Cannot read
+app\voice\tts\.cache\85ce4aa2b174ca65899525ba8bf1997678457a64a0571ad59aa0edb76b1766cb.mp3: Cannot read
+app\voice\tts\.cache\86816718ac6020695291cce7cf53c17c5a1b3b42d6a88de6129e043023ca0635.mp3: Cannot read
+app\voice\tts\.cache\8692ae23fe7060b91725d14cb791c860ae982c4e700829b41896180b817ddef1.mp3: Cannot read
+app\voice\tts\.cache\870eb8701b79dccf7182c02eba156ee84554e565829b9a008a7b7d45a332165e.mp3: Cannot read
+app\voice\tts\.cache\870f6a9ca0e2b8119fb3b361519ece9e0ab62c484244f4921b562033a4cb838b.mp3: Cannot read
+app\voice\tts\.cache\871dd7a9c048475bb96fae6f58d535bfac90e3088873cea7ad3e355d2b725660.mp3: Cannot read
+app\voice\tts\.cache\879f713e5cff2e94d5498355f99483482f8d845709b1bf597cccd1780b38851d.mp3: Cannot read
+app\voice\tts\.cache\8839a8e69252135c7818a6fc8ad982dd9e396184cebb09b152678350a635ae3b.mp3: Cannot read
+app\voice\tts\.cache\886ba63eb97b56132e42488fb4d0fcdfa7ee757594cb6f1a4f9690bc28e51e4f.mp3: Cannot read
+app\voice\tts\.cache\88d400adef210c1a819baa4b6a909649e9ee652702694f5e182eabd02d1e0e1d.mp3: Cannot read
+app\voice\tts\.cache\894537fb5dea51096437a8c2accae2b251592c587505b6a416f59fdfb509b4a3.mp3: Cannot read
+app\voice\tts\.cache\89d7a3902c9117753159ec9162ac3eeaf727a8fddfb64440c49ccbebea25ffed.mp3: Cannot read
+app\voice\tts\.cache\8ac76d82b2c2e1345025a5794ecb9b7cfac073063827779ffe5c5e4ce98cdc8c.mp3: Cannot read
+app\voice\tts\.cache\8ac9fc39356632079d24405b92fa4f547a50208f4cab3d02445ec5b8eb1a5264.mp3: Cannot read
+app\voice\tts\.cache\8ae6d67c10bd62737c14c73133e0a17044a795b176a53922b3de5d6724cdcf79.mp3: Cannot read
+app\voice\tts\.cache\8c412baac27318582b1a0a4cf303f3bf1774f88d5043f85d5c6890704880fc2a.mp3: Cannot read
+app\voice\tts\.cache\8cd4ec9564c798b3a9fbf0443e61a43f4a175540cebdcb80e3132bb7dab5276e.mp3: Cannot read
+app\voice\tts\.cache\8d4fc961f56f4426c0f33ca9a722deb5cc3fe2330191e8959cf3cecaf03ff653.mp3: Cannot read
+app\voice\tts\.cache\8d9816e7268472de4752c9d2dbea9e1a6e4db8f45832821ff6c482d3489661bf.mp3: Cannot read
+app\voice\tts\.cache\8dcd6a230a36cec2f520604f10671ee4216bc2b9c17e3f23de00fbd5fa61af69.mp3: Cannot read
+app\voice\tts\.cache\8f187e1c3a3faecc9e500e24a267e2301f6218f5482ddf46bbea7b610ee56ad2.mp3: Cannot read
+app\voice\tts\.cache\8fc879491e6fcf6ec3f09719d990b50f5881bdd43182a32b34787febf83652ad.mp3: Cannot read
+app\voice\tts\.cache\9027bbd83f7ad09aca9704c3d93ce33b527bdf1cfb50140fc980261b43b16f2b.mp3: Cannot read
+app\voice\tts\.cache\902fba9b1ed8fe3bc94e33299faf2ed70a027a0b3b21fc46128e860f008e9f2f.mp3: Cannot read
+app\voice\tts\.cache\90febac3b66f0221e5a3a6ceeef19bb34f38b5241e78af90d75ab8ab4a73a1b0.mp3: Cannot read
+app\voice\tts\.cache\912f102a00aadfa9a96dfb2046861a5d82f31a3bc719bcdc3e556e4d40e79c12.mp3: Cannot read
+app\voice\tts\.cache\914c57179a80ec36be9a595cb9a7cc5d3d362e651a2cea01c1ba8742a6ab9422.mp3: Cannot read
+app\voice\tts\.cache\91d12eddc063b4a58cd7dac97ce3ffa47b8ae17044ccac625ea92d0aa4936399.mp3: Cannot read
+app\voice\tts\.cache\923a2f2dbf0cc2ea2bd05db09cb6e4537d1fa2195a91c11ca96a3f61678155bb.mp3: Cannot read
+app\voice\tts\.cache\933a55cb5b0fefb054d693f1b208114f08b2c082bd80b7861d685be5e9996d7a.mp3: Cannot read
+app\voice\tts\.cache\93b3609783fb4ce490a01c4101ee762d27739444ff1ac117f3dcea91231807be.mp3: Cannot read
+app\voice\tts\.cache\94811fb0ae12f76ace8b0991aa4a57d3afcbe2e59cc7ffd843bcf38638b5ffac.mp3: Cannot read
+app\voice\tts\.cache\94fc5517bfd2560756290a34239a958f3dc1c38dc44d6e749ebc870e856df219.mp3: Cannot read
+app\voice\tts\.cache\952f264bb91124141dd539290717e58ef8222e6f1f4af0e3c754a28fec92e2f4.mp3: Cannot read
+app\voice\tts\.cache\954e78db160cc2cc64b766a9e015af30abc2ee24baf99ec443e0eece560d5709.mp3: Cannot read
+app\voice\tts\.cache\955f0e809e21a4cdc2b29ccf79a54f6958739bea1f35579c37298351d81c3712.mp3: Cannot read
+app\voice\tts\.cache\956a64fe1d7ba6c27c4d8af72a623121d1f57f4e3cd2b5bd75a4f5bff6f23354.mp3: Cannot read
+app\voice\tts\.cache\95df627b598df14c4339b65113ce35dc1ac05e1575fc69f17b6a928076c222cf.mp3: Cannot read
+app\voice\tts\.cache\9656631b712aa80a9779f2dd948dc87f1b3952f9ece5d6cc999e938ea1e7b17a.mp3: Cannot read
+app\voice\tts\.cache\965ed61317f2cda4272c3f84f0855abd8dbd64f84a7fcd82b80470d83e5e0c2b.mp3: Cannot read
+app\voice\tts\.cache\9681cbc10f72be73345e228e599a9437a53d8e32c5f1a735633c86a0466d6f7f.mp3: Cannot read
+app\voice\tts\.cache\9687732fe296e736fdf9ed243d326d5491384a491fa216b45f2fd945e593ea68.mp3: Cannot read
+app\voice\tts\.cache\9724fe26283d3f1fd1f33e1846353b4299a32f16b34295e8fc30de70e55913c9.mp3: Cannot read
+app\voice\tts\.cache\976cd4d25d0eb988fb769b908c9d7431df545173a9b411097b38bbfee14a9ef7.mp3: Cannot read
+app\voice\tts\.cache\97c31f8b352da1c039dfb48ff46f01153446cd88b668eeb981ba8ccf961dc04e.mp3: Cannot read
+app\voice\tts\.cache\98339fc6eb45427cf4542bae20d0081dc48b9d4a0bc2ff46d5693407bf546e79.mp3: Cannot read
+app\voice\tts\.cache\983de55dad9debb134ccb8eac9eccb709e76ffb040546a65e386dd026db647d4.mp3: Cannot read
+app\voice\tts\.cache\986d1cd91c8a94b86825244d519e80ca48b00f2e0e83d5c3bec665ba61a27846.mp3: Cannot read
+app\voice\tts\.cache\988558ff36c40913f0a8d614bce0da38ce62cf18e68b1576f350e3fa35193638.mp3: Cannot read
+app\voice\tts\.cache\9888a3c0fdf51a6acf0c160fdd814d2dd2fe9360f8962e77d31886dd4cefd061.mp3: Cannot read
+app\voice\tts\.cache\99ad5b08689f9e723204c18a7452328b7fcb7e9591c2cc12de167e669029a067.mp3: Cannot read
+app\voice\tts\.cache\9a04ceb1c9fe23febc11da63e0460e1f7fe281ee8a6ea95bc40563d5d7404416.mp3: Cannot read
+app\voice\tts\.cache\9a2394af9d25334dfa0e8e2694889a151525a0400e2b0a334f6c664a1aba62c9.mp3: Cannot read
+app\voice\tts\.cache\9a34c9c66bdd1becf5263bf2273e5c12f2a054a10950d154d2b8991058d48de8.mp3: Cannot read
+app\voice\tts\.cache\9a6ecc22bb02d37df065f384f89457be7c2d14162baf65164cd0f3873619bae7.mp3: Cannot read
+app\voice\tts\.cache\9a7e48a96809052513730f22f760256407ff872848f4f7676ff9fc46376b92f2.mp3: Cannot read
+app\voice\tts\.cache\9a951ffad545ac8662b4356b90a5d644da02effc88818bfa82682d53daac958c.mp3: Cannot read
+app\voice\tts\.cache\9aa757219d0facda76ab7a845245c6c2d79fc8070147a42b2affe9a775e95247.mp3: Cannot read
+app\voice\tts\.cache\9adf3738cd600e36ae94822df296a000f8603929834218aa11746931a7496790.mp3: Cannot read
+app\voice\tts\.cache\9b01a0b3c34027fb78fedb30f6dcb802409a143c574232bf8f63f6e3ab39e680.mp3: Cannot read
+app\voice\tts\.cache\9b67dc9bba5448e6b12f00a38b5fdf5ce7646979081a23368dd7fbf714be1d8b.mp3: Cannot read
+app\voice\tts\.cache\9b8f61b314540ae8cb78f3abbf224fe3af91cf88908f7ff46143717dbecd1150.mp3: Cannot read
+app\voice\tts\.cache\9d9972564f1e729c0a1f00292c2f8fa4e469e3a5303690f2e86b1ac33df0d306.mp3: Cannot read
+app\voice\tts\.cache\9e4e5a16981a74c68545d6c86d768d5ea9a9f85a78d06096cc3ac336736da753.mp3: Cannot read
+app\voice\tts\.cache\9e7fe900b2c37cdc68a6ead8e1d523195019d7c1e08a4270f6e712e090944b8c.mp3: Cannot read
+app\voice\tts\.cache\9f013f12fc9921b752a01c36d9761c4725d6cae2144f8fb4a161c8c121e39069.mp3: Cannot read
+app\voice\tts\.cache\9f1ed9103b3356c577019d6ab7e4cebc441b958200963b07565596608a2cc03f.mp3: Cannot read
+app\voice\tts\.cache\9f8dff33847961685cb2d59c9304079d8737e6af6c29cdc428061157c5ccd5b2.mp3: Cannot read
+app\voice\tts\.cache\9f9639efd376209abe7fcc9f3a117ecd7b805cb0c310a4e89d5cc742cb004289.mp3: Cannot read
+app\voice\tts\.cache\9f9650a62537a4fbe09e1698d5180a7bc3c68cb48f4092aa00c474d6338fecb8.mp3: Cannot read
+app\voice\tts\.cache\9fb8d2ab702be3dd303d43e3ba681458ebe92b88a34b80e5f8f72b3ba91a7528.mp3: Cannot read
+app\voice\tts\.cache\9fcaa10bb78945e922c13e8f8df44178ea753416f04b502042a4d92bcefd42cd.mp3: Cannot read
+app\voice\tts\.cache\9fe85642e8d0fe7a7195a273ca0bd7670fcdf06a8a30163a5f52c34fb94fd9c3.mp3: Cannot read
+app\voice\tts\.cache\a0115e831480a0ee5fa7323dae5bbacda75ad04a0618d91a233e7bd0d0b9215d.mp3: Cannot read
+app\voice\tts\.cache\a17646190c09d3f0f06f4c2eec753262a90ca145d49dee546e70aa20ac313ce2.mp3: Cannot read
+app\voice\tts\.cache\a2061c0ae60b02c638c679a915a30d39ae7b2698d33a9e22c0984e0c67af868a.mp3: Cannot read
+app\voice\tts\.cache\a235b40464fdba3323a7331768cf00368d2007cd91e7389eda8d7839734de59c.mp3: Cannot read
+app\voice\tts\.cache\a305d296714b889f4935b9350ae0289a73cd9c5a28434a86fd844dcf32f1f549.mp3: Cannot read
+app\voice\tts\.cache\a36210ffb7e99c4b75bd39ee98e40ac0d60ad0fbc7ade17e3acecbdd2a4511e6.mp3: Cannot read
+app\voice\tts\.cache\a3fede80f7f0da87588de816b9d290d220e666ec31537aeea643c372ad5040e5.mp3: Cannot read
+app\voice\tts\.cache\a4324177f3fc8a03c41c33a9697bd020cfcb954da09feb67474eba9ab8beef8a.mp3: Cannot read
+app\voice\tts\.cache\a44d75ed839d00966bd82283ceeebd004d22ef1521fa1b2db51ddb721bb9a70b.mp3: Cannot read
+app\voice\tts\.cache\a4985ca37fe27e6c587c60066bbe185a078ae139c175b2a8b1f3abc7af92cb3f.mp3: Cannot read
+app\voice\tts\.cache\a4b64e99ac77a975e6fecf7536e74e07391e71dcfd1ad7f0fbc992014f328303.mp3: Cannot read
+app\voice\tts\.cache\a4efdf60efa28a6f711f4f38e0b43f6322ce6d292d650536d2c178d698c12bf2.mp3: Cannot read
+app\voice\tts\.cache\a52ad12980352ec93daf1f57f57384da5b2c12f41d47b118c5b4fd68f62e3282.mp3: Cannot read
+app\voice\tts\.cache\a52ea1310d5a09e4abf682010932cdedc1a6e22a5ed66c68cca241784148ec0d.mp3: Cannot read
+app\voice\tts\.cache\a56b8a2aa31ea2821f7969da0ee267a8f0b5e87491dd7f80864c42de8861fe9b.mp3: Cannot read
+app\voice\tts\.cache\a5a10d9d9f715201ac39b3610b4d1c6b295c07dc97cdbd02ebd94728622871e6.mp3: Cannot read
+app\voice\tts\.cache\a6381027ab9f82e9e99ff96dff7c743f34cb0c4209b9baaa400d297373e0e6c4.mp3: Cannot read
+app\voice\tts\.cache\a64d3ca88e1323d7426c35aebcbf11542a46391872430f8a7781902f597543bc.mp3: Cannot read
+app\voice\tts\.cache\a675ce178785f248ccb2f8b92a7d9e5dde6bf9153558582328cc889ab8babf55.mp3: Cannot read
+app\voice\tts\.cache\a67fd993365287330224066c8a312f65316ce4c3dcae4c349ba659794d67aeca.mp3: Cannot read
+app\voice\tts\.cache\a6cc3daf4702f855009bf8175224155573d222c2d12e056d7c45abcc4bf2f3c2.mp3: Cannot read
+app\voice\tts\.cache\a7342f6c480deccf10672935578b0f669949689cca2641bed8a931b4a0336287.mp3: Cannot read
+app\voice\tts\.cache\a73e1afc4869fb620f05f4fbb7d569484e410b1da04bc362e1a7614d8a5ff92d.mp3: Cannot read
+app\voice\tts\.cache\a74def01d64eff19bdaa167dd38f50878dfb7ed151f5496482759e2bd057182b.mp3: Cannot read
+app\voice\tts\.cache\a7b0e3aec29fa250ef6acab746003793be8a5613f306af756bae663168629944.mp3: Cannot read
+app\voice\tts\.cache\a819210c282dcc04139d7f57cca2320405389e99893374f404108a32d80336d2.mp3: Cannot read
+app\voice\tts\.cache\a81c79ca1c526f0c972c9fed831bfa3addc8734aee73ff3ebcbd378272f39eeb.mp3: MOCK_TTS_CHUNK_0MOCK_TTS_CHUNK_1MOCK_TTS_CHUNK_2
+app\voice\tts\.cache\a83136211da54ad943bc4305e453149d8a2ae63e44d5a6ea13ba43b1f39efc8a.mp3: Cannot read
+app\voice\tts\.cache\a84d13fb057427993166f24020405aff988cb2502450ff81d179f82b824b1215.mp3: Cannot read
+app\voice\tts\.cache\a88efcf1e645b19c2f1b36c36d8a77aada2a21b32e8fe5c8a743e751d9d88569.mp3: Cannot read
+app\voice\tts\.cache\a8c3c8407869a2ded2828a330f41ba16891918502b440feaa5337cac54b1a10f.mp3: Cannot read
+app\voice\tts\.cache\a8c891bfe9b9d0286169c1c98b6b7e871f2193583b343e496df65d2717f4b018.mp3: Cannot read
+app\voice\tts\.cache\a90719be3ae5589ae105ba227ac37c94f832b1365ede36b4c423e5a073b0e99a.mp3: Cannot read
+app\voice\tts\.cache\a9553de12645ea38458505f5f80be9c0ceb48d1db97922d6c9a9cf0911b55818.mp3: Cannot read
+app\voice\tts\.cache\a965cf49a00e570a7cfe3928a13de17106b3ffc1b3e8e3c4255ed75401c64d27.mp3: Cannot read
+app\voice\tts\.cache\a9cf1baa726c0c5bbd7d1ab84551a734d5e5eaf4ee03e536a53963f961ad2496.mp3: Cannot read
+app\voice\tts\.cache\aa826365ada58a64812499e37ec1e4aa9e014cbc6077a25b51f52ae2249025da.mp3: Cannot read
+app\voice\tts\.cache\aa9f56ed78b6e3416ec346115a63f29f7ea7e9890c421dfde3032ffcb2d72e60.mp3: Cannot read
+app\voice\tts\.cache\ab21970a8916df9eb1b45f997766a142e96a6af487ea55aee2efcc7189523637.mp3: Cannot read
+app\voice\tts\.cache\ab2a9ab89686c346d17a44e84907c92daa266d6571e791700cb453774afc320c.mp3: Cannot read
+app\voice\tts\.cache\ab926f616f71b096b7c7ad75b9dcf72774d8886ac800056efe3b58d58e82389d.mp3: Cannot read
+app\voice\tts\.cache\ac53022be057ef8f1533cdb471bdf0d212140e8fe99e7d6220034e9196eaf159.mp3: Cannot read
+app\voice\tts\.cache\ac7781fe59d2d7ff245f79bbda62b863547ac74634eb926f8e87233e68de28f7.mp3: Cannot read
+app\voice\tts\.cache\acdb0d3104552df27df0fe8ff76f5bfe2f41b2ce39dce14b021b84b319c2a9eb.mp3: Cannot read
+app\voice\tts\.cache\ae23f37226cb9b04105c5b5d881c4ec73e6b6d9f8b891378885cddb105e17ebe.mp3: Cannot read
+app\voice\tts\.cache\ae34485aa7a898630d29ab3eafd0070c65a6a799ffb6137b46df36d727348ea2.mp3: Cannot read
+app\voice\tts\.cache\b16f513ee5485ab13afa02500a1eb5aaeb071ef73c3236408bee34c1f8a0b1db.mp3: Cannot read
+app\voice\tts\.cache\b1c126572d888ee36ffb5a28ad48afb84b4af1ca8d4152c595c892bfffa66f19.mp3: Cannot read
+app\voice\tts\.cache\b1e5fbeb2cee9aeccb55613fafca74b0e1543fd427be77601c865cfefcc81276.mp3: Cannot read
+app\voice\tts\.cache\b22f71f10313339f28e132b2be846f6ec4cf4ec202a6b0915701e30c6806e6d4.mp3: Cannot read
+app\voice\tts\.cache\b2672811bcf164a00ed47bb7929b18c91e59790ce16a096f703017a363574ffc.mp3: Cannot read
+app\voice\tts\.cache\b2cd0c202aa975d6bb5c97f112bd0e0a74afae311365626edc2fc4d1872577e4.mp3: Cannot read
+app\voice\tts\.cache\b2dc1cd570c63534d2cb7c949ef8a77b1b64230542fb0d11476c4904a2ad9bd0.mp3: Cannot read
+app\voice\tts\.cache\b2fdfb0d4739deda98b6963f730c6b7b981013db4d4c218be161a2b64030680f.mp3: Cannot read
+app\voice\tts\.cache\b34e6f8a468707527098b1e477c2af9a94447c2d16f9ab8c2f68a6e2a885089b.mp3: Cannot read
+app\voice\tts\.cache\b35325eb22e6729f7c74a3ff5a0e855b2e4d4dd5884a9d5781cbcb8838d17d32.mp3: Cannot read
+app\voice\tts\.cache\b37a0fc220d2a2c8821cfbce1ac81189514d68b9d76eaedfa6f573b249bba48c.mp3: Cannot read
+app\voice\tts\.cache\b37eca1bb02391d938292511d19a1a445ed0d55db456f09c06175eb08aeaf2a3.mp3: Cannot read
+app\voice\tts\.cache\b3b693c7fc0bfacf69865aa972c8a61e40c827fa290a076c7a4820e45671eb34.mp3: Cannot read
+app\voice\tts\.cache\b401e173e3121a614ded685052af0054efd74046667527c847846e00aa030693.mp3: Cannot read
+app\voice\tts\.cache\b41d8c4bbf2f4a76e34be55e261f0c42872539e448428a2fe8b114a7042f9efc.mp3: Cannot read
+app\voice\tts\.cache\b44463ee11005fffbaf5f1f5f0eb7cce1b1332f5e5d9b07f96dc2a3430b09ad8.mp3: Cannot read
+app\voice\tts\.cache\b4ca9939bbed167a2ce3babc6c2c8ace6f417586e847371208b85c5252fc36f6.mp3: Cannot read
+app\voice\tts\.cache\b511ceda65ddbfbd147c740493f9cc75ea08b3da7ab8da8e31ed45d8f381f922.mp3: Cannot read
+app\voice\tts\.cache\b5150eedd97273896f936d5c8145ff54678840d282bf9b5eaf8e1a6fe1ffc230.mp3: Cannot read
+app\voice\tts\.cache\b603e06818232def017981719dd3f1ee31781739be93935b821adabfb5eee58e.mp3: Cannot read
+app\voice\tts\.cache\b664d910e016ea43d3a6d0b90d22154b94295eac61febec7b77707212e3fed27.mp3: Cannot read
+app\voice\tts\.cache\b6695eb27a94d5ee9255357a75019bd65098625b14f404c82b1fa4e329b6fce5.mp3: Cannot read
+app\voice\tts\.cache\b6b69be57c9cebf40b5e6f70914162c44bb1eec9df22e068e7395730f627fb82.mp3: Cannot read
+app\voice\tts\.cache\b71a7381c60f8cb6303040888e1faa3512228088a523059a0e78f8318be5a752.mp3: Cannot read
+app\voice\tts\.cache\b72906a0f0475c78b914eaa681e5e10a53e691876f4a7b46083a8c330f318804.mp3: Cannot read
+app\voice\tts\.cache\b81a52590fb93b9ff5449d2de7c21f112063665564204415900da6d31ecdd4d4.mp3: Cannot read
+app\voice\tts\.cache\b8a4228b1f555025f4a7d7797b7ea1eab180e40afccefebefde1c40eb97db149.mp3: Cannot read
+app\voice\tts\.cache\b9372afb480048e10fb74ff6fe871ec78654ec2d9e769d230daaa886a1858882.mp3: Cannot read
+app\voice\tts\.cache\b967c9448fbb30efd8beb0a5810a11dced6ec88cccf5125068782ad5dad38019.mp3: Cannot read
+app\voice\tts\.cache\b97251735d481ab34ffae0befc006d19ff2a91c2cdaa5f809c10fbaaab4e9ef7.mp3: Cannot read
+app\voice\tts\.cache\bafb15331f5d3d5919ceb74087286943b3305836cd283a98b6d1f10d959bca11.mp3: Cannot read
+app\voice\tts\.cache\bb7fdf0400d996a9910ce1b0fe7e70adf72982977736f30acb05ea794ba0f7ad.mp3: MOCK_TTS_CHUNK_0MOCK_TTS_CHUNK_1MOCK_TTS_CHUNK_2
+app\voice\tts\.cache\bc19aeac47bd9ebba514f053571456146b16bf0536e8bb6de9540b635b59995d.mp3: Cannot read
+app\voice\tts\.cache\bc2373c6227271563325e10b77beb9e379f3b731856687d7a4c2301f01475c59.mp3: Cannot read
+app\voice\tts\.cache\bc241630a4c3d40f392061ad0ca4927c79bef5f33c53f6706600271d7f1976d9.mp3: Cannot read
+app\voice\tts\.cache\bc26088ed13efadcd7b707127e81c35db0dbf526006b00246b9998c234fb5635.mp3: Cannot read
+app\voice\tts\.cache\bc6df0160dfe5cc8f8c6bb19582a13829612af21fc3b72368ccd67e0a2177386.mp3: Cannot read
+app\voice\tts\.cache\bc75c0e4d2673821b302bb60bee93e3d20239e9e1755d226b158d72f4687c6f3.mp3: Cannot read
+app\voice\tts\.cache\bcf57c8d3a4e61f0a8abf179385be2ee616ced1b9af12d2d9143a1a93371b4e9.mp3: Cannot read
+app\voice\tts\.cache\bd157f162280b38c1d8f5034ab3a1be0466d4ecc08147ac0a2f54103a02d4ce0.mp3: Cannot read
+app\voice\tts\.cache\bd1882e48d2c0b2de24e2eb4bca82273b4b1effa4a8dc2e82b7db1c5047c47ca.mp3: Cannot read
+app\voice\tts\.cache\bd3360b08cc2a65cc5204331bc061b2bfec9f024d3912c253a724d52395fe6c7.mp3: Cannot read
+app\voice\tts\.cache\be3c4ed792e4d325b5019a0b2e5429f364001dce1612c8b130f0736022aa2d50.mp3: Cannot read
+app\voice\tts\.cache\be579959908194a3f251a22d5f68c3cfdbd241cedafd2f5bbce8e2855c0b0bd7.mp3: Cannot read
+app\voice\tts\.cache\be730eba185b4838edae8d944f42cf72fd58534cdc19b8c998b27405e2a9c200.mp3: Cannot read
+app\voice\tts\.cache\beb1ba12b156c76a3c9b0a14bdd90f17099b9ab5e4b24a4f0d8bd38945ea5e2e.mp3: Cannot read
+app\voice\tts\.cache\bee44561fe562e1e32dea346098db81fb2ab7e7b0498b6bcb947630a02419d73.mp3: Cannot read
+app\voice\tts\.cache\bf06f7e1fce06d24446d0e43f2aa0742bb7ac9c7ece55b13a9abdc178331557f.mp3: Cannot read
+app\voice\tts\.cache\bf15169835ed03fd21878038118a73d1e33ea81830b4b564bb0dbafe2f77568f.mp3: Cannot read
+app\voice\tts\.cache\bf49245bf35ed280f69387e3ab2bc2b3f61838f12e67652124b7e7f9cea5880b.mp3: Cannot read
+app\voice\tts\.cache\c0229d3fc227699ca2f94ceb578f057ea14dfdad1d70b7800fe21e49e44f183f.mp3: Cannot read
+app\voice\tts\.cache\c0475ac62d41e008f2de364da025bddf146428a71f90b5efc3bf9b0aeba2cfba.mp3: Cannot read
+app\voice\tts\.cache\c0c8a14337559639ae9f2035820e9a05d37ba454afd6209aaafac0b88b69303b.mp3: Cannot read
+app\voice\tts\.cache\c15cc888e7d693882460f9da399d186ab84a62d1583ec03bde4736387773abe4.mp3: Cannot read
+app\voice\tts\.cache\c1647d932759e1490e74d96f8df2372d9f7e299bd83b75cb65d27979b2bdabb3.mp3: Cannot read
+app\voice\tts\.cache\c18080575dc03ed2a5029258d2c6b2a4c471f965ad787eace46965a4bcabf6ed.mp3: Cannot read
+app\voice\tts\.cache\c2d198ed504f5c14935cbd10df86ac0b4d1f6604addb8554b2a1cbdfab82994b.mp3: Cannot read
+app\voice\tts\.cache\c37360b90ee97b670bc654c2fad5f4b4dbb21691b8bcf9da37d35a4669c27629.mp3: Cannot read
+app\voice\tts\.cache\c38ea6cc929bd2756aa521c0245eefeda75e877061b12f5100b9d0ba57e3c226.mp3: Cannot read
+app\voice\tts\.cache\c497ce693ee929123e1145a761e7ae4a00b3e3bc7b9294da442da90b68cb250b.mp3: Cannot read
+app\voice\tts\.cache\c53a8cd7826645ee5471be504f086b2d6650bdc5c27512d3a15dadee31e096bd.mp3: Cannot read
+app\voice\tts\.cache\c5dedc722fd7a2fec9ae5b36852d1d0721151d014f97723153500ba24c23298d.mp3: Cannot read
+app\voice\tts\.cache\c60da89b584960672198a64478efea94a886c2e4a64f8fed54c9b0d7693d7592.mp3: Cannot read
+app\voice\tts\.cache\c63b4c015c18e33f94d00643f61803c5f565789f0c6da8c31a538b2a594286e7.mp3: Cannot read
+app\voice\tts\.cache\c6893aa6c8b4696f9dcfdfb7b136291a88ecd5facaa540b090f257d9176b40f6.mp3: Cannot read
+app\voice\tts\.cache\c6a83b12578606f63685371c0b4212806de25576efd72e2f07c91406164b35f9.mp3: Cannot read
+app\voice\tts\.cache\c7a9fcbcab0211a45fc5b9232b5603c414c07304bdb2b9d32de268255dddc726.mp3: Cannot read
+app\voice\tts\.cache\c805f74fede8da668deaba6aa4868b7369f46a587030d496c12f8d5bfee9e611.mp3: Cannot read
+app\voice\tts\.cache\c8481957be44d0ac128a8a782f84703fa880c10e94c90af03924329270dd2c9d.mp3: Cannot read
+app\voice\tts\.cache\c88a5ae6c95fedfeef8bb7fa993deecb527c97454d508164b6c288ec2892e576.mp3: Cannot read
+app\voice\tts\.cache\c9f60ff3c6d9cc3143ce197bfef4b5cb1666fd301e6730e0f4bdd243b41d3b56.mp3: Cannot read
+app\voice\tts\.cache\ca09089761ab2ecaa7a5a48d5226cba6a5266efb7fdb3cc22f47b87be4848046.mp3: Cannot read
+app\voice\tts\.cache\ca29bca55711a267be7ecffc326659febdb91034775412d2801147477f07f3f9.mp3: Cannot read
+app\voice\tts\.cache\ca6b9310a30394ec23b526eb1a3fb38e5a9ef2f8dabd039f8c5a3154c14c8d30.mp3: Cannot read
+app\voice\tts\.cache\cab65a071fd5f8a963a83fb4e14e832798fe273a7e61fb554b267166cb1f831b.mp3: Cannot read
+app\voice\tts\.cache\cb5ad8473ea2c4e2717b1d03e8fd1e3c9c0a712a54b3a3487310328993e2e8c7.mp3: Cannot read
+app\voice\tts\.cache\cb668112b25ad0fd754cfb4ca9c9de1131d9915874273c902a6f20f810fe6b95.mp3: Cannot read
+app\voice\tts\.cache\cc3b216b3ea02156dc8f61fe44d5ff824c845f11ceee01f70039c237ea8da132.mp3: Cannot read
+app\voice\tts\.cache\cc8a7254a24d3f1434cabfa8a078ba7da5195ab120eefc881dc1f5539ad83f0d.mp3: Cannot read
+app\voice\tts\.cache\ccb9e3364ba40b930307df13e37427501d06148573ea8d5436ce1bf7da459827.mp3: Cannot read
+app\voice\tts\.cache\cccaab3f0dd72b4ce29ff66d8613016351abd7514d66350f3175bca585ac078b.mp3: Cannot read
+app\voice\tts\.cache\cdc9393707c4be59413658e142caa123edb925e0087977abc590d693795600a8.mp3: Cannot read
+app\voice\tts\.cache\cdd8568dbfe260487f084782fb1359463d594373d8ea1dc7fe589ce31697231d.mp3: Cannot read
+app\voice\tts\.cache\cee36862d3b3baa3e5d3d3dc0e711c4bdbcdb65e2e6fd3bc54ce7b97ad77a219.mp3: Cannot read
+app\voice\tts\.cache\cf1b15ed3dacea95e89f86cb03d5c9518ee2ba7e1e26913e07f6163e65d7d205.mp3: Cannot read
+app\voice\tts\.cache\cf5eae0c7a6010294c93df830428155e9cbaeb3e9bbe64fb6b1432e6a572ff3a.mp3: Cannot read
+app\voice\tts\.cache\cf71dca26e7ec1bce431cce404ca490851471b1d843bb8ac9b748d24e1fd9c20.mp3: Cannot read
+app\voice\tts\.cache\cfa39d6783a0b9c1ff2cfcdc066ee573fa71babfce7863b853ab6c6cdfb4d949.mp3: Cannot read
+app\voice\tts\.cache\d0e45cb2b6b117a3bfca14cad3e2dfb972e6176cb716c81824b4e2dc9b5d101f.mp3: Cannot read
+app\voice\tts\.cache\d1c507e056dbad973710dcd77ff63de20f7de08685b3eb160259b87d6bc184b1.mp3: Cannot read
+app\voice\tts\.cache\d25e4160056fd123301a85f967c0f069bded58d078a72473d77e0b681143a1d4.mp3: Cannot read
+app\voice\tts\.cache\d289c7e240e29714a4cb1179456774c19852ec20c0ff764a11b1ae3cd86eb370.mp3: Cannot read
+app\voice\tts\.cache\d31af1858b216f4e77c15df39ea9d9621094d1cc4ed523f7a337f76c233de191.mp3: Cannot read
+app\voice\tts\.cache\d41780310cc639e408bb4da597defe8688b02f62d8ea7e75b2e9073fd1bc223d.mp3: Cannot read
+app\voice\tts\.cache\d439c54a14b5bf29e429db7601eeaeb20055f74d900e3191b72777e3b97624a2.mp3: Cannot read
+app\voice\tts\.cache\d5816ff4b299be5185697d767e1143b7c1f9feaac5bf27b973dc31ad9da51851.mp3: Cannot read
+app\voice\tts\.cache\d623e336e7959742720b9c713e7c8e1125d23abb19a185be3e024c892853250f.mp3: Cannot read
+app\voice\tts\.cache\d631e41f17f30eb82c0c4956c6d6af05d1d64ea466868f0e19690aef6631231a.mp3: Cannot read
+app\voice\tts\.cache\d6920ee893893eb281684bd73ddc9ba85863f517134ebf01d9440a02bc4a7c91.mp3: MOCK_TTS_CHUNK_0MOCK_TTS_CHUNK_1MOCK_TTS_CHUNK_2
+app\voice\tts\.cache\d6d8009d7188bd0b41c4f2b670edcacdd6102182ecfad6bae3edd24a7af9100b.mp3: Cannot read
+app\voice\tts\.cache\d70578fae2e5f1021341c2bc11aa46336a06e4eed637e8fdb03f4613eaa1da29.mp3: Cannot read
+app\voice\tts\.cache\d7b4524c8dafa17ab86bdec2d37aa7efe42a7355577e467cb16148a8b281e2d0.mp3: Cannot read
+app\voice\tts\.cache\d7f2a2a6dcf971cb72799464cb4aec02eea46d15d60f98f55d88f34ef34c652d.mp3: Cannot read
+app\voice\tts\.cache\d838d463002bef7457f5cda85edd29305a72ea524efa2f0cf41cfc6f7acd8ca8.mp3: Cannot read
+app\voice\tts\.cache\d9075cf1d273af32f6414392009ffc638ac514ccb55bff6d110541dd78dd8960.mp3: Cannot read
+app\voice\tts\.cache\d9206b1563d9f2a11f9d6803cb72a051f72e53acd2528ee09cc043f3342de1c1.mp3: Cannot read
+app\voice\tts\.cache\d9b44a1e65406f4b5ae2670133a55fe1ff9a7fad1e0f61291b9336ad50a76f62.mp3: Cannot read
+app\voice\tts\.cache\da59478bcd10ec1ba4e37ef61bd156f0ba2216f5f256ac5009dd8e25120fa557.mp3: Cannot read
+app\voice\tts\.cache\dc57d328226ccaa4bb0fa33148d8e0a5decb83f176753610121b424cd1b8e315.mp3: Cannot read
+app\voice\tts\.cache\dd036521d30712670486c925fb62413ad76a6ba8fae8935e60189b8826bb2fd0.mp3: Cannot read
+app\voice\tts\.cache\ddd302d6a652ee76b7cc8e0b3ffe3651ed9182b02b493be307f4037736c93aee.mp3: Cannot read
+app\voice\tts\.cache\df2aa006d272d589b7b27e1d28957dbc2e77dcd77f69d800a19719b6906ad953.mp3: Cannot read
+app\voice\tts\.cache\df2ceca2b8c17c7a414b0e49577b163bfd66ee03cb2d5298206056b31c23ead0.mp3: Cannot read
+app\voice\tts\.cache\df5b97db81404c878060ddbf1b5432e53f5838e76a998e9a1846b8da00017568.mp3: Cannot read
+app\voice\tts\.cache\e093095df3d2df4237625540f6df923ca0f55a25b9605647b34df00575944dd9.mp3: Cannot read
+app\voice\tts\.cache\e0a5ba20fa250fba7e77817c9d3af222ea58d0e50ae8ef7179233d9c762a26aa.mp3: Cannot read
+app\voice\tts\.cache\e0dce09bd5decab0ec68f19e043a247d673300c34356ca53c30e5ecbbfc7e2e3.mp3: Cannot read
+app\voice\tts\.cache\e0ed9710863386d2ca7be5011fa32b82795ef99fbe5cae11ce1bd4e9f3dc8338.mp3: Cannot read
+app\voice\tts\.cache\e1217bbd96d40b1343c0653b5545cf48f9e605d7fb50dbc500180617e924b420.mp3: MOCK_TTS_CHUNK_0MOCK_TTS_CHUNK_1MOCK_TTS_CHUNK_2
+app\voice\tts\.cache\e1221bf23bb8f70181985d28e4d52f343dbb4d9b9594e2938a3917ff9928121e.mp3: Cannot read
+app\voice\tts\.cache\e1fcd3fb020ebbcd050af94099fb74356a08f20ac4fdc38de84b2f6156dcf0ad.mp3: Cannot read
+app\voice\tts\.cache\e2c83867916f821929fe61d0ff5dcae694f44f9c4de6d043ee74f0e53c5cf9e3.mp3: Cannot read
+app\voice\tts\.cache\e309673d052262bb7b2c98140e0bbff6dd7f6b0939f64c875d8ce2310c1f964d.mp3: Cannot read
+app\voice\tts\.cache\e33c090e6ac127b6b093ee540c564a4d72b22cb808dffb061fcaeeb06e4dd0e6.mp3: Cannot read
+app\voice\tts\.cache\e36b164502595e5bb0445803ae21eec0f713d32ff64f1a82be300a16cf9b6917.mp3: Cannot read
+app\voice\tts\.cache\e4098f1e550aef41ef939fb866b4c835e1467e20fb8d81b5b223910cde872985.mp3: Cannot read
+app\voice\tts\.cache\e4991930ab812253f5f24a2b1b8bb0f01387ac19c59d1d11a53c5d9cfaff6dc9.mp3: Cannot read
+app\voice\tts\.cache\e4d51fbda6f6a22219cb810cf980398c7abc4c63394510a1777a294cbefcd57d.mp3: DATA_0DATA_1DATA_2DATA_3DATA_4DATA_5DATA_6DATA_7DATA_8DATA_9DATA_10DATA_11DATA_12DATA_13DATA_14DATA_
+app\voice\tts\.cache\e4f5247b8cfa13d937a7f2fc78140588214d144f9a39f5a020fb6a55959aed43.mp3: Cannot read
+app\voice\tts\.cache\e5936dd457c0971c43c8d5fe0950995669d943d8ba7e2c566309adf7ee3e6638.mp3: Cannot read
+app\voice\tts\.cache\e5b562b31a81ed12531cd03c8f028e6e001bb06c6a96b017f6127cc3db699b85.mp3: Cannot read
+app\voice\tts\.cache\e5b7d54743ce51476121ba15bab2f3a368117e4d0f4245a317ef5ae2c63b51b5.mp3: Cannot read
+app\voice\tts\.cache\e5d6aa40c5d3cab567537be12838a2c630a5b47160c71c10b9def19e41f10f22.mp3: Cannot read
+app\voice\tts\.cache\e6443452e3a54bda0ff6c2a40eaa031961b7585756eba5dc54706bd04d69fbec.mp3: Cannot read
+app\voice\tts\.cache\e65817656e304bfade2cc93f1db6c95d62b9c3de236803eeed20c239d5adf617.mp3: Cannot read
+app\voice\tts\.cache\e658f0ac5e7a0dddf27e58ec90ff1cccb507371fad5b40a1867422ad872985c0.mp3: Cannot read
+app\voice\tts\.cache\e78d0305cea5466e9a86017ecdc3fc3fad209c6fbe675d74c535bc138a73c930.mp3: Cannot read
+app\voice\tts\.cache\e82ac78f229a7e8f7b991a6d176d2345d38373dacb5961f98f0102baca9fd867.mp3: Cannot read
+app\voice\tts\.cache\e8431520388d7f7d24636a774876a1c0ec39707d5506d6e6936b0067534ebb8f.mp3: Cannot read
+app\voice\tts\.cache\e874727e6c533be66d543f5dd8eedca796859d4d1d4e5b55f8d357d06d851b88.mp3: Cannot read
+app\voice\tts\.cache\e8b4191317b41107cf839411c68004d5e5739ef55d9204039f6b6144b6953155.mp3: Cannot read
+app\voice\tts\.cache\e8b420d2bf6310e04d2e407e75844fe041eaa1a55b3d1063db6c24d62e4d47e6.mp3: Cannot read
+app\voice\tts\.cache\e8e9e698d6df4f4b636a6fb845610ab73dc34878636b5cfb0e6dae0b6d70e85d.mp3: Cannot read
+app\voice\tts\.cache\e9426bfc6f467c1f578f515eb9367ee2b0bb909d8a9acc69413930170f4f384a.mp3: Cannot read
+app\voice\tts\.cache\e949d54340e4d3c3915629e8ddec6f43d7ee66f0f88b30eff426cf8c02c95eb5.mp3: Cannot read
+app\voice\tts\.cache\e97d54dd8976ffc58b3076dd001644dbd3a3eeb6f5216733d1180c4575385041.mp3: Cannot read
+app\voice\tts\.cache\e9a558f86607c2165c4b52db4907837dfa31dd567ed5bc038d4805633ba4224b.mp3: Cannot read
+app\voice\tts\.cache\e9b994fbd5cf3a84b15d9788d175fe5a661ceff75efab87259f630348700e86d.mp3: Cannot read
+app\voice\tts\.cache\ea440af05e771cc78fbe5fe905878e630cbb953dd9399e0f40cb32f56622ed77.mp3: Cannot read
+app\voice\tts\.cache\ea88953e9dc792ec8e7e2de991fa225d851f6d2ad49d1cbaaef16b5cab392f7b.mp3: Cannot read
+app\voice\tts\.cache\eb48a55dac74553528dfac1897b93d66ebb0cb3458e8e2f41cf5dc8b488b8f59.mp3: Cannot read
+app\voice\tts\.cache\ebf496e88760d11732f3124fd7969c3787ab01f5434f49cc49a5af618bd7cd2e.mp3: Cannot read
+app\voice\tts\.cache\edc4290dd7dd6e2e24b1cb4a1e82b7cb5b258f0ff6220445036b81e26a841850.mp3: Cannot read
+app\voice\tts\.cache\ee2c33cd367f54aaeb3e3a3586944e6bea69ded98802ff1be566c86288b24637.mp3: MOCK_TTS_CHUNK_0MOCK_TTS_CHUNK_1MOCK_TTS_CHUNK_2
+app\voice\tts\.cache\ee40f0f9626ef30dbdc57e32818412219b75389eee006325efc17d2b16039ed5.mp3: Cannot read
+app\voice\tts\.cache\ee85bb61063262128557a333cabf4ab06d345b6adaedf499371bdb8224554a2c.mp3: Cannot read
+app\voice\tts\.cache\eeb070d909484d60e0fa0b76297d15e5aff3b81094b11df63a5dd92a5a17a0cb.mp3: Cannot read
+app\voice\tts\.cache\ef2fe23bd5eb3a17c6ee59df37567aa8b65a8fd1992c9554aacff65150619f9b.mp3: Cannot read
+app\voice\tts\.cache\ef9eae167b14d02774043db745ca5646eb860689211555a9721402af7df3589f.mp3: Cannot read
+app\voice\tts\.cache\efe1ddd92981605878d28e26329724b29f3b99f268b66b422907207b7a41f835.mp3: Cannot read
+app\voice\tts\.cache\f13d847ef075b8a12c10bb1399db1c86414c3e6e79667193c97619a7ee283a82.mp3: Cannot read
+app\voice\tts\.cache\f1550e0a96cfca5512d2fb39aae289929996901b1970af3f007501eae2bea7d0.mp3: Cannot read
+app\voice\tts\.cache\f2b32727f4df866a47a6969e68ad3079954fd3cc151cf0438b8d7935f32b6665.mp3: Cannot read
+app\voice\tts\.cache\f3bba0b9863d504019fab17f0e791727b0d7eac6e3006993c705969b2f86a884.mp3: Cannot read
+app\voice\tts\.cache\f3e610315a626a975c3a0b07e789f5602afc3d380438f7d8ee8e3580d4b95ff1.mp3: Cannot read
+app\voice\tts\.cache\f3e786bb4972ce244c321619e815f3daa6ae601fe99011d135bcc5da82121cf5.mp3: Cannot read
+app\voice\tts\.cache\f42d2b47c4cc0baf1479bb3d3b3d590e4db5e1d5ee32e7e943094f26b30bf641.mp3: Cannot read
+app\voice\tts\.cache\f4cffad9fe5d793d585363b97db5e71a2881201f0e70d8a528cadd0a889baab5.mp3: Cannot read
+app\voice\tts\.cache\f550db458f6816d9f5d5d54413c044b9b24bb7ace887c26787d12e26abe98ad2.mp3: Cannot read
+app\voice\tts\.cache\f574cbb7e3ca8e32897a2cb47037848ee0742c6f8dc2966a9f392d057f00f723.mp3: Cannot read
+app\voice\tts\.cache\f5ccb92c28c5aa449309efa3218f4de04e1dbd8bfe0fe5b6a031edd463061466.mp3: Cannot read
+app\voice\tts\.cache\f6040806659e637ad9db7fafdb052a563ab9c37a780eefdbd8b788fe53c9859d.mp3: Cannot read
+app\voice\tts\.cache\f6175112e5ac5cd4154b20dcf92376fc2f418d7f941d9102a3cc8052647cc4ae.mp3: Cannot read
+app\voice\tts\.cache\f646e9f8c12b6cb7d326cc437387eb60cbba5bad532bdfd6315d3b5e9eb9666e.mp3: Cannot read
+app\voice\tts\.cache\f738c98e34cdd27fb8debfe0bcfb5f6b14828e6aa2a43c8a2de59105f8b7b372.mp3: Cannot read
+app\voice\tts\.cache\f7c20cecf4e93f385d022367f08fe16525ac5a2b3df861edc7cd6a4ae8d5051c.mp3: Cannot read
+app\voice\tts\.cache\f7c5e1f1f577348465894ee6156604a16a61387606eab2e335139cf6ade3630d.mp3: Cannot read
+app\voice\tts\.cache\f7dd29711300ae56d39993e620fb39412ed8e8b01b2d330cbf8be088231689b5.mp3: Cannot read
+app\voice\tts\.cache\f7eed26fae1a68d3f406bde867d0e5f2c562c4dfde68852ea4f17dbc6a81255f.mp3: Cannot read
+app\voice\tts\.cache\f93d1b4c0b6a889fd3c568d75850fe8a5f1fac98a5efea3109f33c1fb4a37d98.mp3: MOCK_TTS_CHUNK_0MOCK_TTS_CHUNK_1MOCK_TTS_CHUNK_2
+app\voice\tts\.cache\f955dcfaf69ef86efe2fb7990de80f700245e6d9b2477c1947a6b77473b5aff0.mp3: Cannot read
+app\voice\tts\.cache\f96f63435969753a0943d2b00be250dc05f9fe2330202da490cd5776bd5eed80.mp3: Cannot read
+app\voice\tts\.cache\fa46003ecc0471ddd82583102d024a83d8b8868f265bba416f416973ff4506e8.mp3: Cannot read
+app\voice\tts\.cache\fa7982974e035c6ad2f1f81153de54d861639db5d47306a8638719d5ff82368a.mp3: Cannot read
+app\voice\tts\.cache\fa803e2d23d331821e7e7febc48c3ce7cc9aa320ad9757ee5ba4d0244a302d07.mp3: Cannot read
+app\voice\tts\.cache\fb4e1a24a053a932b9dbeb362ef232bda9db63703b5a00b5592de28e70e5cb8e.mp3: Cannot read
+app\voice\tts\.cache\fc1e339d817bb93460f7e76b9864ba573f5c830ee97971d441a9bbff12b5d889.mp3: MOCK_TTS_CHUNK_0MOCK_TTS_CHUNK_1MOCK_TTS_CHUNK_2
+app\voice\tts\.cache\fc674702808da05923fe7e4694f117c9a3a0af99235db5b7db2e0a23dead4a52.mp3: Cannot read
+app\voice\tts\.cache\fc746bcb095d511712f08dfca7c13e21f46072c7851f2ce51b03a5c8608bdbce.mp3: Cannot read
+app\voice\tts\.cache\fcd1eecf9fbf684ab7d9ab41690eb1154327ba7465057fca82738279153b405d.mp3: Cannot read
+app\voice\tts\.cache\fcd99f16c52a91ecc9c7a6f45d2eb99ad9982a361d9db55899abfd61918de832.mp3: Cannot read
+app\voice\tts\.cache\fce5fbc5a735091a3fc2e2570b5cdd0982f96478fc66dbf6668e35284a6a532b.mp3: MOCK_TTS_CHUNK_0MOCK_TTS_CHUNK_1MOCK_TTS_CHUNK_2
+app\voice\tts\.cache\fd7a8537f30263a97d1c25a1fa39ac5f005965a1970db993d690ff9f3a39d204.mp3: Cannot read
+app\voice\tts\.cache\fdc5e20728cff918202424c99d733ca7aa3dbc92ca54b49741b9d742fbbf602d.mp3: Cannot read
+app\voice\tts\.cache\fde3a9ba1812c7a569a4710e9ab161c1066a9189b16e1ec9806b1590f165778c.mp3: Cannot read
+app\voice\tts\.cache\fe7d383ba7c170e377f37f72a0f8687f4ef8c67a542cd046695ff48b31d4707c.mp3: Cannot read
+app\voice\tts\.cache\fe9fa895a861c2cbbf0b0f71dc588d1ce1d841813c2e0ebb138dcecbe8343b24.mp3: Cannot read
+app\voice\tts\.cache\fed078344e4bf9bfbb20937c14fce9c9d0c091ae9496afec4ddf3b68fb399963.mp3: Cannot read
+app\voice\tts\.cache\fed081ac217c3389cf646a2c4002cefb7a143b8309f79409ccafd6989946cdbf.mp3: Cannot read
+app\workflows\registry.py: Workflow definitions registry for intent execution planning.
+app\workflows\__init__.py: Workflow registry package.
+app\workflow_studio\workflow_dashboard.py: Enterprise Workflow Dashboard for MantraSetu AgentOS Sprint 9C v1.0.
+app\workflow_studio\workflow_designer.py: Enterprise Workflow Designer for MantraSetu AgentOS Sprint 9C v1.0.
+app\workflow_studio\workflow_replay.py: Enterprise Workflow Replay Engine for MantraSetu AgentOS Sprint 9C v1.0.
+app\workflow_studio\workflow_runtime.py: Enterprise Workflow Runtime Engine for MantraSetu AgentOS Sprint 9C v1.0.
+app\workflow_studio\workflow_scheduler.py: Enterprise Workflow Scheduler for MantraSetu AgentOS Sprint 9C v1.0.
+app\workflow_studio\workflow_simulator.py: Enterprise Workflow Simulator for MantraSetu AgentOS Sprint 9C v1.0.
+app\workflow_studio\workflow_telemetry.py: Enterprise Workflow Telemetry Engine for MantraSetu AgentOS Sprint 9C v1.0.
+app\workflow_studio\workflow_template_manager.py: Enterprise Workflow Template Manager for MantraSetu AgentOS Sprint 9C v1.0.
+app\workflow_studio\__init__.py: Enterprise Workflow Studio & Visual Automation Platform for MantraSetu AgentOS Sprint 9C v1.0.
+tests\test_ai_orchestrator.py: Enterprise unit tests for AIOrchestrator.
+tests\test_api_layer.py: Enterprise unit and integration tests for Module 4 REST API + WebSocket Integration Layer.
+tests\test_api_v1.py: API integration validation layer tests for MantraSetu AI Backend.
+tests\test_bootstrap_module.py: Enterprise unit and integration test suite for Module 5 Bootstrap, DI Container, Registry, and Lifec
+tests\test_chat_orchestrator.py: Unit tests for ChatOrchestrator refactoring (Sprint 1 - Module 1).
+tests\test_conversation_foundation.py: Comprehensive Unit & Integration Test Suite for Enterprise AI Conversation Framework v1.0.
+tests\test_distributed_rate_limiting.py: Unit Test Suite for Distributed Rate Limiting (MED-02).
+tests\test_distributed_websocket_session.py: Unit Test Suite for Distributed WebSocket Session Synchronization (MED-01).
+tests\test_e2e_pipeline_integration.py: Comprehensive Integration & Hardening Test Suite for AgentOS End-to-End Pipeline v1.1.
+tests\test_final_production_golive.py: Final Production Acceptance Test Suite for MantraSetu AgentOS Sprint 6 Go-Live.
+tests\test_form_framework.py: Comprehensive Unit & Integration Test Suite for Enterprise Voice Form Automation Framework v1.0.
+tests\test_groq_llm_contract.py: Focused Provider Contract Tests for Groq LLM Provider (llama-3.3-70b-versatile).
+tests\test_groq_stt_contract.py: Focused Provider Contract Tests for Groq STT Adapter (whisper-large-v3-turbo).
+tests\test_integration_framework.py: Unit & Integration Test Suite for Enterprise AI Integration Framework v1.0 (Sprint 5).
+tests\test_inworld_tts_contract.py: Focused Provider Contract Tests for InWorld TTS Adapter.
+tests\test_legacy_compatibility.py: Unit Test Suite for Legacy Abstract Base Compatibility (HIGH-01).
+tests\test_live_groq_integration.py: Live integration test for Groq LLM Provider validation.
+tests\test_memory_framework.py: Comprehensive Unit & Integration Test Suite for Enterprise AI Memory Framework v1.0.
+tests\test_multi_agent_framework.py: Comprehensive Unit & Integration Test Suite for Enterprise Multi-Agent Collaboration Framework v1.0.
+tests\test_navigation_execution.py: Enterprise test suite for Navigation Intelligence Framework v4.1 — Part 4 (Navigation Execution Laye
+tests\test_navigation_foundation.py: Enterprise deterministic unit tests for Navigation Intelligence Framework v4.1 Part 1 Foundation Lay
+tests\test_navigation_intelligence.py: Enterprise test suite for Navigation Intelligence Framework v4.1 — Part 2 (Navigation Intelligence L
+tests\test_navigation_journey.py: Comprehensive Unit & Integration Test Suite for Enterprise Navigation Journey Intelligence v4.1.
+tests\test_navigation_planning.py: Enterprise test suite for Navigation Intelligence Framework v4.1 — Part 3 (Navigation Planning Layer
+tests\test_observability_framework.py: Comprehensive Unit & Integration Test Suite for Enterprise Observability, Monitoring & Operations Fr
+tests\test_orchestrator.py: Enterprise test suite for Navigation Intelligence Framework v4.1 — Part 5 (AI Orchestrator & Fronten
+tests\test_pandit_onboarding.py: Unit tests for the guided Pandit onboarding state machine.
+tests\test_plugin_framework.py: Comprehensive Unit & Integration Test Suite for Enterprise Plugin Ecosystem & MCP Integration Framew
+tests\test_priority2.py: Imports: pytest, unittest.mock, app.orchestrator.pandit_onboarding
+tests\test_production_config_validation.py: Unit Test Suite for Production Environment & Secret Configuration Validation (CRIT-01).
+tests\test_qdrant_sync_recovery.py: Unit Test Suite for Qdrant Vector Persistence & Startup Recovery (HIGH-02).
+tests\test_release_framework.py: Unit & Integration Test Suite for Enterprise Release Management Framework v1.0.
+tests\test_runtime_framework.py: Comprehensive Unit & Integration Test Suite for Enterprise Deployment, Runtime & Infrastructure Fram
+tests\test_security_framework.py: Comprehensive Unit & Integration Test Suite for Enterprise Security, Identity & Governance Framework
+tests\test_specialization_extraction.py: Defines classes: DummyAIService
+tests\test_spoken_extraction.py: Defines functions: test_spoken_extraction_cases
+tests\test_sprint6a_infrastructure.py: Unit & Integration Test Suite for Enterprise Infrastructure Sprint 6A v1.1.
+tests\test_sprint6b_ai_providers.py: Unit & Integration Test Suite for Enterprise AI Provider Layer Sprint 6B v1.0.
+tests\test_sprint6c_knowledge_rag.py: Unit & Integration Test Suite for Enterprise Knowledge & RAG Intelligence Sprint 6C v1.1.
+tests\test_sprint6d_business_workflows.py: Unit & Integration Test Suite for Enterprise Business Workflows Sprint 6D v1.0.
+tests\test_sprint6e_system_validation.py: Unit & Integration Test Suite for Enterprise Validation Layer Sprint 6E v1.0.
+tests\test_sprint7a_continuous_ai_quality.py: Unit & Integration Test Suite for Enterprise AI Continuous Evaluation & Experimentation Platform Spr
+tests\test_sprint7b_aiops.py: Unit & Integration Test Suite for Enterprise AIOps & Self-Improving Intelligence Platform Sprint 7B
+tests\test_sprint7c_ai_governance.py: Unit & Integration Test Suite for Enterprise AI Governance Platform Sprint 7C v1.0.
+tests\test_sprint7d_reasoning_platform.py: Unit & Integration Test Suite for Enterprise AI Reasoning & Planning Platform Sprint 7D v1.0.
+tests\test_sprint7e_agent_learning.py: Unit & Integration Test Suite for Enterprise Agent Learning Platform Sprint 7E v1.0.
+tests\test_sprint7_ai_quality.py: Unit & Integration Test Suite for Enterprise AI Quality Engineering Platform Sprint 7 v1.0.
+tests\test_sprint8a_prompt_runtime.py: Unit & Integration Test Suite for Production AI Intelligence & Prompt Orchestration Platform Sprint
+tests\test_sprint8b_conversation_intelligence.py: Unit & Integration Test Suite for Enterprise AI Conversation Intelligence Platform Sprint 8B v1.0.
+tests\test_sprint8c_autonomous_agents.py: Unit & Integration Test Suite for Enterprise Autonomous Agent Execution Platform Sprint 8C v1.0.
+tests\test_sprint8d_ai_copilot.py: Unit & Integration Test Suite for Enterprise AI Copilot Platform Sprint 8D v1.0.
+tests\test_sprint8e_skill_platform.py: Unit & Integration Test Suite for Enterprise AI Skill Marketplace, Dynamic Tool Ecosystem & Capabili
+tests\test_sprint9a_multimodal_platform.py: Unit & Integration Test Suite for Enterprise Multimodal Intelligence Platform Sprint 9A v1.0.
+tests\test_sprint9b_browser_platform.py: Unit & Integration Test Suite for Enterprise Browser Intelligence & Computer Use Platform Sprint 9B
+tests\test_sprint9c_workflow_studio.py: Unit & Integration Test Suite for Enterprise Workflow Studio & Visual Automation Platform Sprint 9C
+tests\test_sprint9d_integration_hub.py: Unit & Integration Test Suite for Enterprise Integration Hub & Connector Platform Sprint 9D v1.0.
+tests\test_sprint9e_saas_platform.py: Unit & Integration Test Suite for Enterprise SaaS Platform Sprint 9E v1.0.
+tests\test_system_framework.py: Unit & Integration Test Suite for Enterprise AgentOS System Framework v1.0.
+tests\test_tool_framework.py: Comprehensive Unit & Integration Test Suite for Enterprise AI Tool Calling Framework v1.1.
+tests\test_tts_pipeline.py: Enterprise unit tests for Text-to-Speech (TTS) + Voice Response Pipeline (Module 3).
+tests\test_voice_framework.py: Comprehensive Unit & Integration Test Suite for Enterprise Voice AI Framework v1.0.
+tests\test_voice_gateway.py: Enterprise unit tests for Voice Gateway + Speech-to-Text subsystem (Module 2).
+
+SECRETS FOUND
+=============
+.env:10
+.env:13
+.env:17
+.env:23
+.env:30
+.env.example:11
+.env.production:13
+.env.production:14
+.env.production:15
+.env.production:16
+mock_test_c.py:8
+test_rate_limiting.py:6
+app\api\dependencies\auth.py:10
+app\config\production.env.example:78
+app\config\production.env.example:87
+app\config\production.env.example:90
+app\config\production.env.example:93
+app\llm\providers\gemini.py:54
+app\llm\providers\gemini.py:59
+app\llm\providers\groq.py:36
+app\llm\providers\groq.py:112
+app\llm\providers\groq.py:171
+app\llm\providers\groq.py:229
+app\orchestrator\pandit_onboarding.py:28
+app\orchestrator\pandit_onboarding.py:30
+app\speech\providers\sarvam.py:21
+app\tts\providers\cosyvoice.py:15
+app\tts\providers\elevenlabs_provider.py:82
+app\voice\stt\groq_adapter.py:28
+app\voice\stt\groq_adapter.py:105
+app\voice\stt\sarvam_adapter.py:20
+app\voice\stt\whisper_adapter.py:22
+app\voice\stt\whisper_adapter.py:207
+app\voice\tts\elevenlabs_adapter.py:31
+app\voice\tts\openai_adapter.py:24
+app\voice\tts\sarvam_adapter.py:24
+scripts\ai_intelligence_validation_v2.py:254
+scripts\ai_intelligence_validation_v2.py:590
+scripts\llm_certification_benchmark.py:137
+tests\test_groq_llm_contract.py:16
+tests\test_groq_stt_contract.py:17
+tests\test_groq_stt_contract.py:27
+tests\test_inworld_tts_contract.py:24
+tests\test_inworld_tts_contract.py:40
+tests\test_inworld_tts_contract.py:52
+
+ENV FALLBACKS
+=============
+app\api\dependencies\voice.py:27 - stt_provider = os.environ.get("DEFAULT_STT_PROVIDER", "whisper")
+app\api\dependencies\voice.py:40 - provider_name = os.environ.get("DEFAULT_TTS_PROVIDER", "sarvam")
+app\api\v1\routes\stubs.py:93 - mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017/mantrasetu")
+app\dependencies\providers.py:44 - _default_provider = os.getenv("LLM_PROVIDER", "gemini").lower()
+app\llm\settings.py:19 - model_name: str = Field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest"))
+app\llm\providers\gemini.py:61 - self._model = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
+app\llm\providers\groq.py:39 - or os.getenv("GROQ_API_KEY", "")
+app\llm\providers\groq.py:41 - self._model = model or os.getenv("GROQ_LLM_MODEL", "llama-3.3-70b-versatile")
+app\llm\providers\groq.py:163 - fast_model = os.getenv("GROQ_LLM_MODEL_FAST", "openai/gpt-oss-20b")
+app\orchestrator\defaults.py:153 - provider_name = os.getenv("LLM_PROVIDER", "gemini").lower()
+app\orchestrator\pandit_onboarding.py:27 - fast_model = os.getenv("GROQ_LLM_MODEL_FAST", "openai/gpt-oss-20b")
+app\orchestrator\pandit_onboarding.py:28 - api_key = os.getenv("GROQ_API_KEY", "")
+app\tts\providers\elevenlabs_provider.py:82 - self._api_key = os.environ.get("ELEVENLABS_API_KEY", "")
+app\tts\providers\elevenlabs_provider.py:83 - self._voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "pFZP5JQG7iQjIQuC4Bku")
+app\tts\providers\elevenlabs_provider.py:146 - "speed": float(os.environ.get("ELEVENLABS_SPEED", "0.88"))
+app\voice\stt\groq_adapter.py:28 - self._api_key = api_key or os.environ.get("GROQ_API_KEY", "")
+app\voice\stt\groq_adapter.py:29 - self._model = model or os.environ.get("GROQ_STT_MODEL", "whisper-large-v3-turbo")
+app\voice\stt\whisper_adapter.py:22 - self._api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
+app\voice\stt\whisper_adapter.py:88 - groq_key = os.environ.get("GROQ_API_KEY", "")
+app\voice\stt\whisper_adapter.py:202 - gemini_key = os.environ.get("GEMINI_API_KEY", "")
+app\voice\tts\elevenlabs_adapter.py:31 - self._api_key = api_key or os.environ.get("ELEVENLABS_API_KEY", "")
+app\voice\tts\elevenlabs_adapter.py:34 - self._default_voice_id = default_voice_id or os.environ.get("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB")
+app\voice\tts\elevenlabs_adapter.py:80 - "speed": float(os.environ.get("ELEVENLABS_SPEED", "1.00"))
+app\voice\tts\inworld_adapter.py:81 - self._api_key: str = api_key or os.environ.get("INWORLD_API_KEY", "")
+app\voice\tts\inworld_adapter.py:90 - or os.environ.get("INWORLD_TTS_MODEL", "inworld-tts-2-flash")
+app\voice\tts\inworld_adapter.py:96 - or os.environ.get("INWORLD_VOICE_ID", "Aarav")
+app\voice\tts\inworld_adapter.py:103 - or os.environ.get("INWORLD_STYLE_HINT", "")
+app\voice\tts\inworld_adapter.py:105 - self._speed: float = float(os.environ.get("INWORLD_SPEED", "1.00"))
+app\voice\tts\inworld_adapter.py:200 - "audioEncoding": os.environ.get("INWORLD_AUDIO_ENCODING", "MP3"),
+app\voice\tts\inworld_adapter.py:201 - "sampleRateHertz": int(os.environ.get("INWORLD_SAMPLE_RATE", "44100")),
+
+GIT STATUS
+==========
+.env NOT found in git history.
+.env is in .gitignore

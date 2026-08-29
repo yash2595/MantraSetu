@@ -14,13 +14,13 @@ from app.speech.providers.whisper import WhisperProvider
 from app.tts.factory import text_to_speech_factory
 from app.tts.providers.elevenlabs_provider import ElevenLabsProvider
 from app.tts.providers.cosyvoice import CosyVoiceProvider
-from app.tts.providers.fish_speech import FishSpeechProvider
+# from app.tts.providers.fish_speech import FishSpeechProvider  # Disabled: unused legacy provider
 
 # Concrete provider instances
 _gemini_provider = GeminiProvider()
 _whisper_provider = WhisperProvider()
 _sarvam_provider = SarvamProvider()
-_fish_speech_provider = FishSpeechProvider()
+# _fish_speech_provider = FishSpeechProvider()
 _cosyvoice_provider = CosyVoiceProvider()
 _elevenlabs_provider = ElevenLabsProvider()
 
@@ -34,7 +34,7 @@ speech_to_text_factory.register(_whisper_provider, overwrite=False)
 speech_to_text_factory.register(_sarvam_provider, overwrite=False)
 
 # Text-to-Speech Factory registration
-text_to_speech_factory.register(_fish_speech_provider, overwrite=False)
+# text_to_speech_factory.register(_fish_speech_provider, overwrite=False)
 text_to_speech_factory.register(_cosyvoice_provider, overwrite=False)
 text_to_speech_factory.register(_elevenlabs_provider, overwrite=False)
 
