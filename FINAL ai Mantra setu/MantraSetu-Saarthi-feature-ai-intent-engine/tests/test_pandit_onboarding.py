@@ -188,12 +188,14 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
         from app.voice.tts.voice_response_pipeline import clean_text_for_tts
 
         # 1. Phone number formatting for speech
-        self.assertEqual(format_phone_for_speech("9998887776"), "999 888 7776")
-        self.assertEqual(format_phone_for_speech("9876543210"), "987 654 3210")
+        self.assertEqual(format_phone_for_speech("9998887776"), "nine, nine, nine, eight, eight, eight, seven, seven, seven, six")
+        self.assertEqual(format_phone_for_speech("9876543210"), "nine, eight, seven, six, five, four, three, two, one, zero")
 
-        # 2. TTS text sanitization digit grouping
+        # 2. TTS text sanitization renders phone/OTP/PIN values as explicit
+        # digit words, never grouped or interpreted as a cardinal number.
         cleaned_tts = clean_text_for_tts("mobile number 9998887776 confirm karein")
-        self.assertIn("999 888 7776", cleaned_tts)
+        self.assertIn("nine, nine, nine, eight, eight, eight, seven, seven, seven, six", cleaned_tts)
+        self.assertIn("one, two, three, four, five, six", clean_text_for_tts("OTP 123456 hai"))
 
         # 3. City State Lookup
         # Unambiguous city (Varanasi, Hapur)
@@ -278,8 +280,9 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
         
         session = self.orchestrator._session_manager.get_or_create_session(self.session_id)
         
-        # Advance index to pandit-confirm (index 19)
-        session.onboarding_state["current_field_index"] = 20
+        # Required voice queue index for pandit-confirm.  Certificate/gallery
+        # are optional according to the shared onboarding schema.
+        session.onboarding_state["current_field_index"] = 18
         session.onboarding_state["collected_data"] = {
             "pandit-avatar": "skipped",
             "pandit-first-name": "Ramesh",
@@ -300,7 +303,8 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
             "pandit-certFile": "Done",
             "pandit-aadhaarFile": "Done",
             "pandit-galleryFiles": "Done",
-            "pandit-password": "Done"
+            "pandit-password": "Done",
+            "pandit-code-of-conduct": "confirmed"
         }
 
         # Send mismatching confirm password
@@ -518,7 +522,8 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
                 "pandit-certFile": "Done",
                 "pandit-aadhaarFile": "Done",
                 "pandit-galleryFiles": "Done",
-                "pandit-password": "Done"
+                "pandit-password": "Done",
+                "pandit-code-of-conduct": "confirmed"
             },
             "fields": [
                 "pandit-avatar", "pandit-first-name", "pandit-last-name", "pandit-email",
@@ -526,7 +531,7 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
                 "pandit-state", "pandit-service-areas", "pandit-exp", "pandit-gurukul",
                 "pandit-languages", "pandit-spec", "pandit-achievements", "pandit-bio",
                 "pandit-certFile", "pandit-aadhaarFile", "pandit-galleryFiles", "pandit-password",
-                "pandit-confirm"
+                "pandit-confirm", "pandit-code-of-conduct"
             ]
         }
 
@@ -569,6 +574,25 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
         result3 = convertSpokenEmailToText("mera email id hai pandit at the rate of g mail dot com")
         self.assertIn("@", result3)
         self.assertIn("gmail.com", result3)
+
+        # Local-parts are opaque identities: spoken-name normalization may
+        # convert separators/domains but must never autocorrect the name.
+        self.assertEqual(
+            convertSpokenEmailToText("ankit at gmail dot com"),
+            "ankit@gmail.com",
+        )
+
+        # Spoken digit words inside email
+        self.assertEqual(
+            convertSpokenEmailToText("yash one two three at the rate gmail dot com"),
+            "yash123@gmail.com",
+        )
+
+        # Phonetic STT mishearings ('at the right', 'g m a i l', trailing punctuation)
+        self.assertEqual(
+            convertSpokenEmailToText("ramesh at the right g m a i l dot com."),
+            "ramesh@gmail.com",
+        )
 
     def test_zero_coverage_fields_validators(self):
         """Test happy & rejection paths for 10 previously untested fields via FIELD_VALIDATION_REGISTRY."""
@@ -727,5 +751,3 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
             self.assertGreaterEqual(session.onboarding_state.get("current_field_index", 0), 14)
             saved = str(session.onboarding_state.get("collected_data", {}).get("pandit-achievements", ""))
             self.assertIn("Gold Medalist Sanskrit Seva 2019", saved)
-
-

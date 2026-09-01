@@ -153,7 +153,7 @@ class EnterpriseVoiceSession:
 class AudioBufferConfig:
     """Configuration parameter object for AudioBuffer tuning."""
 
-    max_buffer_size_bytes: int = 1048576  # 1MB
+    max_buffer_size_bytes: int = 4194304  # 4MB (~130 seconds at 16kHz 16-bit mono)
     chunk_size_bytes: int = 4096
     overflow_policy: str = "DROP_OLDEST"
     sample_rate_hz: int = 16000

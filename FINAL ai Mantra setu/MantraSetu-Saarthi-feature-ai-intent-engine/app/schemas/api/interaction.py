@@ -34,6 +34,10 @@ class InteractionResponse(SchemaModel):
     intent: Intent | None = Field(default=None, description="Detected intent model.")
     execution_result: ExecutionResult | None = Field(default=None, description="Execution result snapshot.")
     navigation_state: NavigationState | None = Field(default=None, description="Updated navigation state.")
+    navigation_directive: dict[str, Any] | None = Field(
+        default=None,
+        description="UI navigation/form directive emitted by the orchestration transport.",
+    )
     context: ConversationContext | None = Field(default=None, description="Loaded conversation context snapshot.")
     finish_reason: str | None = Field(default=None, description="Reason generation finished.")
     execution_time_ms: float | None = Field(default=None, description="Total execution latency in milliseconds.")
@@ -52,7 +56,6 @@ class InteractionResponse(SchemaModel):
             request_id=str(self.request_id) if self.request_id else str(uuid4()),
             text=self.content,
             response_type=ResponseType.CHAT,
-            navigation_directive=self.navigation_state.model_dump() if self.navigation_state else None,
+            navigation_directive=self.navigation_directive or (self.navigation_state.model_dump() if self.navigation_state else None),
             metadata=self.metadata,
         )
-

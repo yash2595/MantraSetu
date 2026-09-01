@@ -18,8 +18,13 @@ PROVIDERS: dict[str, type[ISpeechRecognizer]] = {
 }
 
 
-def build_speech_recognizer(provider: str = "whisper", **kwargs) -> ISpeechRecognizer:
-    """Build and return an ISpeechRecognizer instance using provider registry lookup."""
-    provider_clean = provider.strip().lower()
-    adapter_cls = PROVIDERS.get(provider_clean, WhisperAdapter)
+def build_speech_recognizer(provider: str = "inworld", **kwargs) -> ISpeechRecognizer:
+    """Build an STT adapter; unknown provider keys are configuration errors, never fallbacks."""
+    provider_clean = (provider or "").strip().lower()
+    adapter_cls = PROVIDERS.get(provider_clean)
+    if adapter_cls is None:
+        raise ValueError(
+            f"Unsupported STT provider {provider!r}. Use one of: {', '.join(sorted(PROVIDERS))}. "
+            "Refusing to silently fall back to Whisper."
+        )
     return adapter_cls(**kwargs)

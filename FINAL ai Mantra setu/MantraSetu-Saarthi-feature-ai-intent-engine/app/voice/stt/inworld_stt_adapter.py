@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import io
 import logging
 import os
@@ -48,11 +49,12 @@ class InWorldSTTAdapter(ISpeechRecognizer):
             session_id=session.session_id,
             text="",
             is_final=False,
-            confidence=0.95,
+            confidence=0.0,
             timestamp_ms=int(time.time() * 1000),
         )
 
     async def finish_session(self, session: VoiceSession, buffer: AudioBuffer) -> TranscriptResult:
+        request_id = session.context_data.get("voice_turn_request_id", session.session_id)
         logger.info(
             "InWorld STT finish_session called",
             extra={"session_id": session.session_id, "size_bytes": buffer.size},
@@ -96,36 +98,52 @@ class InWorldSTTAdapter(ISpeechRecognizer):
                     language=session.language,
                     provider=self.provider_name,
                     duration_seconds=duration_sec,
-                    metadata={"model": self._model, "status": "api_key_missing"},
+                    metadata={"model": self._model, "status": "error", "error": "api_key_missing", "confidence_available": False},
                 )
 
             stt_start_time = time.time()
             text = ""
+            # Inworld's documented synchronous transcription schema has no
+            # transcript-confidence field. Keep this unavailable unless a future
+            # provider response actually supplies a numeric value.
             stt_confidence = 0.0
+            confidence_available = False
 
             import httpx
             
             lang_code = "hi-IN"
             
+            audio_b64 = base64.b64encode(wav_data).decode('utf-8')
             payload = {
-                "model": self._model,
-                "languageCode": lang_code,
-                "customVocabulary": "",
+                "transcribeConfig": {
+                    "modelId": self._model,
+                    "audioEncoding": "LINEAR16",
+                    "language": lang_code,
+                    "sampleRateHertz": 16000,
+                    "numberOfChannels": 1
+                },
+                "audioData": {
+                    "content": audio_b64
+                }
             }
 
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            # Long free-text turns are valid; allow the provider a bounded,
+            # realistic response window rather than converting them to empty STT.
+            async with httpx.AsyncClient(timeout=25.0) as client:
                 headers = {
                     "Authorization": f"Basic {self._api_key}",
+                    "Content-Type": "application/json",
                 }
                 
                 try:
                     response = await client.post(
-                        'https://api.inworld.ai/stt/v1/recognize',
+                        'https://api.inworld.ai/stt/v1/transcribe',
                         headers=headers,
-                        data=payload,
-                        files={'audio': ('speech.wav', wav_data, 'audio/wav')},
-                        timeout=10.0
+                        json=payload,
+                        timeout=25.0
                     )
+                    response_body = response.text
+                    logger.info("[DIAG-INVESTIGATION][STT] request_id=%s session_id=%s provider=inworld http_status=%d pcm_bytes=%d response_body=%r", request_id, session.session_id, response.status_code, len(raw_pcm), response_body[:2048])
                     response.raise_for_status()
                     
                     try:
@@ -140,16 +158,29 @@ class InWorldSTTAdapter(ISpeechRecognizer):
                     # Depending on InWorld format, it might be in data.get('text') or similar. 
                     # Assuming data.get('transcript') based on typical multipart STT, wait...
                     # Let's extract safely.
-                    text = data.get("text", "") or data.get("transcript", "") or data.get("transcription", {}).get("transcript", "")
-                    stt_confidence = 0.95
+                    transcription = data.get("transcription", {})
+                    text = data.get("text", "") or data.get("transcript", "") or transcription.get("transcript", "")
+                    candidate_confidence = transcription.get("confidence", data.get("confidence"))
+                    if isinstance(candidate_confidence, (int, float)) and 0.0 <= float(candidate_confidence) <= 1.0:
+                        stt_confidence = float(candidate_confidence)
+                        confidence_available = True
                 except Exception as e:
-                    logger.error(f"[INWORLD-STT-ERROR] Request failed or timed out: {type(e).__name__} - {e}")
-                    text = ""
+                    body = response.text[:500] if 'response' in locals() else ''
+                    logger.error(f"[DIAG-INVESTIGATION][STT] request_id={request_id} session_id={session.session_id} provider=inworld status=error error={type(e).__name__}:{e} body={body!r}")
+                    return TranscriptResult(
+                        text="",
+                        confidence=0.0,
+                        language=session.language,
+                        provider=self.provider_name,
+                        duration_seconds=duration_sec,
+                        metadata={"model": self._model, "status": "error", "error": f"{type(e).__name__}: {e}", "confidence_available": False},
+                    )
 
             stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
             logger.info(
                 f"[TIMING-STT] InWorld STT ({self._model}) completed in {stt_elapsed_ms}ms | Transcribed: '{text}'"
             )
+            logger.info("[DIAG-INVESTIGATION][STT] request_id=%s session_id=%s provider=inworld transcript_length=%d confidence=%.3f confidence_available=%s", request_id, session.session_id, len(text.strip()), stt_confidence, confidence_available)
 
             # Hallucination Filter: Reject repetitive garbled Whisper tokens
             clean_text = text.strip()
@@ -161,7 +192,9 @@ class InWorldSTTAdapter(ISpeechRecognizer):
                     )
                     clean_text = ""
 
-            stt_confidence = 0.98 if clean_text else 0.0
+            if not clean_text:
+                stt_confidence = 0.0
+                confidence_available = False
 
             return TranscriptResult(
                 text=clean_text,
@@ -173,6 +206,7 @@ class InWorldSTTAdapter(ISpeechRecognizer):
                     "model": self._model,
                     "status": "success" if clean_text else "empty",
                     "latency_ms": stt_elapsed_ms,
+                    "confidence_available": confidence_available,
                 },
             )
 
@@ -184,7 +218,7 @@ class InWorldSTTAdapter(ISpeechRecognizer):
                 language=session.language,
                 provider=self.provider_name,
                 duration_seconds=duration_sec,
-                metadata={"model": self._model, "status": "error", "error": "timeout"},
+                metadata={"model": self._model, "status": "error", "error": "timeout", "confidence_available": False},
             )
         except Exception as e:
             logger.error(f"[INWORLD-STT-ERROR] InWorld STT failed: {e}", exc_info=True)
@@ -194,7 +228,7 @@ class InWorldSTTAdapter(ISpeechRecognizer):
                 language=session.language,
                 provider=self.provider_name,
                 duration_seconds=duration_sec,
-                metadata={"model": self._model, "status": "error", "error": str(e)},
+                metadata={"model": self._model, "status": "error", "error": str(e), "confidence_available": False},
             )
 
     async def cancel_session(self, session: VoiceSession) -> None:

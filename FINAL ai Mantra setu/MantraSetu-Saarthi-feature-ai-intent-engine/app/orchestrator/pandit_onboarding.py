@@ -1,8 +1,10 @@
 import asyncio
+import json
 import logging
 import random
 import re
 import time
+from pathlib import Path
 from typing import Any, Callable
 from app.llm.models import LLMRequest
 from app.services.ai_service import AIService
@@ -14,8 +16,62 @@ from app.orchestrator.orchestrator_models import (
 )
 
 from app.orchestrator.navigation_intent_detector import is_navigation_command, resolve_navigation_target
+from app.orchestrator.onboarding_intent_matcher import OnboardingIntent, match_onboarding_intent
+from app.utils.identifier_speech import render_identifier_digits
 
 logger = logging.getLogger(__name__)
+
+PANDIT_ONBOARDING_INTENTS = {
+    "provide_name", "provide_phone", "provide_email", "select_gender",
+    "select_availability", "select_service_area", "select_language",
+    "provide_experience", "provide_education", "select_specialization",
+    "provide_bio", "upload_doc", "set_password", "confirm_step", "go_back",
+    "repeat_question", "correction", "submit_form",
+}
+
+# This JSON schema is the single requiredness authority for the browser and
+# voice flow.  Changing a field's `required` value updates both systems.
+_PANDIT_SCHEMA_PATH = Path(__file__).resolve().parents[4] / "final frontend mantrasetu" / "MantraSetu-Saarthi-main" / "src" / "config" / "panditOnboardingSchema.json"
+with _PANDIT_SCHEMA_PATH.open(encoding="utf-8") as _schema_file:
+    PANDIT_ONBOARDING_SCHEMA = json.load(_schema_file)["fields"]
+PANDIT_REQUIRED_FIELD_QUEUE = tuple(field["id"] for field in PANDIT_ONBOARDING_SCHEMA if field["required"])
+PANDIT_OPTIONAL_FIELD_QUEUE = tuple(field["id"] for field in PANDIT_ONBOARDING_SCHEMA if not field["required"])
+# Optional fields remain available to the browser, but never block or divert
+# the deterministic voice-required queue.
+PANDIT_ONBOARDING_FIELD_QUEUE = ("pandit-avatar",) + PANDIT_REQUIRED_FIELD_QUEUE
+PANDIT_FIELD_LABELS = {
+    "pandit-first-name": "pehla naam", "pandit-last-name": "last name",
+    "pandit-email": "email address", "pandit-phone": "mobile number",
+    "pandit-gender": "gender", "pandit-availability": "availability",
+    "pandit-city": "sheher", "pandit-state": "state", "pandit-service-areas": "service areas",
+    "pandit-exp": "anubhav", "pandit-gurukul": "shiksha/gurukul", "pandit-languages": "bhashaen",
+    "pandit-spec": "specialization", "pandit-achievements": "achievements", "pandit-bio": "bio",
+    "pandit-certFile": "certificate", "pandit-aadhaarFile": "Aadhaar", "pandit-galleryFiles": "gallery",
+    "pandit-password": "password", "pandit-confirm": "password confirmation", "pandit-code-of-conduct": "Code of Conduct",
+}
+
+def missing_required_pandit_fields(state: dict) -> list[str]:
+    """Return queue fields not confirmed from voice or the current DOM form snapshot."""
+    collected = state.get("collected_data", {})
+    return [field for field in PANDIT_REQUIRED_FIELD_QUEUE if not str(collected.get(field, "")).strip()]
+
+def structured_onboarding_directive(directive: dict, *, confidence: float = 0.95,
+                                    recognition_status: str = "ok") -> dict:
+    """Normalize every Pandit UI instruction into the websocket contract.
+
+    `content` stays presentable speech; the browser must use only this directive for UI state.
+    """
+    result = dict(directive)
+    result.setdefault("intent", "PANDIT_ONBOARDING")
+    result.setdefault("action", None)
+    result.setdefault("target", None)
+    result.setdefault("query", None)
+    result.setdefault("active_field", None)
+    result["value"] = result.get("query")
+    result["confidence"] = max(0.0, min(1.0, float(confidence)))
+    result["recognition_status"] = recognition_status
+    result.setdefault("visual_state", None)
+    return result
 
 def get_address_forms(full_name: str) -> dict:
     """Extract natural forms of address: First Name ji, Surname ji, and Panditji."""
@@ -81,14 +137,11 @@ def get_contextual_reaction(current_field: str, val: str, address_info: dict) ->
 
 
 def format_phone_for_speech(phone: str) -> str:
-    """Format 10-digit phone number as space-separated digit groups (e.g. '999 888 7776') for TTS and spoken text."""
+    """Render a phone identifier as explicit digit words for provider-safe TTS."""
     if not phone or phone == "Not provided":
         return phone
-    digits = re.sub(r'\D', '', str(phone))
-    if len(digits) == 10:
-        return f"{digits[:3]} {digits[3:6]} {digits[6:]}"
-    elif len(digits) > 0:
-        return " ".join(digits)
+    if re.search(r'\d', str(phone)):
+        return render_identifier_digits(phone)
     return phone
 
 INDIAN_CITIES_DATASET: dict[str, list[str]] = {
@@ -321,6 +374,12 @@ def generate_summary_text(first_name: str, collected_data: dict, address_info: d
 
 def is_affirmative(user_message: str) -> bool:
     """Check if the user response is an affirmative confirmation or progress command."""
+    canonical = match_onboarding_intent(user_message)
+    if canonical.intent is OnboardingIntent.CONFIRM_YES:
+        logger.info("[ONBOARDING-INTENT] intent=%s confidence=%.2f normalized=%r", canonical.intent.value, canonical.confidence, canonical.normalized)
+        return True
+    if canonical.intent in {OnboardingIntent.CONFIRM_NO, OnboardingIntent.REPEAT, OnboardingIntent.GO_BACK, OnboardingIntent.SKIP}:
+        return False
     user_text = (user_message or "").lower().strip()
     AFFIRMATIVE_WORDS = [
         "haan", "ha", "haa", "han", "hama", "hanji", "haji",
@@ -349,6 +408,12 @@ def is_affirmative(user_message: str) -> bool:
 
 def is_negative(user_message: str) -> bool:
     """Check if the user response contains a negative confirmation or rejection phrase."""
+    canonical = match_onboarding_intent(user_message)
+    if canonical.intent is OnboardingIntent.CONFIRM_NO:
+        logger.info("[ONBOARDING-INTENT] intent=%s confidence=%.2f normalized=%r", canonical.intent.value, canonical.confidence, canonical.normalized)
+        return True
+    if canonical.intent is not OnboardingIntent.UNKNOWN:
+        return False
     user_text = (user_message or "").lower().strip()
     REJECTION_PHRASES = [
         "nahi", "nahin", "nhi", "na", "no", "nope", "not",
@@ -419,10 +484,6 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
         text = re.sub(r'^\b(email|e-mail|mail)\b\s*\b(id|idea|address|number)?\b\s*\b(hai|is|hi|h)?\b\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
         text = re.sub(r'^\b(id|idea|address)\b\s*\b(hai|is|hi|h)?\b\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
 
-        # General Phonetic Rule: STT mishearing of initial "Yash" -> "yes"/"yasm"/"yesm" before common Indian surnames
-        indian_surnames = r'(mishra|sharma|verma|gupta|joshi|kumar|singh|pandey|shastri|tripathi|tiwari|dubey|choubey|upadhyay|dwivedi|patel|rao|reddy|nair|banerjee|mukherjee|chatterjee)'
-        text = re.sub(r'\b(?:yes|yasm|yesm|yashm)\s*' + indian_surnames, r'yash\1', text, flags=re.IGNORECASE)
-
         # 0. Convert spoken digit words inside emails (e.g. "one two one two three four at the rate gmail dot com" -> "121234 at the rate gmail dot com")
         english_digit_words = [
             (r'\b(zero|shunya|jiro)\b', '0'),
@@ -443,9 +504,9 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
         devanagari_phrases = [
             (r'(एट द रेट|ऍट द रेट|एट rate|एट-द-रेट|ऐट|एट)', '@'),
             (r'(जी\s*एम\s*ए\s*[एआई]\s*एल\s*सी\s*ओ\s*एम|जीएमएएएलसीओएम)', 'gmail.com'),
-            (r'(जी\s*एम\s*ए\s*[एआई]\s*एल|जीएमएएएल|जीमेल|जी\s*मेल)', 'gmail'),
+            (r'(जी\s*एम\s*ए\s*[एआई]\s*एल|जीएमएएएल|जीमेल|जी\s*मेल|गिमेल|गि\s*मेल|g\s*m\s*e\s*l|g\s*m\s*a\s*i\s*l)', 'gmail'),
             (r'(सी\s*ओ\s*एम|सीओएम|कॉम)', 'com'),
-            (r'(डॉट|डाट|बिंदु)', '.'),
+            (r'(डॉट|डाट|डाॅट|बिंदु)', '.'),
         ]
         for pattern, repl in devanagari_phrases:
             text = re.sub(pattern, repl, text, flags=re.IGNORECASE)
@@ -463,26 +524,32 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
             text = text.replace(dev_let, eng_let)
             
         # 2. Spoken @ symbols in English & Hindi Devanagari (including STT mishearings "at the red", "at the right", etc.)
-        text = re.sub(r'\b(at the rate of|at the rate|at rate of|at rate|at-the-rate|at the red|at the right|at the net|at the threat|at therate)\b', '@', text, flags=re.IGNORECASE)
+        text = re.sub(
+            r'\b(at the rate of|at the rate|at rate of|at rate|at-the-rate|at the red|at the right|at the net|at the threat|at therate|at the ret|at theret|at the ate|at the read|at the great|at the wait|add the rate|add rate|app the rate|et the rate)\b',
+            '@', text, flags=re.IGNORECASE
+        )
         text = re.sub(r'(एट द रेट|ऍट द रेट|एट rate|एट-द-रेट|ऐट)', '@', text)
         text = re.sub(r'(?<=\w)\s+at\s+(?=\w+)', '@', text, flags=re.IGNORECASE)
         
         # 3. Spoken . symbols in English & Hindi Devanagari
-        text = re.sub(r'\b(dot|point|doot|dott)\b', '.', text, flags=re.IGNORECASE)
-        text = re.sub(r'(डॉट|डाट|बिंदु)', '.', text)
+        text = re.sub(r'\b(dot|point|doot|dott|daat|डाॅट|डॉट|डाट)\b', '.', text, flags=re.IGNORECASE)
+        text = re.sub(r'(डॉट|डाट|डाॅट|बिंदु)', '.', text)
         
         # 4. Spoken dash & underscore
         text = re.sub(r'\b(dash|hyphen|डैश)\b', '-', text, flags=re.IGNORECASE)
         text = re.sub(r'\b(underscore|under score|अंडरस्कोर)\b', '_', text, flags=re.IGNORECASE)
         
         # 5. Fix common domain mishearings & spaced letters
-        text = re.sub(r'\b(g mail|g-mail|jimmail|jmail|जीमेल|जी मेल|g m a i l|g m a a l)\b', 'gmail', text, flags=re.IGNORECASE)
+        text = re.sub(r'\b(g mail|g-mail|jimmail|jmail|जीमेल|जी मेल|gimel|गिमेल|गि मेल|g m a i l|g m a a l|g m e l)\b', 'gmail', text, flags=re.IGNORECASE)
         text = re.sub(r'\b(yaho|याहू|y a h o o)\b', 'yahoo', text, flags=re.IGNORECASE)
-        text = re.sub(r'\b(out look|out-look)\b', 'outlook', text, flags=re.IGNORECASE)
+        text = re.sub(r'\b(out look|out-look|autlook)\b', 'outlook', text, flags=re.IGNORECASE)
         text = re.sub(r'\b(hot mail|hot-mail)\b', 'hotmail', text, flags=re.IGNORECASE)
-        text = re.sub(r'\b(i cloud|i-cloud)\b', 'icloud', text, flags=re.IGNORECASE)
-        text = re.sub(r'\b(c o m|कॉम)\b', 'com', text, flags=re.IGNORECASE)
-        text = re.sub(r'\b(i n|इन)\b', 'in', text, flags=re.IGNORECASE)
+        text = re.sub(r'\b(i cloud|i-cloud|eye cloud)\b', 'icloud', text, flags=re.IGNORECASE)
+        text = re.sub(r'\b(rediff mail|rediffmail)\b', 'rediffmail', text, flags=re.IGNORECASE)
+        text = re.sub(r'\b(proton mail|protonmail)\b', 'protonmail', text, flags=re.IGNORECASE)
+        text = re.sub(r'\b(c o m|कॉम|c\.o\.m)\b', 'com', text, flags=re.IGNORECASE)
+        text = re.sub(r'\b(i n|इन|i\.n)\b', 'in', text, flags=re.IGNORECASE)
+        text = re.sub(r'\b(co in|co\.in)\b', 'co.in', text, flags=re.IGNORECASE)
         
         # 6. Auto-insert missing '@' if a known domain is present without '@'
         if '@' not in text:
@@ -491,13 +558,14 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
         # 7. Check for clean email match first before collapsing spaces
         email_match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', text, flags=re.IGNORECASE)
         if email_match:
-            return email_match.group(0)
+            return email_match.group(0).rstrip('.,;:!?\'"')
 
         # 8. Fallback: Collapse ALL whitespace inside email strings e.g. "1 2 1 2 3 4 @ g m a i l . c o m" -> "121234@gmail.com"
         text_no_space = re.sub(r'\s+', '', text)
+        text_no_space = text_no_space.rstrip('.,;:!?\'"')
         email_match = re.search(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', text_no_space, flags=re.IGNORECASE)
         if email_match:
-            return email_match.group(0)
+            return email_match.group(0).rstrip('.,;:!?\'"')
             
         text = text_no_space
             
@@ -509,28 +577,36 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
         # 2. Convert spoken multipliers e.g. "double 7" -> "77", "triple 9" -> "999", "double zero" -> "00"
         # First convert digit words following "double"/"triple"
         digit_word_to_char = {
-            "zero": "0", "shunya": "0", "jiro": "0", "0": "0",
-            "one": "1", "ek": "1", "1": "1",
-            "two": "2", "do": "2", "2": "2",
-            "three": "3", "teen": "3", "3": "3",
-            "four": "4", "char": "4", "4": "4",
-            "five": "5", "panch": "5", "5": "5",
-            "six": "6", "chhe": "6", "6": "6",
-            "seven": "7", "saat": "7", "7": "7",
-            "eight": "8", "aath": "8", "8": "8",
-            "nine": "9", "nau": "9", "9": "9"
+            "zero": "0", "shunya": "0", "jiro": "0", "0": "0", "शून्य": "0", "जीरो": "0", "जिरो": "0",
+            "one": "1", "ek": "1", "1": "1", "एक": "1", "वन": "1",
+            "two": "2", "do": "2", "2": "2", "दो": "2", "टू": "2",
+            "three": "3", "teen": "3", "3": "3", "तीन": "3", "थ्री": "3",
+            "four": "4", "char": "4", "4": "4", "चार": "4", "फोर": "4",
+            "five": "5", "panch": "5", "5": "5", "पांच": "5", "पाँच": "5", "फाइव": "5",
+            "six": "6", "chhe": "6", "6": "6", "छह": "6", "सिक्स": "6",
+            "seven": "7", "saat": "7", "7": "7", "सात": "7", "सेवन": "7",
+            "eight": "8", "aath": "8", "8": "8", "आठ": "8", "एट": "8",
+            "nine": "9", "nau": "9", "9": "9", "नौ": "9", "नाइन": "9"
         }
         for word, char in digit_word_to_char.items():
             text = re.sub(r'\b(double|डबल)\s+' + word + r'\b', char * 2, text, flags=re.IGNORECASE)
             text = re.sub(r'\b(triple|ट्रिपल)\s+' + word + r'\b', char * 3, text, flags=re.IGNORECASE)
         
-        # 3. Map spoken Hindi words (Devanagari) to digits
+        # 3. Map spoken Hindi words & Devanagari transliterated English words to digits
         hindi_digit_map = {
-            "शून्य": "0", "जीरो": "0", "एक": "1", "दो": "2", "तीन": "3", "चार": "4",
-            "पांच": "5", "पाँच": "5", "छह": "6", "छः": "6", "सात": "7", "आठ": "8", "नौ": "9"
+            "शून्य": "0", "जीरो": "0", "जिरो": "0",
+            "एक": "1", "वन": "1",
+            "दो": "2", "टू": "2",
+            "तीन": "3", "थ्री": "3",
+            "चार": "4", "फोर": "4",
+            "पांच": "5", "पाँच": "5", "फाइव": "5",
+            "छह": "6", "छः": "6", "सिक्स": "6",
+            "सात": "7", "सेवन": "7",
+            "आठ": "8", "एट": "8",
+            "नौ": "9", "नाइन": "9"
         }
-        for word, digit in hindi_digit_map.items():
-            text = text.replace(word, digit)
+        for word in sorted(hindi_digit_map.keys(), key=len, reverse=True):
+            text = text.replace(word, hindi_digit_map[word])
         roman_hindi_digit_map = [
             (r'\b(shunya|zero|jiro)\b', '0'),
             (r'\b(ek|ekk|one)\b', '1'),
@@ -595,11 +671,10 @@ def to_roman_text(text: str) -> str:
                 next_char = text[i+1] if i + 1 < n else None
                 if next_char and (next_char in DEVANAGARI_MATRAS or next_char == '्'):
                     res.append(base)
+                elif next_char is None or next_char in (' ', '\t', '\n', '.', '@', '-', '_', ',', '!', '?', ';', ':'):
+                    res.append(base)
                 else:
-                    if next_char is None and len(text) > 1:
-                        res.append(base)
-                    else:
-                        res.append(base + 'a')
+                    res.append(base + 'a')
             elif char in DEVANAGARI_VOWELS_INDEPENDENT:
                 res.append(DEVANAGARI_VOWELS_INDEPENDENT[char])
             elif char in DEVANAGARI_MATRAS:
@@ -627,19 +702,42 @@ def convertSpokenEmailToText(spoken: str) -> str:
     text = re.sub(r'^\b(email|e-mail|mail)\b\s*\b(id|idea|address|number)?\b\s*\b(hai|is|hi|h)?\b\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
     text = re.sub(r'^\b(id|idea|address)\b\s*\b(hai|is|hi|h)?\b\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
     
-    # 2. General Phonetic Rule: STT mishearing of initial "Yash" -> "yes"/"yasm"/"yesm" before common Indian surnames (Mishra, Sharma, Verma, Gupta, etc.)
-    indian_surnames = r'(mishra|sharma|verma|gupta|joshi|kumar|singh|pandey|shastri|tripathi|tiwari|dubey|choubey|upadhyay|dwivedi|patel|rao|reddy|nair|banerjee|mukherjee|chatterjee)'
-    text = re.sub(r'\b(?:yes|yasm|yesm|yashm)\s*' + indian_surnames, r'yash\1', text, flags=re.IGNORECASE)
-    
-    # 3. Filter common phonetic mistranscriptions of "@"
-    text = re.sub(r'\b(at the rate of|at the rate|at rate of|at rate|at-the-rate|at the red|at the right|at the net|at the threat|at therate)\b', ' @ ', text, flags=re.IGNORECASE)
+    # 2. Convert spoken digit words inside emails
+    english_digit_words = [
+        (r'\b(zero|shunya|jiro)\b', '0'),
+        (r'\b(one|ek|ekk)\b', '1'),
+        (r'\b(two|do|doo)\b', '2'),
+        (r'\b(three|teen|tin)\b', '3'),
+        (r'\b(four|char|chaar)\b', '4'),
+        (r'\b(five|panch|paanch)\b', '5'),
+        (r'\b(six|chhe|che)\b', '6'),
+        (r'\b(seven|saat|sat)\b', '7'),
+        (r'\b(eight|aath|ath)\b', '8'),
+        (r'\b(nine|nau|now)\b', '9')
+    ]
+    for pattern, digit in english_digit_words:
+        text = re.sub(pattern, digit, text, flags=re.IGNORECASE)
+
+    # 3. Filter common phonetic mistranscriptions of "@". Local-parts are
+    # deliberately never fuzzy-corrected: an email identity is user data.
+    text = re.sub(
+        r'\b(at the rate of|at the rate|at rate of|at rate|at-the-rate|at the red|at the right|at the net|at the threat|at therate|at the ret|at theret|at the ate|at the read|at the great|at the wait|add the rate|add rate|app the rate|et the rate)\b',
+        ' @ ', text, flags=re.IGNORECASE
+    )
     text = re.sub(r'(?<=\w)\s+at\s+(?=\w+)', ' @ ', text, flags=re.IGNORECASE)
-    text = re.sub(r'\b(dot|point|doot|dott)\b', '.', text, flags=re.IGNORECASE)
-    text = re.sub(r'\b(dash|hyphen)\b', '-', text, flags=re.IGNORECASE)
-    text = re.sub(r'\b(underscore|under score)\b', '_', text, flags=re.IGNORECASE)
-    text = re.sub(r'\b(g mail|g-mail|jimmail|jmail)\b', 'gmail', text, flags=re.IGNORECASE)
-    text = re.sub(r'\b(yaho)\b', 'yahoo', text, flags=re.IGNORECASE)
-    text = re.sub(r'\b(c o m)\b', 'com', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(dot|point|doot|dott|daat|डाॅट|डॉट|डाट)\b', '.', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(dash|hyphen|डैश)\b', '-', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(underscore|under score|अंडरस्कोर)\b', '_', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(g mail|g-mail|jimmail|jmail|g m a i l|g m a a l|जीमेल|जी मेल|gimel|गिमेल|गि मेल|g m e l)\b', 'gmail', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(yaho|याहू|y a h o o)\b', 'yahoo', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(out look|out-look|autlook)\b', 'outlook', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(hot mail|hot-mail)\b', 'hotmail', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(i cloud|i-cloud|eye cloud)\b', 'icloud', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(rediff mail|rediffmail)\b', 'rediffmail', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(proton mail|protonmail)\b', 'protonmail', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(c o m|कॉम|c\.o\.m)\b', 'com', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(i n|इन|i\.n)\b', 'in', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(co in|co\.in)\b', 'co.in', text, flags=re.IGNORECASE)
     
     # 4. Repair domain cutoff (e.g. "gmail." at end of string -> "gmail.com")
     text = re.sub(r'(@(gmail|yahoo|outlook|hotmail|icloud))\s*\.\s*$', r'\1.com', text, flags=re.IGNORECASE)
@@ -650,10 +748,11 @@ def convertSpokenEmailToText(spoken: str) -> str:
         text = re.sub(r'(?<=\w)\s*\.?\s*(?=(gmail|yahoo|outlook|hotmail|icloud|mantrasetu)\.(com|in|co\.in|org|net))\b', '@', text, flags=re.IGNORECASE)
         
     email_clean = re.sub(r'\s+', '', text)
+    email_clean = email_clean.rstrip('.,;:!?\'"')
     email_clean = email_clean.replace(',', '')
     match = re.search(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', email_clean)
     if match:
-        return match.group(0)
+        return match.group(0).rstrip('.,;:!?\'"')
     return email_clean
 
 def is_fragmented_digit_transcript(text: str) -> bool:
@@ -665,7 +764,10 @@ def is_fragmented_digit_transcript(text: str) -> bool:
         "double", "triple", "zero", "shunya", "jiro", "ek", "do", "teen", "char", "panch",
         "chhe", "che", "saat", "sat", "aath", "ath", "nau", "now", "plus", "ninety", "one",
         "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
-        "mera", "my", "number", "mobile", "phone", "hai", "is", "ji", "jee", "ha", "haan"
+        "mera", "my", "number", "mobile", "phone", "hai", "is", "ji", "jee", "ha", "haan",
+        "शून्य", "जीरो", "जिरो", "एक", "वन", "दो", "टू", "तीन", "थ्री", "चार", "फोर",
+        "पांच", "पाँच", "फाइव", "छह", "छः", "सिक्स", "सात", "सेवन", "आठ", "एट", "नौ", "नाइन",
+        "डबल", "ट्रिपल", "नंबर", "मोबाइल", "फोन", "है", "मेरा"
     }
     tokens = re.findall(r'\d+|[^\d\s]+', t_lower)
     digit_indices = [i for i, tok in enumerate(tokens) if re.match(r'^\d+$', tok)]
@@ -960,9 +1062,13 @@ Return ONLY the extracted clean value, the QUESTION: string, or 'INVALID'. Do NO
         logger.info("[PANDIT-ONBOARDING] LLM extraction result for %s: %s", field, val)
         
         # Safety fallback: If the LLM returns a long rambling sentence but forgot the QUESTION: prefix,
-        # it shouldn't be accepted as a valid name/field.
-        if len(val) > 100 and not val.startswith("QUESTION:"):
-            logger.warning("[PANDIT-ONBOARDING] LLM returned unusually long response without QUESTION: prefix. Defaulting to INVALID.")
+        # it shouldn't be accepted as a valid short field. Long narrative fields (bio, achievements) allow up to 1500 chars.
+        max_allowed_len = 1500 if field in ["pandit-bio", "pandit-achievements", "bio", "achievements"] else 100
+        if len(val) > max_allowed_len and not val.startswith("QUESTION:"):
+            logger.warning(
+                "[PANDIT-ONBOARDING] LLM returned response exceeding max length %d for field %s without QUESTION: prefix. Defaulting to INVALID.",
+                max_allowed_len, field
+            )
             return "INVALID"
             
         res_val = to_roman_text(val)
@@ -1054,26 +1160,21 @@ def _validate_email(val: str, params: dict) -> FieldValidationResult:
                 err = f"Maine suna: '{val}', lekin email domain ('{domain}') sahi nahi laga. Kripya valid email address (jaise name@gmail.com) dobara bataiye."
                 return FieldValidationResult(False, error_message=err)
                 
-        # Username Post-Hoc Two-Tier Sanity & Confirmation Check against session context identity
+        # Email local-parts are opaque user identifiers.  Do not infer one from
+        # the Pandit's name: even a high string-similarity score can turn a
+        # legitimate address into a different person's address.  Every valid
+        # email is therefore preserved verbatim and explicitly confirmed.
         first_name = (params.get("pandit_first_name") or params.get("first_name") or "").lower().strip()
         last_name = (params.get("pandit_last_name") or params.get("last_name") or "").lower().strip()
-        needs_confirmation = False
+        needs_confirmation = True
         if first_name and last_name:
             import difflib
             username = email_clean.split('@')[0]
             expected_username = f"{first_name}{last_name}"
             ratio = difflib.SequenceMatcher(None, username, expected_username).ratio()
             
-            # Tier 1 (ratio >= 0.80): High-confidence phonetic STT mishearing (e.g. 'yesmishra' vs 'yashmishra' = 0.84) -> auto-correct
-            if ratio >= 0.80 and ratio < 1.0:
-                corrected_email = f"{expected_username}@{domain}"
-                logger.info("[TELEMETRY-ONBOARDING] Tier-1 high-confidence fuzzy email correction: '%s' -> '%s' (ratio=%.2f)", username, corrected_email, ratio)
-                email_clean = corrected_email
-            elif 0.60 <= ratio < 0.80:
-                # Tier 2 (0.60 <= ratio < 0.80): Borderline ratio (e.g. 'yesmistera' at 0.70, 'aguptaji' at 0.71, 'amitg99' at 0.62)
-                # Preserve exact spoken string and flag for explicit voice confirmation readback
-                needs_confirmation = True
-                logger.info("[TELEMETRY-ONBOARDING] Tier-2 borderline email ratio (ratio=%.2f): preserving spoken email '%s' for explicit confirmation readback.", ratio, email_clean)
+            if ratio < 1.0:
+                logger.info("[TELEMETRY-ONBOARDING] Email/name similarity=%.2f; preserving transcribed local-part for explicit confirmation.", ratio)
 
         logger.info("[TELEMETRY-ONBOARDING] FIELD_ACCEPTED: field=pandit-email | val=%s | needs_confirmation=%s", email_clean, needs_confirmation)
         return FieldValidationResult(True, cleaned_value=email_clean, metadata={"needs_explicit_confirmation": needs_confirmation})
@@ -1260,13 +1361,13 @@ def validate_and_process_field(field_name: str, raw_val: str, user_params: dict,
         retry_map[field_name] = current_retries
         logger.info("[CENTRAL-VALIDATOR] Validation FAILED for field: %s (attempt %d/3). Error: %s", field_name, current_retries, res.error_message)
 
-        max_allowed_retries = 2 if field_name in ["pandit-first-name", "pandit-last-name", "pandit-name"] else 3
+        max_allowed_retries = 2
         if current_retries >= max_allowed_retries:
             if field_name in ["pandit-first-name", "pandit-last-name", "pandit-name"]:
-                return False, None, "Kripya apna naam type karein", {}
+                return False, None, "Kripya apna naam type karein", {"manual_entry_required": True}
             hinglish_name = field_hinglish_names.get(field_name, "jankari")
             fallback_msg = f"Lagta hai {hinglish_name} ko samajhne mein dikkat ho rahi hai. Kripya screen par highlight ki gayi field par click karke ise manually fill kar dijiye, taaki hum aage badh sakein."
-            return False, None, fallback_msg, {}
+            return False, None, fallback_msg, {"manual_entry_required": True}
 
         return False, None, res.error_message, res.metadata
 
@@ -1317,34 +1418,43 @@ async def process_onboarding_step(
     user_params = request.user_parameters if isinstance(request.user_parameters, dict) else {}
     client_active_field = user_params.get("active_field")
     
-    # 21 fields in order (starting with pandit-avatar)
-    default_fields = [
-        "pandit-avatar",
-        "pandit-first-name",
-        "pandit-last-name",
-        "pandit-email",
-        "pandit-phone",
-        "pandit-gender",
-        "pandit-availability",
-        "pandit-city",
-        "pandit-state",
-        "pandit-service-areas",
-        "pandit-exp",
-        "pandit-gurukul",
-        "pandit-languages",
-        "pandit-spec",
-        "pandit-achievements",
-        "pandit-bio",
-        "pandit-certFile",
-        "pandit-aadhaarFile",
-        "pandit-galleryFiles",
-        "pandit-password",
-        "pandit-confirm"
-    ]
-    fields = state.get("fields", default_fields)
+    # Canonical required queue; avatar is optional and deliberately excluded.
+    default_fields = list(PANDIT_ONBOARDING_FIELD_QUEUE)
+    fields = default_fields
     state["fields"] = fields
+    # Manual fallback is completed only by an observed DOM value, never by a timer.
+    dom_snapshot = user_params.get("dom_form_data", {})
+    if isinstance(dom_snapshot, dict):
+        for field in fields:
+            dom_value = dom_snapshot.get(field) or dom_snapshot.get(field.replace("pandit-", ""))
+            if dom_value and str(dom_value).strip() and not str(dom_value).lower().endswith("_filled"):
+                state.setdefault("collected_data", {})[field] = str(dom_value).strip()
+        if dom_snapshot.get("terms_accepted") == "true":
+            state.setdefault("collected_data", {})["pandit-code-of-conduct"] = "confirmed"
+        for password_field in ("pandit-password", "pandit-confirm"):
+            if dom_snapshot.get(f"{password_field}_filled") == "true":
+                state.setdefault("collected_data", {})[password_field] = "confirmed"
+        for field, snapshot_key in (("pandit-certFile", "cert_attached"), ("pandit-aadhaarFile", "aadhaar_attached"), ("pandit-galleryFiles", "gallery_attached")):
+            if dom_snapshot.get(snapshot_key) == "true":
+                state.setdefault("collected_data", {})[field] = "confirmed"
 
     idx = state.get("current_field_index", 0)
+    # A field-specific confirmation must run before generic completion checks;
+    # otherwise a password mismatch can be hidden behind an unrelated missing
+    # field.  The confirmation handler advances or redirects deterministically.
+    if idx >= len(fields) and status != "awaiting_field_confirmation":
+        missing_fields = missing_required_pandit_fields(state)
+        if missing_fields:
+            missing_field = missing_fields[0]
+            state["current_field_index"] = fields.index(missing_field)
+            logger.warning("[PANDIT-QUEUE] Final completion blocked; missing=%s", missing_fields)
+            return orchestrator._response_builder.build_response(
+                request_id=request.request_id,
+                text_override=f"Form abhi poora nahi hua hai. Kripya {PANDIT_FIELD_LABELS.get(missing_field, missing_field)} complete kijiye.",
+                response_type=ResponseType.CHAT,
+                navigation_directive={"action": "FILL_FORM", "target": missing_field, "query": None, "active_field": missing_field, "intent": "PANDIT_ONBOARDING"},
+                metadata=ResponseMetadata(fast_path=True, latency_ms=0.0),
+            )
     current_field = client_active_field if (client_active_field and client_active_field in fields) else (fields[idx] if idx < len(fields) else "pandit-first-name")
 
     
@@ -1404,7 +1514,9 @@ async def process_onboarding_step(
                 session.update_location(page="/signup?role=pandit", field=next_field)
                 next_hname = field_hinglish_names_step.get(next_field, next_field)
                 question = f"Perfect! Ab aage chalte hain. Ab apna {next_hname} bataiye."
-                nav_directive = {"action": "FILL_FORM", "target": tentative_field, "query": tentative_value, "active_field": next_field, "intent": "PANDIT_ONBOARDING"}
+                # A transition that targets the next field must be actionable
+                # for every field kind; never emit a target with action=None.
+                nav_directive = {"action": "FILL_FORM", "target": next_field, "query": None, "active_field": next_field, "intent": "PANDIT_ONBOARDING"}
             else:
                 session.onboarding_state = None
                 question = f"Bahut badhiya {pji}! Main abhi aapka registration submit kar raha hoon."
@@ -1431,7 +1543,7 @@ async def process_onboarding_step(
             
             field_hname = field_hinglish_names_step.get(tentative_field, tentative_field)
             question = f"Maaf kijiye! Kripya apna sahi {field_hname} dobara bataiye."
-            nav_directive = {"action": None, "target": None, "query": None, "active_field": tentative_field, "intent": "PANDIT_ONBOARDING", "fields": None}
+            nav_directive = {"action": "FILL_FORM", "target": tentative_field, "query": None, "active_field": tentative_field, "intent": "PANDIT_ONBOARDING", "fields": None}
             session.update_location(page="/signup?role=pandit", field=tentative_field)
             return orchestrator._response_builder.build_response(
                 request_id=request.request_id,
@@ -1487,16 +1599,31 @@ async def process_onboarding_step(
 
         logger.info("[PANDIT-ONBOARDING] AWAITING CONFIRMATION turn | user_msg: %r", request.user_message)
         if is_affirmative(request.user_message):
+            step3_start = fields.index("pandit-aadhaarFile")
+            missing_before_step3 = [field for field in missing_required_pandit_fields(state) if field in fields[:step3_start]]
+            if missing_before_step3:
+                missing_field = missing_before_step3[0]
+                state["status"] = "collecting"
+                state["current_field_index"] = fields.index(missing_field)
+                missing_labels = ", ".join(PANDIT_FIELD_LABELS.get(field, field) for field in missing_before_step3)
+                logger.warning("[PANDIT-QUEUE] Completion gate blocked Step 3; missing=%s", missing_before_step3)
+                return orchestrator._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override=f"Aage badhne se pehle yeh jankari baaki hai: {missing_labels}. Kripya pehle {PANDIT_FIELD_LABELS.get(missing_field, missing_field)} bataiye.",
+                    response_type=ResponseType.CHAT,
+                    navigation_directive={"action": "FILL_FORM", "target": missing_field, "query": None, "active_field": missing_field, "intent": "PANDIT_ONBOARDING"},
+                    metadata=ResponseMetadata(fast_path=True, latency_ms=0.0),
+                )
             logger.info("[PANDIT-ONBOARDING] Step 1 & 2 Summary CONFIRMED by user. Moving to Step 3 uploads.")
             state["status"] = "collecting"
-            cert_file_idx = fields.index("pandit-certFile")
-            state["current_field_index"] = cert_file_idx # Start of Step 3 (pandit-certFile)
-            state.setdefault("field_retry_count", {})["pandit-certFile"] = 0
+            cert_file_idx = fields.index("pandit-aadhaarFile")
+            state["current_field_index"] = cert_file_idx # Start of required Step 3 identity proof
+            state.setdefault("field_retry_count", {})["pandit-aadhaarFile"] = 0
             
-            next_field = fields[cert_file_idx] # "pandit-certFile"
+            next_field = fields[cert_file_idx] # "pandit-aadhaarFile"
             question = (
                 f"Bahut badhiya {sn_ji}! Maine aapki saari details check kar li hain aur form mein save kar di hain. "
-                f"Chaliye ab Step 3 par chalte hain. Kripya screen par apna Shiksha Pramanpatra (Certificate) upload kijiye aur mujhe 'ho gaya' boliye."
+                f"Chaliye ab Step 3 par chalte hain. Kripya screen par apna ID proof upload kijiye aur mujhe 'ho gaya' boliye."
             )
             nav_directive = {
                 "action": "NAVIGATE",
@@ -1529,7 +1656,7 @@ async def process_onboarding_step(
             state.setdefault("field_retry_count", {})[target_field] = 0
             hinglish_name = field_hinglish_names_step.get(target_field, "jankari")
             question = f"Kshama karein {fn_ji}! Kripya apna naya {hinglish_name} bataiye."
-            nav_directive = {"action": None, "target": None, "query": None, "active_field": target_field, "intent": "PANDIT_ONBOARDING", "fields": None}
+            nav_directive = {"action": "FILL_FORM", "target": target_field, "query": None, "active_field": target_field, "intent": "PANDIT_ONBOARDING", "fields": None}
             return orchestrator._response_builder.build_response(
                 request_id=request.request_id,
                 text_override=question,
@@ -1572,8 +1699,8 @@ async def process_onboarding_step(
         
         nav_directive = {
             "action": "FILL_FORM",
-            "target": "pandit-state",
-            "query": matched_state,
+            "target": next_field,
+            "query": None,
             "active_field": next_field,
             "intent": "PANDIT_ONBOARDING",
             "fields": [
@@ -1611,7 +1738,7 @@ async def process_onboarding_step(
                 request_id=request.request_id,
                 text_override=err_msg,
                 response_type=ResponseType.CHAT,
-                navigation_directive={"action": None, "target": None, "query": None, "active_field": target_field, "intent": "PANDIT_ONBOARDING", "fields": None},
+                navigation_directive={"action": "FILL_FORM", "target": target_field, "query": None, "active_field": target_field, "intent": "PANDIT_ONBOARDING", "fields": None},
                 metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
             )
             
@@ -1665,7 +1792,11 @@ async def process_onboarding_step(
         if v and str(v).strip() and (k not in collected or not collected[k]):
             collected[k] = str(v).strip()
     
-    if client_active_field and client_active_field in fields:
+    is_client_field_filled = bool(client_active_field and client_active_field in collected and str(collected[client_active_field]).strip())
+    progress_phrases = ["aage", "next", "ho gaya", "kar diya", "done", "skip", "continue", "badho", "चलो", "आगे", "हो गया"]
+    is_progress_intent = any(p in (raw_msg or "").lower() for p in progress_phrases)
+
+    if client_active_field and client_active_field in fields and not (is_client_field_filled and is_progress_intent):
         state["current_field_index"] = fields.index(client_active_field)
         logger.info("[PANDIT-ONBOARDING] Using client active_field: %s (index %d)", client_active_field, state["current_field_index"])
     else:
@@ -1691,7 +1822,7 @@ async def process_onboarding_step(
                         request_id=request.request_id,
                         text_override=msg,
                         response_type=ResponseType.CHAT,
-                        navigation_directive={"action": None, "target": None, "query": None, "active_field": current_field, "intent": "PANDIT_ONBOARDING"},
+                        navigation_directive={"action": "FILL_FORM", "target": current_field, "query": None, "active_field": current_field, "intent": "PANDIT_ONBOARDING"},
                         metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
                     )
     
@@ -1702,7 +1833,7 @@ async def process_onboarding_step(
             state["awaiting_more_achievements"] = False
             state["field_retry_count"]["pandit-achievements"] = 0
             question = f"Dhanyawad {fn_ji}! Kripya apni agli upalabdhi (achievement) batayein."
-            nav_directive = {"action": None, "target": None, "query": None, "active_field": "pandit-achievements", "intent": "PANDIT_ONBOARDING", "fields": None}
+            nav_directive = {"action": "FILL_FORM", "target": "pandit-achievements", "query": None, "active_field": "pandit-achievements", "intent": "PANDIT_ONBOARDING", "fields": None}
             return orchestrator._response_builder.build_response(
                 request_id=request.request_id,
                 text_override=question,
@@ -1710,14 +1841,14 @@ async def process_onboarding_step(
                 navigation_directive=nav_directive,
                 metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
             )
-        else:
+        elif is_negative(raw_msg):
             state["awaiting_more_achievements"] = False
             state["current_field_index"] += 1
             next_idx = state["current_field_index"]
             next_field = fields[next_idx]
             reaction = f"Theek hai {fn_ji}."
             question = f"{reaction} Kripya apne baare mein thoda batayein (Bio), jaise aapki spiritual journey ya visheshta."
-            nav_directive = {"action": None, "target": None, "query": None, "active_field": next_field, "intent": "PANDIT_ONBOARDING", "fields": None}
+            nav_directive = {"action": "FILL_FORM", "target": next_field, "query": None, "active_field": next_field, "intent": "PANDIT_ONBOARDING", "fields": None}
             session.update_location(page="/signup?role=pandit", field=next_field)
             orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
             return orchestrator._response_builder.build_response(
@@ -1727,6 +1858,15 @@ async def process_onboarding_step(
                 navigation_directive=nav_directive,
                 metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
             )
+        # A failed or unrelated recognition result is not consent to advance.
+        # Keep every yes/no sub-state open until an explicit answer arrives.
+        return orchestrator._response_builder.build_response(
+            request_id=request.request_id,
+            text_override="Kshama kijiye, mujhe sirf Haan ya Nahi mein jawab chahiye. Kya aap koi aur achievement add karna chahte hain?",
+            response_type=ResponseType.CHAT,
+            navigation_directive={"action": "FILL_FORM", "target": "pandit-achievements", "query": None, "active_field": "pandit-achievements", "intent": "PANDIT_ONBOARDING"},
+            metadata=ResponseMetadata(fast_path=True, latency_ms=0.0),
+        )
 
     # ── Profile Photo (pandit-avatar) special handling ──
     if current_field == "pandit-avatar":
@@ -1757,8 +1897,8 @@ async def process_onboarding_step(
             question = f"Koi baat nahi {pji}. Ab apna pehla naam (First Name) bataiye."
             nav_directive = {
                 "action": "FILL_FORM",
-                "target": "pandit-avatar",
-                "query": "skipped",
+                "target": next_field,
+                "query": None,
                 "active_field": next_field,
                 "intent": "PANDIT_ONBOARDING",
                 "fields": None
@@ -1780,8 +1920,8 @@ async def process_onboarding_step(
                 question = f"Bahut sundar photo! Maine aapki profile photo set kar di hai. Ab apna pehla naam (First Name) bataiye."
                 nav_directive = {
                     "action": "FILL_FORM",
-                    "target": "pandit-avatar",
-                    "query": "uploaded",
+                    "target": next_field,
+                    "query": None,
                     "active_field": next_field,
                     "intent": "PANDIT_ONBOARDING",
                     "fields": None
@@ -1799,8 +1939,8 @@ async def process_onboarding_step(
                 # No file selected in DOM! Do NOT advance active_field!
                 question = "Mujhe koi photo nahi mili, kya aapne 'Choose Picture' par click karke photo select ki hai? Ya phir 'skip' boliye."
                 nav_directive = {
-                    "action": None,
-                    "target": None,
+                    "action": "FILL_FORM",
+                    "target": "pandit-avatar",
                     "query": None,
                     "active_field": "pandit-avatar",
                     "intent": "PANDIT_ONBOARDING",
@@ -1815,7 +1955,7 @@ async def process_onboarding_step(
                 )
         else:
             question = f"Namaste! Aap chahein to apni profile photo upload kar sakte hain, ye optional hai. Agar upload karna hai to 'Choose Picture' par click kijiye, nahi to bas 'skip' ya 'aage badho' boliye."
-            nav_directive = {"action": None, "target": None, "query": None, "active_field": "pandit-avatar", "intent": "PANDIT_ONBOARDING", "fields": None}
+            nav_directive = {"action": "FILL_FORM", "target": "pandit-avatar", "query": None, "active_field": "pandit-avatar", "intent": "PANDIT_ONBOARDING", "fields": None}
             return orchestrator._response_builder.build_response(
                 request_id=request.request_id,
                 text_override=question,
@@ -1842,6 +1982,11 @@ async def process_onboarding_step(
         val = await extract_field_value(raw_msg, current_field, ai_service)
         llm_elapsed_ms = int((time.time() - llm_start_time) * 1000)
         logger.info(f"[TIMING-LLM] Field extraction completed in {llm_elapsed_ms}ms | field={current_field} | extracted={val!r}")
+        
+        # If extraction from speech failed or returned INVALID, but manual DOM value exists, fallback to DOM value
+        if (not val or val == "INVALID") and manual_dom_val and str(manual_dom_val).strip() and not is_multiselect_field:
+            logger.info("[PANDIT-ONBOARDING] Voice extraction was invalid/empty. Falling back to valid manual DOM value for %s: %r", current_field, manual_dom_val)
+            val = str(manual_dom_val).strip()
     
     is_valid, cleaned_val, err_msg, meta = validate_and_process_field(
         current_field,
@@ -1866,6 +2011,10 @@ async def process_onboarding_step(
         )
 
     if not is_valid:
+        if meta and meta.get("manual_entry_required"):
+            state["manual_pending_field"] = current_field
+            state["status"] = "collecting"
+            logger.warning("[PANDIT-QUEUE] Manual entry required for %s; queue remains blocked until DOM confirms it.", current_field)
         # Check for navigation intent fallback ONLY after validation fails
         from app.orchestrator.navigation_intent_detector import is_navigation_command, resolve_navigation_target
         if is_navigation_command(request.user_message):
@@ -1889,7 +2038,7 @@ async def process_onboarding_step(
                     metadata=ResponseMetadata(fast_path=True, latency_ms=0.0)
                 )
 
-        nav_directive = {"action": None, "target": None, "query": None, "active_field": current_field, "intent": "PANDIT_ONBOARDING", "fields": None}
+        nav_directive = {"action": "FILL_FORM", "target": current_field, "query": None, "active_field": current_field, "intent": "PANDIT_ONBOARDING", "fields": None}
         return orchestrator._response_builder.build_response(
             request_id=request.request_id,
             text_override=err_msg,
@@ -1944,8 +2093,10 @@ async def process_onboarding_step(
             
             nav_directive = {
                 "action": "FILL_FORM",
-                "target": current_field,
-                "query": val,
+                # City/state are already included in fields; the next client
+                # action is on the queue's next field, not the completed city.
+                "target": next_field,
+                "query": None,
                 "active_field": next_field,
                 "intent": "PANDIT_ONBOARDING",
                 "fields": [
@@ -1994,8 +2145,8 @@ async def process_onboarding_step(
             question = f"{reaction} Kripya apna state ya rajya bataiye."
             nav_directive = {
                 "action": "FILL_FORM",
-                "target": current_field,
-                "query": val,
+                "target": next_field,
+                "query": None,
                 "active_field": next_field,
                 "intent": "PANDIT_ONBOARDING",
                 "fields": None
@@ -2026,6 +2177,7 @@ async def process_onboarding_step(
         "intent": "PANDIT_ONBOARDING",
         "fields": None
     }
+    nav_directive = structured_onboarding_directive(nav_directive)
     orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
     return orchestrator._response_builder.build_response(
         request_id=request.request_id,
@@ -2034,5 +2186,3 @@ async def process_onboarding_step(
         navigation_directive=nav_directive,
         metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
     )
-
-

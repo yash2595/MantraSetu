@@ -14,6 +14,7 @@ from app.voice.schemas import AudioEncoding
 from app.voice.tts.base import ITTSProvider
 from app.voice.tts.cache_manager import TTSCacheManager, get_tts_cache_manager
 from app.voice.tts.schemas import AudioChunk, VoiceSynthesisRequest
+from app.utils.identifier_speech import render_long_numeric_identifiers
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +81,10 @@ def clean_text_for_tts(text: str) -> str:
     # 2. Strip all emoji characters
     cleaned = EMOJI_PATTERN.sub('', cleaned)
 
-    # 3. Format continuous 10-digit mobile numbers into spaced digit groups for TTS
-    cleaned = re.sub(r'\b([56789]\d{2})(\d{3})(\d{4})\b', r'\1 \2 \3', cleaned)
+    # 3. Identifier-like number sequences (phone/OTP/PIN) are rendered as
+    # alphabetic digit words.  Spaces alone can be re-normalised by TTS as a
+    # cardinal number; words cannot become lakh/crore place-value speech.
+    cleaned = render_long_numeric_identifiers(cleaned)
 
     # 4. Normalize multiple consecutive punctuation marks
     cleaned = re.sub(r'!+', '!', cleaned)

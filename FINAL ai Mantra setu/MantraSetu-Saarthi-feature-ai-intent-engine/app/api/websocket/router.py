@@ -156,15 +156,21 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
 
     keepalive_worker = asyncio.create_task(keepalive_task())
     consecutive_empty_count = 0
+    audio_bytes_received = 0
 
     async def _handle_audio_end(end_frame: WebSocketEnvelope) -> None:
-        nonlocal active_session_id, consecutive_empty_count
+        nonlocal active_session_id, consecutive_empty_count, audio_bytes_received
+        turn_request_id = end_frame.request_id or f"turn_{uuid4().hex[:12]}"
+        # Snapshot and reset at the turn boundary. Frames arriving while STT runs
+        # belong to the next turn and must not inflate this turn's diagnostics.
+        turn_audio_bytes = audio_bytes_received
+        audio_bytes_received = 0
         print(f"DEBUG: _handle_audio_end task started for session {active_session_id}", flush=True)
         if not active_session_id:
             active_session_id = primary_session_id or end_frame.session_id
         if active_session_id:
             current_page_from_frame = end_frame.payload.get("current_page", None)
-            logger.info(f"[AUDIO-END-RECEIVED] Processing STT for session={active_session_id}, current_page={current_page_from_frame!r}")
+            logger.info(f"[AUDIO-END-RECEIVED] request_id={turn_request_id} session_id={active_session_id} captured_bytes={turn_audio_bytes} current_page={current_page_from_frame!r}")
             try:
                 user_params = end_frame.payload if isinstance(end_frame.payload, dict) else {}
                 user_params["event_timestamp_ms"] = getattr(end_frame, "timestamp_ms", int(__import__('time').time() * 1000))
@@ -172,7 +178,8 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                 resp, final_text = await voice_gateway.finish_voice_session(
                     active_session_id,
                     current_page=current_page_from_frame,
-                    user_parameters=user_params
+                    user_parameters=user_params,
+                    request_id=turn_request_id,
                 )
                 logger.info(f"[FRESH-STT] '{final_text}'")
                 logger.info(f"[STT-RESULT] text='{final_text}' confidence={getattr(resp, 'confidence', 1.0)}")
@@ -209,6 +216,8 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                     except Exception as reset_err:
                         logger.warning(f"[WS-ROUTER] Failed to reset VoiceSessionStatus: {reset_err}")
 
+                    recognition_status = (getattr(resp, "navigation_directive", None) or {}).get("recognition_status", "no_speech")
+                    stt_meta = getattr(resp, "navigation_directive", None) or {}
                     repeat_msg = "Kshama karein, main sun nahi paya. Kripya dobara bataiye."
                     ai_reply = WebSocketEnvelope(
                         request_id=end_frame.request_id,
@@ -221,6 +230,12 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                             "action": None,
                             "target": None,
                             "active_field": end_frame.payload.get("active_field") if end_frame.payload else None,
+                            "recognition_status": recognition_status,
+                            "transcript": stt_meta.get("transcript", ""),
+                            "stt_provider": stt_meta.get("stt_provider", "unknown"),
+                            "stt_confidence": stt_meta.get("stt_confidence", 0.0),
+                            "audio_bytes_received": stt_meta.get("audio_bytes_received", turn_audio_bytes),
+                            "vad_valid": stt_meta.get("vad_valid", False),
                         },
                     )
                     await safe_enqueue_outbound(outbound_queue, ai_reply, "AI_RESPONSE")
@@ -259,6 +274,14 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                 _query = _nav.get("query") if _nav else None
                 _fields = _nav.get("fields") if _nav else None
                 _active_field = _nav.get("active_field") if _nav else None
+                _recognition_status = _nav.get("recognition_status", "stt_error") if _nav else "stt_error"
+                _transcript = _nav.get("transcript", final_text) if _nav else final_text
+                _stt_provider = _nav.get("stt_provider", "unknown") if _nav else "unknown"
+                _stt_confidence = _nav.get("stt_confidence", 0.0) if _nav else 0.0
+                _audio_bytes = _nav.get("audio_bytes_received", turn_audio_bytes) if _nav else turn_audio_bytes
+                _vad_valid = _nav.get("vad_valid", False) if _nav else False
+                _confidence_available = _nav.get("stt_confidence_available", False) if _nav else False
+                logger.info("[DIAG-INVESTIGATION][AI-RESPONSE] request_id=%s session_id=%s transcript_length=%d recognition_status=%s intent=%s action=%s", turn_request_id, active_session_id, len(_transcript or ""), _recognition_status, _intent, _action)
                 logger.info(
                     "[WS-ROUTER] AI_RESPONSE payload: target=%s  action=%s  intent=%s  query=%s  fields=%s  active_field=%s  text=%r",
                     _target, _action, _intent, _query, _fields, _active_field, resp.text[:80] if resp.text else "",
@@ -277,6 +300,13 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                         "query": _query,
                         "fields": _fields,
                         "active_field": _active_field,
+                        "recognition_status": _recognition_status,
+                        "transcript": _transcript,
+                        "stt_provider": _stt_provider,
+                        "stt_confidence": _stt_confidence,
+                        "stt_confidence_available": _confidence_available,
+                        "audio_bytes_received": _audio_bytes,
+                        "vad_valid": _vad_valid,
                     },
                 )
                 await safe_enqueue_outbound(outbound_queue, ai_reply, "AI_RESPONSE")
@@ -521,8 +551,10 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                 audio_b64 = frame.payload.get("data", "")
                 if audio_b64:
                     try:
-                        logger.info(f"[FRAME-RECEIVED] Got AUDIO_FRAME, session={active_session_id}, size={len(audio_b64)}")
+                        logger.info(f"[FRAME-RECEIVED] request_id={frame.request_id} session={active_session_id} encoded_bytes={len(audio_b64)}")
                         chunk = base64.b64decode(audio_b64)
+                        audio_bytes_received += len(chunk)
+                        logger.info(f"[DIAG-INVESTIGATION][FRAME] request_id={frame.request_id} decoded_bytes={len(chunk)} cumulative_bytes={audio_bytes_received}")
                         await voice_gateway.process_audio_chunk(active_session_id, chunk)
                     except Exception as e:
                         if type(e).__name__ == "SafetyCapExceededError":

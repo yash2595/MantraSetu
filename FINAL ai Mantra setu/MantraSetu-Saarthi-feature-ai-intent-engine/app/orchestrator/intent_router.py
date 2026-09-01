@@ -128,9 +128,9 @@ class FastPathIntentRouter:
                 "Bahut badhiya! Main aapke liye Signup page khol raha hoon."
             ]
             pandit_signup_resps = [
-                "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Chaliye, ab hum aapka registration shuru karte hain. Sabse pehle, apna poora naam bataiye.",
-                "Har Har Mahadev! Welcome Panditji! Aapke onboarding ke liye main Pandit registration page khol raha hoon. Sabse pehle apna poora naam share kariye.",
-                "Jai Shri Ram! Panditji, aapka swagat hai! Main Pandit registration page open kar raha hoon. Kripya apna poora naam bataiye."
+                "Om Namah Shivaya! MantraSetu parivar mein aapka hardik swagat hai, Panditji. Chaliye, ab hum aapka registration shuru karte hain. Namaste! Aap chahein to apni profile photo upload kar sakte hain, ye optional hai. Agar upload karna hai to 'Choose Picture' par click kijiye, nahi to bas 'skip' ya 'aage badho' boliye.",
+                "Har Har Mahadev! Welcome Panditji! Aapke onboarding ke liye main Pandit registration page khol raha hoon. Namaste! Aap chahein to apni profile photo upload kar sakte hain, ya bas 'skip' boliye.",
+                "Jai Shri Ram! Panditji, aapka swagat hai! Main Pandit registration page open kar raha hoon. Namaste! Aap chahein to apni profile photo upload kar sakte hain, ya bas 'skip' boliye."
             ]
             home_resps = [
                 "Ji, main Home page par wapas le ja raha hoon.",

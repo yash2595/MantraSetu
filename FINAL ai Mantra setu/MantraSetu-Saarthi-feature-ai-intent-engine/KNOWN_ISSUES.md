@@ -2,13 +2,13 @@
 
 ## Voice & AI Intent Engine
 
-### 1. InWorld STT Provider - Empty API Responses (2026-08-28 & 2026-08-29)
-* **Date:** 2026-08-28 (First observed) | Re-checked: 2026-08-29
+### 1. InWorld STT Provider - Empty API Responses (Active Investigation)
+* **Status:** Under active investigation | First observed: 2026-08-28 | Latest re-check: 2026-09-01
+* **Mandated Provider:** Inworld STT is the required STT provider for the project.
 * **Component:** `InWorldSTTAdapter` (via `/stt/v1/recognize` endpoint)
-* **Symptom:** The API repeatedly returns HTTP 200 OK with `Content-Length: 0` and an empty response body instead of valid JSON transcriptions. Latency has also severely degraded, with average Time to First Byte (TTFB) hitting **2046ms** (compared to ~220ms previously).
-* **Verification:** Confirmed via fresh isolated live validation test (`test_inworld_stt_live_validation.py`) on 4 real human WAV files. All 4 requests failed with the same `Empty-200` bug.
-* **Current Mitigation:** The system has been switched to use Groq as the default STT provider. `DEFAULT_STT_PROVIDER=groq` is set in `.env` and is the permanent active default.
-* **Next Steps:** STT migration to InWorld is **PAUSED indefinitely**. Do not retry InWorld STT tests automatically or toggle the environment variable. Report this issue with reproducible parameters (multipart WAV files,Basic Auth headers, `/stt/v1/recognize` endpoint) to InWorld support channels/Discord. We will only revisit if/when InWorld confirms a fix.
+* **Symptom:** The endpoint `https://api.inworld.ai/stt/v1/recognize` repeatedly returns HTTP 200 OK with `content-length: 0` and an empty response body when multipart WAV audio is submitted with Basic Auth, instead of returning JSON transcriptions.
+* **Verification:** Re-verified via isolated diagnostic script (`scratch/investigate_inworld_stt.py`) across multiple authentication and request permutations.
+* **Next Steps:** Review diagnostic findings with Yash to verify whether InWorld requires account/project provisioning adjustments, API key permissions update, or specific upstream configuration.
 
 ## Pending Manual Verification Items
 

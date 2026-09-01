@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import logging
 import time
 from typing import Any
@@ -18,6 +19,10 @@ from app.voice.stt.base import ISpeechRecognizer
 from app.voice.transcript import TranscriptAggregator
 
 logger = logging.getLogger(__name__)
+
+# Keep server-side capture capacity aligned with the browser's long-answer
+# window.  Free-text onboarding answers must not be finalised at 12 seconds.
+MAX_VOICE_TURN_SECONDS = 20.0
 
 
 class VoiceGateway:
@@ -108,7 +113,7 @@ class VoiceGateway:
         self._buffers[session.session_id] = AudioBuffer()
         self._aggregators[session.session_id] = TranscriptAggregator()
         from app.voice.vad import VoiceActivityDetector
-        self._vads[session.session_id] = VoiceActivityDetector(min_speech_duration_sec=0.15, sample_rate=sample_rate, safety_cap_sec=12.0)
+        self._vads[session.session_id] = VoiceActivityDetector(min_speech_duration_sec=0.15, sample_rate=sample_rate, safety_cap_sec=MAX_VOICE_TURN_SECONDS)
         await self._speech_recognizer.start_session(session)
         return session
 
@@ -131,7 +136,7 @@ class VoiceGateway:
             self._aggregators[session_id] = TranscriptAggregator()
         if session_id not in self._vads:
             from app.voice.vad import VoiceActivityDetector
-            self._vads[session_id] = VoiceActivityDetector(min_speech_duration_sec=0.15, sample_rate=session.sample_rate or 16000, safety_cap_sec=12.0)
+            self._vads[session_id] = VoiceActivityDetector(min_speech_duration_sec=0.15, sample_rate=session.sample_rate or 16000, safety_cap_sec=MAX_VOICE_TURN_SECONDS)
 
         buffer = self._buffers.get(session_id)
         if buffer:
@@ -158,6 +163,7 @@ class VoiceGateway:
         session_id: str,
         current_page: str | None = None,
         user_parameters: dict | None = None,
+        request_id: str | None = None,
     ) -> tuple[Any, str]:
         """Finalize voice stream, generate final transcript, and invoke AIOrchestrator.process()."""
         session = await self._session_manager.get_session(session_id)
@@ -166,35 +172,46 @@ class VoiceGateway:
 
         session.status = VoiceSessionStatus.PROCESSING
         session.touch()
+        # A WebSocket session spans many turns; diagnostics must use the turn ID.
+        turn_request_id = request_id or session_id
+        session.context_data["voice_turn_request_id"] = turn_request_id
 
         buffer = self._buffers.pop(session_id, None) or AudioBuffer()
         self._aggregators.pop(session_id, None)
 
         # ── Pre-STT VAD Gate: Verify minimum 0.25s active human speech ──
+        pre_flush_bytes = buffer.size
         raw_pcm_bytes = buffer.flush()
+        logger.info(
+            "[AUDIO-BUFFER] request_id=%s session_id=%s pre_flush_bytes=%d detached_from_live_buffer=true",
+            turn_request_id, session_id, pre_flush_bytes,
+        )
         vad = self._vads.pop(session_id, None)
         if not vad:
             from app.voice.vad import VoiceActivityDetector
-            vad = VoiceActivityDetector(min_speech_duration_sec=0.15, sample_rate=session.sample_rate or 16000, safety_cap_sec=12.0)
+            vad = VoiceActivityDetector(min_speech_duration_sec=0.15, sample_rate=session.sample_rate or 16000, safety_cap_sec=MAX_VOICE_TURN_SECONDS)
             vad.process_chunk(raw_pcm_bytes)
         
         vad_analysis = vad.get_analysis()
+        vad_valid = bool(vad_analysis["is_valid_speech"])
 
         # ── [DIAG-INVESTIGATION] VAD Gate Decision ──
         logger.info(
-            "[DIAG-INVESTIGATION][VAD] session=%s | pcm_bytes=%d | wav_would_be=%d | "
+            "[DIAG-INVESTIGATION][VAD] request_id=%s session_id=%s provider=%s pcm_bytes=%d | wav_would_be=%d | "
             "speech_dur=%.3fs | total_dur=%.3fs | min_required=0.15s | "
             "vad_valid=%s | reason=%s",
+            turn_request_id,
             session_id,
+            self._speech_recognizer.provider_name,
             len(raw_pcm_bytes),
             len(raw_pcm_bytes) + 44,   # WAV header is 44 bytes
             vad_analysis["speech_duration_sec"],
             vad_analysis["total_duration_sec"],
-            vad_analysis["is_valid_speech"],
+            vad_valid,
             vad_analysis["reason"],
         )
 
-        if not vad_analysis["is_valid_speech"]:
+        if not vad_valid:
             logger.warning(
                 "[VAD-GATE-DISCARD] Pre-STT VAD Gate rejected audio buffer for session %s (speech_duration=%.2fs, total=%.2fs, reason=%s). Discarding buffer without calling STT/LLM.",
                 session.session_id, vad_analysis["speech_duration_sec"], vad_analysis["total_duration_sec"], vad_analysis["reason"]
@@ -210,7 +227,7 @@ class VoiceGateway:
             repeat_msg = "Kshama karein, main sun nahi paya. Kripya apna jawab dobara boliye."
             vad_discard_response = OrchestratorResponse(
                 response_id=f"resp_vad_discard_{session_id[:8]}",
-                request_id=session_id,
+                request_id=turn_request_id,
                 text=repeat_msg,
                 response_type=ResponseType.CHAT,
                 navigation_directive={
@@ -218,17 +235,33 @@ class VoiceGateway:
                     "target": None,
                     "query": None,
                     "active_field": current_field,
-                    "intent": "REPEAT_PROMPT"
+                    "intent": "REPEAT_PROMPT",
+                    "recognition_status": "no_speech",
+                    "vad_valid": vad_valid,
                 }
+            )
+            buffer.clear()
+            logger.info(
+                "[AUDIO-BUFFER] request_id=%s session_id=%s post_flush_bytes=%d",
+                turn_request_id, session_id, buffer.size,
             )
             return vad_discard_response, ""
 
         buffer_size_bytes = buffer.size
         session.context_data["client_active_field"] = user_parameters.get("active_field") if user_parameters else None
         stt_result = await self._speech_recognizer.finish_session(session, buffer)
+        # This object was detached before STT.  Clearing it after the provider has
+        # consumed it proves it cannot leak PCM into a later voice turn.
+        buffer.clear()
+        logger.info(
+            "[AUDIO-BUFFER] request_id=%s session_id=%s post_flush_bytes=%d",
+            turn_request_id, session_id, buffer.size,
+        )
         logger.info(f"[DIAGNOSTIC] RAW STT TRANSCRIPT before LLM extraction: {stt_result.text!r}")
 
         final_text = (stt_result.text or "").strip()
+        stt_status = stt_result.metadata.get("status", "success")
+        recognition_status = "ok" if final_text else ("stt_error" if stt_status not in {"success", "empty", "skipped"} else "no_speech")
         stt_engine_model = stt_result.metadata.get("model", stt_result.provider)
         
         if "gemini" in stt_engine_model.lower():
@@ -257,18 +290,21 @@ class VoiceGateway:
         remaining_words = [w for w in words if w not in fillers]
         
         # 3. Confidence threshold
-        is_low_confidence = stt_result.confidence is not None and stt_result.confidence < 0.40
+        confidence_available = bool(stt_result.metadata.get("confidence_available", False))
+        is_low_confidence = confidence_available and stt_result.confidence < 0.40
 
         # ── [DIAG-INVESTIGATION] Full STT gate breakdown ──
         logger.info(
-            "[DIAG-INVESTIGATION][STT-GATE] session=%s | raw_transcript=%r | "
-            "confidence=%.4f | threshold=0.40 | is_low_conf=%s | "
+            "[DIAG-INVESTIGATION][STT-GATE] request_id=%s session_id=%s | raw_transcript=%r | "
+            "confidence=%.4f | confidence_available=%s | threshold=0.40 | is_low_conf=%s | "
             "tier=%s | model=%s | audio_dur=%.3fs | buffer_bytes=%d | "
             "words_after_filler_strip=%r | remaining_word_count=%d | "
             "clean_marker_empty=%s | noise_markers_removed=%s",
+            turn_request_id,
             session.session_id,
             final_text,
             stt_result.confidence if stt_result.confidence is not None else -1.0,
+            confidence_available,
             is_low_confidence,
             stt_tier_label,
             stt_engine_model,
@@ -319,6 +355,7 @@ class VoiceGateway:
         is_name_field = current_field in ["pandit-first-name", "pandit-last-name", "pandit-name"]
 
         if is_noise:
+            recognition_status = "low_confidence" if is_low_confidence else "no_speech"
             stt_fail_count = getattr(session, "stt_fail_count", 0) + 1
             session.stt_fail_count = stt_fail_count
             
@@ -342,7 +379,8 @@ class VoiceGateway:
                     navigation_directive={
                         "action": "FILL_FORM", 
                         "target": current_field or "pandit-first-name", 
-                        "query": None, 
+                        "query": None,
+                        "recognition_status": recognition_status,
                         "active_field": current_field or "pandit-first-name", 
                         "intent": "PANDIT_ONBOARDING"
                     }
@@ -405,6 +443,18 @@ class VoiceGateway:
             self._buffers.pop(session_id, None)
             self._aggregators.pop(session_id, None)
             self._vads.pop(session_id, None)
+            updated_directive = dict(repeat_response.navigation_directive or {})
+            updated_directive.update({
+                "recognition_status": "low_confidence" if is_low_confidence else "no_speech",
+                "transcript": final_text,
+                "stt_provider": stt_result.provider,
+                "stt_confidence": stt_result.confidence,
+                "audio_bytes_received": buffer_size_bytes,
+                "vad_valid": vad_valid,
+                "stt_confidence_available": confidence_available,
+            })
+            repeat_response = replace(repeat_response, navigation_directive=updated_directive)
+            logger.warning("[DIAG-INVESTIGATION][STT] request_id=%s session_id=%s provider=%s pcm_bytes=%d transcript_length=%d confidence=%.3f confidence_available=%s status=%s provider_error=%s", turn_request_id, session_id, stt_result.provider, buffer_size_bytes, len(final_text), stt_result.confidence or 0.0, confidence_available, repeat_response.navigation_directive["recognition_status"], stt_result.metadata.get("error"))
             return repeat_response, ""
         else:
             session.stt_fail_count = 0  # Reset fail count on clean transcript
@@ -463,6 +513,22 @@ class VoiceGateway:
 
         # Delegate execution to frozen Module 1 AIOrchestrator
         response = await self._ai_orchestrator.process(interaction_request)
+        # STT facts are transport metadata, deliberately independent of intent/action.
+        updated_directive = dict(response.navigation_directive or {})
+        updated_directive.update({
+            "recognition_status": recognition_status,
+            "transcript": final_text,
+            "stt_provider": stt_result.provider,
+            "stt_confidence": stt_result.confidence,
+            "stt_confidence_available": confidence_available,
+            "audio_bytes_received": buffer_size_bytes,
+            "vad_valid": vad_valid,
+        })
+        response = replace(response, navigation_directive=updated_directive)
+        logger.info(
+            "[DIAG-INVESTIGATION][STT] request_id=%s session_id=%s provider=%s pcm_bytes=%d transcript_length=%d confidence=%.3f confidence_available=%s status=%s provider_error=%s",
+            turn_request_id, session_id, stt_result.provider, buffer_size_bytes, len(final_text), stt_result.confidence or 0.0, confidence_available, recognition_status, stt_result.metadata.get("error"),
+        )
 
         # Keep session alive for multi-turn voice interaction
         session.status = VoiceSessionStatus.CONNECTED
@@ -472,7 +538,7 @@ class VoiceGateway:
             self._aggregators[session_id] = TranscriptAggregator()
         if session_id not in self._vads:
             from app.voice.vad import VoiceActivityDetector
-            self._vads[session_id] = VoiceActivityDetector(min_speech_duration_sec=0.15, sample_rate=session.sample_rate or 16000, safety_cap_sec=12.0)
+            self._vads[session_id] = VoiceActivityDetector(min_speech_duration_sec=0.15, sample_rate=session.sample_rate or 16000, safety_cap_sec=MAX_VOICE_TURN_SECONDS)
 
         return response, final_text
 

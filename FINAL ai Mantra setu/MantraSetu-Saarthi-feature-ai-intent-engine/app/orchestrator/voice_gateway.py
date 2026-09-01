@@ -29,12 +29,25 @@ class VoiceGatewayIntegration(IVoiceGatewayBridge):
         self._interruption_count = 0
 
     def speech_to_text(self, audio_bytes: bytes) -> str:
-        """Convert raw audio byte stream into text transcript."""
+        """Convert raw audio byte stream into text transcript.
+
+        This integration intentionally does not fabricate a transcript when no STT
+        provider is configured: a canned puja request corrupts onboarding intent.
+        Callers can inspect ``last_stt_status`` to distinguish no audio from an
+        unavailable recognizer and send a typed recovery directive.
+        """
         with self._lock:
             self._stt_count += 1
             if not audio_bytes:
+                self._last_stt_status = "no_speech"
                 return ""
-            return "Namaste, I would like to book a puja ritual."
+            self._last_stt_status = "network_error"
+            logger.warning("No STT provider configured; refusing to emit a fabricated transcript.")
+            return ""
+
+    @property
+    def last_stt_status(self) -> str:
+        return getattr(self, "_last_stt_status", "ok")
 
     def text_to_speech(self, text: str) -> bytes:
         """Synthesize text string into audio byte stream."""

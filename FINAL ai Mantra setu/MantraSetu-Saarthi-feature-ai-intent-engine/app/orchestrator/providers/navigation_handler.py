@@ -78,6 +78,10 @@ class NavigationHandler:
         response_data = {
             "action": "NAVIGATE",
             "target": getattr(plan, "final_url", "/") if hasattr(plan, "final_url") else "/",
+            "intent": "NAVIGATE",
+            "active_field": None,
+            "value": None,
+            "confidence": 0.95,
             "response_text": "I have initiated the navigation process to assist with your request."
         }
         response_text = json.dumps(response_data)
