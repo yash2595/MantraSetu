@@ -238,6 +238,9 @@ class AIOrchestrator:
                 text_override="MantraSetu AI could not process this request right now.",
                 response_type=ResponseType.ERROR,
             )
+        finally:
+            with self._lock:
+                self._scheduler.complete_request(request.request_id)
 
     async def _process_request_internal(self, request: OrchestratorRequest) -> OrchestratorResponse:
         """Internal implementation of orchestration pipeline processing."""
