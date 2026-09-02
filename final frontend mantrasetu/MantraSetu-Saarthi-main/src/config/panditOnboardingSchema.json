@@ -1,0 +1,26 @@
+{
+  "fields": [
+    { "id": "pandit-first-name", "required": true },
+    { "id": "pandit-last-name", "required": true },
+    { "id": "pandit-email", "required": true },
+    { "id": "pandit-phone", "required": true },
+    { "id": "pandit-gender", "required": true },
+    { "id": "pandit-availability", "required": true },
+    { "id": "pandit-city", "required": true },
+    { "id": "pandit-state", "required": true },
+    { "id": "pandit-service-areas", "required": true },
+    { "id": "pandit-exp", "required": true },
+    { "id": "pandit-gurukul", "required": true },
+    { "id": "pandit-languages", "required": true },
+    { "id": "pandit-spec", "required": true },
+    { "id": "pandit-achievements", "required": true },
+    { "id": "pandit-bio", "required": true },
+    { "id": "pandit-certFile", "required": false },
+    { "id": "pandit-aadhaarFile", "required": true },
+    { "id": "pandit-galleryFiles", "required": false },
+    { "id": "pandit-password", "required": true },
+    { "id": "pandit-confirm", "required": true },
+    { "id": "pandit-code-of-conduct", "required": true },
+    { "id": "pandit-avatar", "required": false }
+  ]
+}
