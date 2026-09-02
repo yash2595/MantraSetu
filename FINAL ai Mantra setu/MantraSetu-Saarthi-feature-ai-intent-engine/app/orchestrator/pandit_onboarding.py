@@ -479,10 +479,10 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
     if field in ["pandit-email", "email"]:
 
         # Remove common email filler prefixes & framing phrases ("Mere email idea", "email id hai", "my email address is", etc.)
-        framing_pattern = r'^\b(mera|mere|my|apna|apni)\b\s*\b(email|e-mail|mail)?\b\s*\b(id|idea|address|number)?\b\s*\b(hai|is|hi|h)?\b\s*,?\s*'
+        framing_pattern = r'^(?:mera|mere|meri|my|apna|apne|apni|मेरा|मेरे|मेरी|अपना|अपने|अपनी)\s*(?:email|e-mail|mail|emel|ईमेल|ई-मेल|इमेल|मेल)?\s*(?:id|idea|address|number|adres|adress|आईडी|आइडी|आइडिया|एड्रेस|पता|नंबर)?\s*(?:hai|is|hi|h|hoon|hun|है|हूँ|हूं|हे|हैं)?\s*,?\s*'
         text = re.sub(framing_pattern, '', text, flags=re.IGNORECASE).strip()
-        text = re.sub(r'^\b(email|e-mail|mail)\b\s*\b(id|idea|address|number)?\b\s*\b(hai|is|hi|h)?\b\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
-        text = re.sub(r'^\b(id|idea|address)\b\s*\b(hai|is|hi|h)?\b\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
+        text = re.sub(r'^(?:email|e-mail|mail|emel|ईमेल|ई-मेल|इमेल|मेल)\s*(?:id|idea|address|number|adres|adress|आईडी|आइडी|आइडिया|एड्रेस|पता|नंबर)?\s*(?:hai|is|hi|h|hoon|hun|है|हूँ|हूं|हे|हैं)?\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
+        text = re.sub(r'^(?:id|idea|address|adres|adress|आईडी|आइडी|आइडिया|एड्रेस|पता)\s*(?:hai|is|hi|h|hoon|hun|है|हूँ|हूं|हे|हैं)?\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
 
         # 0. Convert spoken digit words inside emails (e.g. "one two one two three four at the rate gmail dot com" -> "121234 at the rate gmail dot com")
         english_digit_words = [
@@ -697,10 +697,10 @@ def convertSpokenEmailToText(spoken: str) -> str:
     text = to_roman_text(spoken).lower().strip()
     
     # 1. Strip common framing phrases from the start of the transcript
-    framing_pattern = r'^\b(mera|mere|my|apna|apni)\b\s*\b(email|e-mail|mail)?\b\s*\b(id|idea|address|number)?\b\s*\b(hai|is|hi|h)?\b\s*,?\s*'
+    framing_pattern = r'^(?:mera|mere|meri|my|apna|apne|apni|मेरा|मेरे|मेरी|अपना|अपने|अपनी)\s*(?:email|e-mail|mail|emel|ईमेल|ई-मेल|इमेल|मेल)?\s*(?:id|idea|address|number|adres|adress|आईडी|आइडी|आइडिया|एड्रेस|पता|नंबर)?\s*(?:hai|is|hi|h|hoon|hun|है|हूँ|हूं|हे|हैं)?\s*,?\s*'
     text = re.sub(framing_pattern, '', text, flags=re.IGNORECASE).strip()
-    text = re.sub(r'^\b(email|e-mail|mail)\b\s*\b(id|idea|address|number)?\b\s*\b(hai|is|hi|h)?\b\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
-    text = re.sub(r'^\b(id|idea|address)\b\s*\b(hai|is|hi|h)?\b\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
+    text = re.sub(r'^(?:email|e-mail|mail|emel|ईमेल|ई-मेल|इमेल|मेल)\s*(?:id|idea|address|number|adres|adress|आईडी|आइडी|आइडिया|एड्रेस|पता|नंबर)?\s*(?:hai|is|hi|h|hoon|hun|है|हूँ|हूं|हे|हैं)?\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
+    text = re.sub(r'^(?:id|idea|address|adres|adress|आईडी|आइडी|आइडिया|एड्रेस|पता)\s*(?:hai|is|hi|h|hoon|hun|है|हूँ|हूं|हे|हैं)?\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
     
     # 2. Convert spoken digit words inside emails
     english_digit_words = [
@@ -790,7 +790,9 @@ def check_text_contamination_ratio(user_message: str, extracted_value: str, fiel
     FRAMING_WORDS = {
         "mera", "meri", "my", "naam", "name", "hai", "is", "sheher", "city", "shahar",
         "state", "rajya", "gurukul", "education", "padhai", "vishwavidyalaya", "college",
-        "se", "mein", "in", "hoon", "am", "apna", "apni", "ji", "jee", "sir", "pandit"
+        "se", "mein", "in", "hoon", "am", "apna", "apni", "ji", "jee", "sir", "pandit",
+        "gender", "मेरा", "मेरी", "मेरे", "नाम", "है", "शहर", "राज्य", "गुरुकुल", "पढ़ाई",
+        "से", "में", "हूँ", "हूं", "अपना", "अपने", "अपनी", "जी", "पंडित", "जेंडर", "पता", "एड्रेस", "आईडी"
     }
     
     raw_words = [w.strip(".,?!;:\"'()") for w in user_message.lower().split() if w.strip(".,?!;:\"'()")]
@@ -841,7 +843,7 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
         "pandit-service-areas": "Service areas where the Pandit can perform rituals, comma-separated if multiple (e.g. Delhi NCR, Online Puja, Mumbai, etc.)",
         "pandit-exp": "Years of experience (e.g. 10 years, 5 years, etc.)",
         "pandit-gurukul": "Educational background or Gurukul attended (e.g. Acharya, Sampurnanand Sanskrit Vishwavidyalaya, etc.)",
-        "pandit-languages": "Languages spoken for rituals, comma-separated if multiple (choices: Hindi, Sanskrit, English, Gujarati, Marathi, Bengali, Tamil, Telugu)",
+        "pandit-languages": "Languages spoken for rituals, comma-separated if multiple (choices: Hindi, Sanskrit, English, Gujarati, Marathi, Bengali, Tamil, Telugu, Odia)",
         "pandit-spec": "Specializations, comma-separated if multiple (choices: Vedic Pujas & Havan, Jyotish & Kundali, Sanskar Ceremonies, Katha & Pravachan)",
         "pandit-achievements": "Achievements or awards received by the Pandit (e.g. Performed 500+ pujas, Gold medalist in Sanskrit, etc.)",
         "pandit-bio": "Brief biography or description of the Pandit's spiritual journey",
@@ -850,20 +852,22 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
 
     # Deterministic Fast-Path for First Name & Last Name (0ms Latency)
     if field in ["pandit-first-name", "first-name"]:
-        clean = re.sub(r'^((mera|my|apna|मेरा|अपना)\s+)?(first\s+|pehla\s+|पहला\s+)?(naam|name|नाम)(\s+(hai|is|है))?\s*', '', user_message_normalized, flags=re.IGNORECASE).strip()
-        clean = re.sub(r'\b(hai|is|है|जी|shri|pandit|पंडित|श्री)\b', '', clean, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'^((?:mera|mere|meri|my|apna|apne|apni|मेरा|मेरे|मेरी|अपना|अपने|अपनी)\s+)?((?:first|pehla|pehli|पहला|पहली|फर्स्ट)\s+)?(?:naam|name|नाम|नेम)(\s+(?:hai|is|hoon|hun|है|हूँ|हूं))?\s*', '', user_message_normalized, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'(?:^|\s+)(?:hai|is|hoon|hun|है|हूँ|हूं|जी|shri|pandit|पंडित|श्री)(?=\s+|$)', '', clean, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'(?:^|\s+)(?:hai|is|hoon|hun|है|हूँ|हूं|जी|shri|pandit|पंडित|श्री)(?=\s+|$)', '', clean, flags=re.IGNORECASE).strip()
         words = clean.split()
-        if 1 <= len(words) <= 2 and all(len(w) >= 2 and w.replace('-', '').isalpha() for w in words):
+        if 1 <= len(words) <= 2 and all(len(w) >= 2 and (w.replace('-', '').isalpha() or bool(re.match(r'^[A-Za-z\u0900-\u097f\-]+$', w))) for w in words):
             if words[0].lower() not in ["nahi", "nahin", "galat", "no", "wrong", "nhi", "नहीं", "नही", "गलत"]:
                 extracted_name = to_roman_text(words[0].capitalize())
                 logger.info("[PANDIT-ONBOARDING] Deterministic fast-path for pandit-first-name: %s", extracted_name)
                 return extracted_name
 
     if field in ["pandit-last-name", "last-name"]:
-        clean = re.sub(r'^((mera|my|apna|मेरा|अपना)\s+)?(last\s+|akhiri\s+|आखरी\s+)?(upnaam|last name|surname|naam|name|उपनाम|सरनेम|नाम)(\s+(hai|is|है))?\s*', '', user_message_normalized, flags=re.IGNORECASE).strip()
-        clean = re.sub(r'\b(hai|is|है|जी|shri|pandit|पंडित|श्री)\b', '', clean, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'^((?:mera|mere|meri|my|apna|apne|apni|मेरा|मेरे|मेरी|अपना|अपने|अपनी)\s+)?((?:last|akhiri|aakhri|antim|आखरी|आखिरी|अंतिम|लास्ट)\s+)?(?:upnaam|last name|surname|naam|name|उपनाम|सरनेम|नाम|नेम)(\s+(?:hai|is|hoon|hun|है|हूँ|हूं))?\s*', '', user_message_normalized, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'(?:^|\s+)(?:hai|is|hoon|hun|है|हूँ|हूं|जी|shri|pandit|पंडित|श्री)(?=\s+|$)', '', clean, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'(?:^|\s+)(?:hai|is|hoon|hun|है|हूँ|हूं|जी|shri|pandit|पंडित|श्री)(?=\s+|$)', '', clean, flags=re.IGNORECASE).strip()
         words = clean.split()
-        if 1 <= len(words) <= 2 and all(len(w) >= 2 and w.replace('-', '').isalpha() for w in words):
+        if 1 <= len(words) <= 2 and all(len(w) >= 2 and (w.replace('-', '').isalpha() or bool(re.match(r'^[A-Za-z\u0900-\u097f\-]+$', w))) for w in words):
             if words[-1].lower() not in ["nahi", "nahin", "galat", "no", "wrong", "nhi", "नहीं", "नही", "गलत"]:
                 extracted_name = to_roman_text(words[-1].capitalize())
                 logger.info("[PANDIT-ONBOARDING] Deterministic fast-path for pandit-last-name: %s", extracted_name)
@@ -972,7 +976,7 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
         elif any(w in msg_lower for w in ["other", "transgender", "third gender", "anya", "अन्य"]):
             logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-gender: Other")
             return "Other"
-        elif any(w in msg_lower for w in ["male", "purush", "aadmi", "man", "gents", "पुरुष", "आदमी"]):
+        elif any(w in msg_lower for w in ["male", "purush", "aadmi", "man", "gents", "पुरुष", "आदमी", "मेल"]):
             logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-gender: Male")
             return "Male"
 
@@ -1037,7 +1041,7 @@ STRICT VALIDATION RULES:
 5. If the field is 'pandit-spec', you MUST map the user's spoken answer to one of these exact values: 'Vedic Pujas & Havan', 'Jyotish & Kundali', 'Sanskar Ceremonies', 'Katha & Pravachan'. For example, if they say "havan" or "pujas", map to 'Vedic Pujas & Havan'. If they say "jyotish" or "kundali", map to 'Jyotish & Kundali'. If not clear or off-topic, return 'INVALID'.
 6. If the field is 'pandit-lang':
    - If the user agrees, says 'sahi hai', 'theek hai', 'okay', 'yes', 'agreed', 'continue', or approves defaults, return 'Hindi, Sanskrit'.
-   - If they mention additional or specific languages (e.g. 'Gujarati bhi add karo', 'sirf Hindi'), extract the final active comma-separated list from choices [Hindi, Sanskrit, English, Gujarati, Marathi, Bengali, Tamil, Telugu]. Default is 'Hindi, Sanskrit'.
+   - If they mention additional or specific languages (e.g. 'Gujarati bhi add karo', 'sirf Hindi'), extract the final active comma-separated list from choices [Hindi, Sanskrit, English, Gujarati, Marathi, Bengali, Tamil, Telugu, Odia]. Default is 'Hindi, Sanskrit'.
 7. If the user asks a CLEAR, explicit question mid-onboarding (e.g. "puja booking kaise hoti hai?", "MantraSetu kya hai?"), you MUST briefly answer their question and prefix your response with exactly "QUESTION: ". For example: "QUESTION: Puja booking aap hamari app se kar sakte hain." DO NOT use this for gibberish or mumbled words.
 8. If the user's response is off-topic, ambiguous, completely unrelated, or says something like "cancel", "ruko", "mujhe nahi pata" etc. (and is NOT a clear question), you MUST return exactly the word 'INVALID'. Do not try to extract or make up a value.
 9. If the answer is completely gibberish or not valid for {field_desc}, return 'INVALID'.
@@ -1253,7 +1257,7 @@ def _make_multi_choice_validator(choices: list[str], label: str) -> Callable[[st
         return FieldValidationResult(False, error_message=f"Kripya valid {label} dobara bataiye.")
     return validator
 
-register_field_validator("pandit-languages", _make_multi_choice_validator(["Hindi", "Sanskrit", "English", "Gujarati", "Marathi", "Bengali", "Tamil", "Telugu"], "languages"))
+register_field_validator("pandit-languages", _make_multi_choice_validator(["Hindi", "Sanskrit", "English", "Gujarati", "Marathi", "Bengali", "Tamil", "Telugu", "Odia"], "languages"))
 register_field_validator("pandit-spec", _make_multi_choice_validator(["Vedic Pujas & Havan", "Jyotish & Kundali", "Sanskar Ceremonies", "Katha & Pravachan"], "specialization"))
 
 # 5. Confirmation and Password Validators
@@ -1422,21 +1426,33 @@ async def process_onboarding_step(
     default_fields = list(PANDIT_ONBOARDING_FIELD_QUEUE)
     fields = default_fields
     state["fields"] = fields
-    # Manual fallback is completed only by an observed DOM value, never by a timer.
+    # Manual fallback is completed only by an observed DOM value for genuine user interactions,
+    # never by stale drafts restored across sessions.
+    user_edited_fields = set(user_params.get("user_edited_fields") or [])
     dom_snapshot = user_params.get("dom_form_data", {})
     if isinstance(dom_snapshot, dict):
         for field in fields:
-            dom_value = dom_snapshot.get(field) or dom_snapshot.get(field.replace("pandit-", ""))
-            if dom_value and str(dom_value).strip() and not str(dom_value).lower().endswith("_filled"):
-                state.setdefault("collected_data", {})[field] = str(dom_value).strip()
-        if dom_snapshot.get("terms_accepted") == "true":
-            state.setdefault("collected_data", {})["pandit-code-of-conduct"] = "confirmed"
+            is_field_trusted = (
+                field == client_active_field
+                or field.replace("pandit-", "") == client_active_field
+                or field in user_edited_fields
+                or field.replace("pandit-", "") in user_edited_fields
+            )
+            if is_field_trusted:
+                dom_value = dom_snapshot.get(field) or dom_snapshot.get(field.replace("pandit-", ""))
+                if dom_value and str(dom_value).strip() and not str(dom_value).lower().endswith("_filled"):
+                    state.setdefault("collected_data", {})[field] = str(dom_value).strip()
+        if "pandit-code-of-conduct" in user_edited_fields or client_active_field in ("pandit-code-of-conduct", "code-of-conduct"):
+            if dom_snapshot.get("terms_accepted") == "true":
+                state.setdefault("collected_data", {})["pandit-code-of-conduct"] = "confirmed"
         for password_field in ("pandit-password", "pandit-confirm"):
-            if dom_snapshot.get(f"{password_field}_filled") == "true":
-                state.setdefault("collected_data", {})[password_field] = "confirmed"
+            if password_field in user_edited_fields or client_active_field in (password_field, password_field.replace("pandit-", "")):
+                if dom_snapshot.get(f"{password_field}_filled") == "true":
+                    state.setdefault("collected_data", {})[password_field] = "confirmed"
         for field, snapshot_key in (("pandit-certFile", "cert_attached"), ("pandit-aadhaarFile", "aadhaar_attached"), ("pandit-galleryFiles", "gallery_attached")):
-            if dom_snapshot.get(snapshot_key) == "true":
-                state.setdefault("collected_data", {})[field] = "confirmed"
+            if field in user_edited_fields or client_active_field in (field, field.replace("pandit-", "")):
+                if dom_snapshot.get(snapshot_key) == "true":
+                    state.setdefault("collected_data", {})[field] = "confirmed"
 
     idx = state.get("current_field_index", 0)
     # A field-specific confirmation must run before generic completion checks;
@@ -1787,10 +1803,20 @@ async def process_onboarding_step(
     dom_data = user_params.get("dom_form_data", {})
     collected = state.setdefault("collected_data", {})
     
-    # Merge non-empty DOM values into collected_data so manually filled fields are recognized
+    user_edited_fields = set(user_params.get("user_edited_fields") or [])
+    # Merge non-empty DOM values into collected_data ONLY for fields genuinely interacted with:
+    # 1. The currently active field pointed to by client_active_field (manual fallback flow)
+    # 2. Fields explicitly flagged as user-edited during this active voice session
     for k, v in dom_data.items():
-        if v and str(v).strip() and (k not in collected or not collected[k]):
+        is_field_trusted = (
+            k == client_active_field
+            or k.replace("pandit-", "") == client_active_field
+            or k in user_edited_fields
+            or k.replace("pandit-", "") in user_edited_fields
+        )
+        if is_field_trusted and v and str(v).strip() and (k not in collected or not collected[k]):
             collected[k] = str(v).strip()
+            logger.info("[PANDIT-ONBOARDING] Merged manual DOM field %s=%r into collected_data (active=%s)", k, v, k == client_active_field)
     
     is_client_field_filled = bool(client_active_field and client_active_field in collected and str(collected[client_active_field]).strip())
     progress_phrases = ["aage", "next", "ho gaya", "kar diya", "done", "skip", "continue", "badho", "चलो", "आगे", "हो गया"]

@@ -331,9 +331,9 @@ export default function SignUp() {
       const saved = sessionStorage.getItem('ms_saarthi_pandit_form_data');
       if (!saved) return; // Nothing to restore
 
-      const hasActiveVoiceSession = !!sessionStorage.getItem('saarthi_session_id');
+      const currentSessionId = sessionStorage.getItem('saarthi_session_id');
 
-      if (!hasActiveVoiceSession) {
+      if (!currentSessionId) {
         sessionStorage.removeItem('ms_saarthi_pandit_form_data');
         setPanditStep(1);
         console.log('[PANDIT-STEP-TRACE] New visit (no active voice session). Reset panditStep to 1 and cleared draft.');
@@ -341,11 +341,24 @@ export default function SignUp() {
       }
 
       try {
-        const data = JSON.parse(saved);
-        populateFormData(data);
+        const parsed = JSON.parse(saved);
+        // Distinguish wrapped format { sessionId, data } from legacy raw format
+        const draftSessionId = parsed && typeof parsed === 'object' && 'sessionId' in parsed ? parsed.sessionId : null;
+        const formData = draftSessionId !== null ? parsed.data : parsed;
+
+        // Tier 3 Refinement: on a session_id mismatch, actively clear the stale draft from sessionStorage
+        if (draftSessionId && draftSessionId !== currentSessionId) {
+          console.warn(`[PERSISTENCE] Voice session ID mismatch (draft: ${draftSessionId}, active: ${currentSessionId}). Actively clearing stale ms_saarthi_pandit_form_data.`);
+          sessionStorage.removeItem('ms_saarthi_pandit_form_data');
+          setPanditStep(1);
+          return;
+        }
+
+        populateFormData(formData);
         console.log('[PERSISTENCE] Mid-fill refresh: restored Pandit form draft from sessionStorage.');
       } catch (e) {
-        console.error('[PERSISTENCE] Failed to parse sessionStorage data', e);
+        console.error('[PERSISTENCE] Failed to parse sessionStorage data, clearing draft', e);
+        sessionStorage.removeItem('ms_saarthi_pandit_form_data');
       }
     };
     
@@ -425,7 +438,12 @@ export default function SignUp() {
             panditConfirmPassword,
           };
           const safePayload = getPersistableData(payload);
-          sessionStorage.setItem('ms_saarthi_pandit_form_data', JSON.stringify(safePayload));
+          const currentSessionId = sessionStorage.getItem('saarthi_session_id') || '';
+          const wrappedDraft = {
+            sessionId: currentSessionId,
+            data: safePayload,
+          };
+          sessionStorage.setItem('ms_saarthi_pandit_form_data', JSON.stringify(wrappedDraft));
         } catch (e) {
           console.error('[PERSISTENCE] Failed to save session storage', e);
         }
@@ -655,6 +673,9 @@ export default function SignUp() {
     if (!panditGender) newErrors.panditGender = 'Gender is required.';
     if (!panditCity.trim()) newErrors.panditCity = 'Primary City is required.';
     if (!panditState.trim()) newErrors.panditState = 'State is required.';
+    if (selectedServiceAreas.length === 0 && !panditServiceAreas.trim()) {
+      newErrors.panditServiceAreas = 'Please select at least one service area.';
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };

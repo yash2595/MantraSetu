@@ -24,3 +24,12 @@ final backend mantrasetu/mantrasetu-saarthi-backend-main/uploads/gallery/
 
 # Test/generated output files
 voice_pipeline_e2e_results.txt
+*.log
+response.json
+scratch/
+**/scratch/
+scratch_*.py
+**/scratch_*.py
+verify_regression_personas.py
+verify_names_to_roman.py
+

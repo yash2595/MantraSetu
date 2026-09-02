@@ -63,6 +63,8 @@ HINGLISH_PHONETIC_REPLACEMENTS = [
     (r'\bState\b', 'राज्य'),
     (r'\bForm\b', 'फॉर्म'),
     (r'\bRecord\b', 'रिकॉर्ड'),
+    (r'\bMale\b', 'मेल'),
+    (r'\bFemale\b', 'फीमेल'),
 ]
 
 

@@ -192,6 +192,12 @@ export function useSaarthiVoice() {
   const wsRef = useRef<WebSocket | null>(null);
   const lastHighlightedFieldRef = useRef<string | null>(null);
   const isNavigatingRef = useRef<boolean>(false);
+  // Tracks fields the user has manually interacted with (typed/clicked) during this active voice session
+  const userEditedFieldsRef = useRef<Set<string>>(new Set());
+  const userRecordedBytesRef = useRef<number>(0);
+  const userHasSpokenRef = useRef<boolean>(false);
+  const preRollFramesRef = useRef<{ data: string; bytes: number }[]>([]);
+  const resetVadStateRef = useRef<(() => void) | null>(null);
 
   const isSessionReadyRef = useRef(false);
   const isConnectingRef = useRef(false);
@@ -306,6 +312,13 @@ export function useSaarthiVoice() {
 
   const notifyPageChange = useCallback((newPage: string) => {
     console.log('[Voice] Sending proactive PAGE_CHANGE WebSocket frame:', newPage);
+    // Fix 3 (navigation state reset): Reset all VAD & audio pipeline state on route change
+    userHasSpokenRef.current = false;
+    userRecordedBytesRef.current = 0;
+    preRollFramesRef.current = [];
+    if (resetVadStateRef.current) {
+      resetVadStateRef.current();
+    }
     sendWsMessage({
       type: 'PAGE_CHANGE',
       payload: {
@@ -371,6 +384,43 @@ export function useSaarthiVoice() {
       activeFieldRef.current = null;
     }
   }, [navigate]);
+
+  // Tier 2: Track manual user interactions (typing/clicking) on form fields during this active voice session
+  useEffect(() => {
+    const handleUserInteraction = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      const fieldEl = target.closest('[data-field], [id^="pandit-"], [data-testid^="pill-"], [data-testid^="toggle-lang-"]');
+      if (!fieldEl) return;
+
+      let fieldName = fieldEl.getAttribute('data-field') || fieldEl.id || '';
+      if (!fieldName) {
+        const testId = fieldEl.getAttribute('data-testid') || '';
+        if (testId.startsWith('pill-group-')) {
+          fieldName = testId.replace('pill-group-', '');
+        } else if (testId.startsWith('pill-')) {
+          const m = testId.match(/^pill-(pandit-[a-z0-9-]+?)(?:-[a-z0-9-]+)?$/);
+          if (m) fieldName = m[1];
+        } else if (testId.startsWith('toggle-lang-')) {
+          fieldName = 'pandit-languages';
+        }
+      }
+      if (fieldName) {
+        userEditedFieldsRef.current.add(fieldName);
+        console.log('[USER-EDITED-FIELD] Flagged user-edited field during active session:', fieldName);
+      }
+    };
+
+    document.addEventListener('input', handleUserInteraction, true);
+    document.addEventListener('change', handleUserInteraction, true);
+    document.addEventListener('click', handleUserInteraction, true);
+    return () => {
+      document.removeEventListener('input', handleUserInteraction, true);
+      document.removeEventListener('change', handleUserInteraction, true);
+      document.removeEventListener('click', handleUserInteraction, true);
+    };
+  }, []);
 
   const stateRef = useRef(state);
   useEffect(() => {
@@ -927,7 +977,10 @@ export function useSaarthiVoice() {
       if (!persistentSessionId) {
         persistentSessionId = 'vsession_f' + Math.random().toString(36).substring(2, 14);
         sessionStorage.setItem('saarthi_session_id', persistentSessionId);
+        // Fresh voice session generated -> actively clear any stale draft from sessionStorage
+        sessionStorage.removeItem('ms_saarthi_pandit_form_data');
       }
+      userEditedFieldsRef.current.clear();
       console.log('[Voice] Sending CONNECT with session_id:', persistentSessionId, 'current_page:', window.location.pathname);
 
       // Always read fresh wsRef.current at send time!
@@ -1316,6 +1369,12 @@ export function useSaarthiVoice() {
               }
 
               // 2. Perform soft in-app routing using React Router's useNavigate
+              userHasSpokenRef.current = false;
+              userRecordedBytesRef.current = 0;
+              preRollFramesRef.current = [];
+              if (resetVadStateRef.current) {
+                resetVadStateRef.current();
+              }
               navigate(cleanTarget);
               
               // Allow any cleanup or state resets to happen
@@ -1444,7 +1503,8 @@ export function useSaarthiVoice() {
                   const isButtonGroup = (fTarget.includes('gender') || fTarget.includes('availability') || fTarget.includes('mode')) && !isServiceAreaToggle;
 
                   if (isServiceAreaToggle) {
-                    const queryLower = (fQuery || '').toLowerCase();
+                    const queryStr = Array.isArray(fQuery) ? fQuery.join(', ') : (fQuery || '');
+                    const queryLower = queryStr.toLowerCase();
                     const serviceCatalog = [
                       'Delhi NCR', 'Mumbai', 'Bangalore', 'Chennai', 'Kolkata', 'Hyderabad',
                       'Pune', 'Ahmedabad', 'Jaipur', 'Lucknow', 'Online Puja', 'PAN India',
@@ -1479,7 +1539,8 @@ export function useSaarthiVoice() {
                     }
                   } else if (isButtonGroup) {
                     const btnGroupSel = `[data-field="${fTarget}"] button, [data-testid="pill-group-${fTarget}"] button, [data-testid^="pill-${fTarget}"]`;
-                    const queryLower = (fQuery || '').toLowerCase();
+                    const queryStr = Array.isArray(fQuery) ? fQuery.join(' ') : (fQuery || '');
+                    const queryLower = queryStr.toLowerCase();
                     const buttons = Array.from(document.querySelectorAll<HTMLElement>(btnGroupSel));
                     const matchedBtn = buttons.find(b => (b.textContent || '').toLowerCase().includes(queryLower));
                     
@@ -1496,9 +1557,10 @@ export function useSaarthiVoice() {
                   } else if (isSelectDropdown) {
                     seq.push({ action: 'move', target: selector, delay: 450 });
                     seq.push({ action: 'open_dropdown', target: selector, delay: 250 });
-                    seq.push({ action: 'select_option', target: selector, text: fQuery, delay: 350 });
+                    seq.push({ action: 'select_option', target: selector, text: Array.isArray(fQuery) ? fQuery.join(', ') : fQuery, delay: 350 });
                   } else if (isLangToggle) {
-                    const queryLower = (fQuery || '').toLowerCase();
+                    const queryStr = Array.isArray(fQuery) ? fQuery.join(', ') : (fQuery || '');
+                    const queryLower = queryStr.toLowerCase();
                     const languagesList = [
                       'Hindi', 'Sanskrit', 'English', 'Tamil', 'Telugu', 'Bengali',
                       'Gujarati', 'Marathi', 'Kannada', 'Malayalam', 'Punjabi', 'Assamese', 'Odia'
@@ -1526,7 +1588,8 @@ export function useSaarthiVoice() {
                       }
                     }
                   } else if (fTarget.includes('achieve')) {
-                    const achParts = (fQuery || '').split(/,| aur | and | & | \+ /i).map((p: string) => p.trim()).filter(Boolean);
+                    const queryStr = Array.isArray(fQuery) ? fQuery.join(', ') : (fQuery || '');
+                    const achParts = queryStr.split(/,| aur | and | & | \+ /i).map((p: string) => p.trim()).filter(Boolean);
                     achParts.forEach((part: string, idx: number) => {
                       const achSelector = idx === 0 ? '#pandit-achievements, [data-testid="input-pandit-achievements-0"]' : `#pandit-achievements-${idx}, [data-testid="input-pandit-achievements-${idx}"]`;
                       if (idx > 0) {
@@ -1555,7 +1618,7 @@ export function useSaarthiVoice() {
 
               const isPanditActive = activeField?.startsWith('pandit-') || window.location.pathname.includes('signup');
               if (activeField && isPanditActive) {
-                const step2Fields = ['exp', 'gurukul', 'education', 'spec', 'lang', 'achievements', 'bio', 'service'];
+                const step2Fields = ['exp', 'gurukul', 'education', 'spec', 'lang', 'achievements', 'bio'];
                 const step3Fields = ['certfile', 'aadhaarfile', 'galleryfiles', 'password', 'confirm', 'codeofconduct'];
                 let targetStep: 1 | 2 | 3 = 1;
                 const fLower = activeField.toLowerCase();
@@ -2052,9 +2115,6 @@ export function useSaarthiVoice() {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const vadAudioCtxRef = useRef<AudioContext | null>(null);
   const vadIntervalRef = useRef<any>(null);
-  const userRecordedBytesRef = useRef<number>(0);
-  const userHasSpokenRef = useRef<boolean>(false);
-  const preRollFramesRef = useRef<{ data: string; bytes: number }[]>([]);
 
   // Reset speech counters whenever entering 'listening' mode (User turn starts)
   useEffect(() => {
@@ -2159,6 +2219,7 @@ export function useSaarthiVoice() {
                   current_page: window.location.pathname + window.location.search,
                   active_field: activeFieldRef.current,
                   dom_form_data: getFormStateData(),
+                  user_edited_fields: Array.from(userEditedFieldsRef.current),
                 }
               });
               userHasSpokenRef.current = false;
@@ -2218,6 +2279,16 @@ export function useSaarthiVoice() {
         let calibrationSum = 0;
         let speechConfidence = 0;
 
+        resetVadStateRef.current = () => {
+          userHasSpokenRef.current = false;
+          userRecordedBytesRef.current = 0;
+          preRollFramesRef.current = [];
+          audioEndSent = false;
+          speechConfidence = 0;
+          lastSpeechTime = Date.now();
+          console.log('[VAD] Pipeline state reset on route change / page navigation');
+        };
+
         vadIntervalRef.current = window.setInterval(() => {
           // Periodically attempt resume if suspended
           if (vadAudioCtxRef.current?.state === 'suspended') {
@@ -2234,8 +2305,8 @@ export function useSaarthiVoice() {
           }
           const average = sum / dataArray.length;
 
-          // When Saarthi is speaking TTS, hold speech detection and keep state clean
-          if ((stateRef.current as string) === 'speaking') {
+          // Fix 2 (VAD gating): Hold speech detection and keep state clean when Saarthi is speaking TTS or thinking
+          if ((stateRef.current as string) === 'speaking' || (stateRef.current as string) === 'thinking') {
             lastSpeechTime = Date.now();
             audioEndSent = false;
             speechConfidence = 0;
@@ -2300,6 +2371,19 @@ export function useSaarthiVoice() {
             if (isNavigatingRef.current) {
               return;
             }
+
+            // Fix 1 (byte guard — highest priority safety net):
+            const MIN_BYTES_FOR_VALID_SPEECH = 3200; // ~100ms of 16kHz 16-bit mono audio
+            if (userRecordedBytesRef.current < MIN_BYTES_FOR_VALID_SPEECH) {
+              console.log(`[VAD-DISCARD-ZERO-BYTES] Discarding spurious trigger: recorded_bytes (${userRecordedBytesRef.current}) < min (${MIN_BYTES_FOR_VALID_SPEECH}). Resetting state silently.`);
+              userHasSpokenRef.current = false;
+              speechConfidence = 0;
+              audioEndSent = false;
+              userRecordedBytesRef.current = 0;
+              preRollFramesRef.current = [];
+              return;
+            }
+
             audioEndSent = true;
             console.log('[AUDIO-END-SENT] Dispatching AUDIO_END for field:', activeFieldRef.current, 'recorded_bytes:', userRecordedBytesRef.current, 'silenceThreshold:', silenceThreshold);
 
@@ -2312,6 +2396,7 @@ export function useSaarthiVoice() {
                 current_page: window.location.pathname + window.location.search,
                 active_field: activeFieldRef.current,
                 dom_form_data: getFormStateData(),
+                user_edited_fields: Array.from(userEditedFieldsRef.current),
               }
             });
 
@@ -2350,6 +2435,7 @@ export function useSaarthiVoice() {
       // Only destroy microphone stream tracks if the WebSocket connection is explicitly closed
       if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
         console.log('[Voice] WebSocket closed. Tearing down persistent microphone stream...');
+        resetVadStateRef.current = null;
         if (vadIntervalRef.current) window.clearInterval(vadIntervalRef.current);
         if (vadAudioCtxRef.current && vadAudioCtxRef.current.state !== 'closed') {
           vadAudioCtxRef.current.close().catch(() => {});
