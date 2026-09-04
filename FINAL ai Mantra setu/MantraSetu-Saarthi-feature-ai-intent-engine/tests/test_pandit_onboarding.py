@@ -828,4 +828,71 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
         self.assertEqual(resp_2.response_type, ResponseType.NAVIGATION_DIRECTIVE)
         self.assertTrue(resp_2.navigation_directive.get("suggest_keyboard"))
 
+    def test_spoken_email_compound_numbers_and_multipliers(self):
+        """Test spoken compound numbers (twelve thirty four), multipliers, and custom domains in emails."""
+        from app.orchestrator.pandit_onboarding import convertSpokenEmailToText
+
+        # Compound numbers (twelve thirty four -> 1234)
+        self.assertEqual(
+            convertSpokenEmailToText("gaurav twelve thirty four at gmail dot com"),
+            "gaurav1234@gmail.com"
+        )
+
+        # Multipliers (double two double three -> 2233)
+        self.assertEqual(
+            convertSpokenEmailToText("gaurav double two double three at gmail dot com"),
+            "gaurav2233@gmail.com"
+        )
+
+        # Tens + units combination (twenty one forty seven -> 2147)
+        self.assertEqual(
+            convertSpokenEmailToText("priya twenty one forty seven at yahoo dot com"),
+            "priya2147@yahoo.com"
+        )
+
+        # Tens + units with noisy variants (twenty, one -> 21, twenty and one -> 21)
+        self.assertEqual(
+            convertSpokenEmailToText("yash twenty, one at gmail dot com"),
+            "yash21@gmail.com"
+        )
+        self.assertEqual(
+            convertSpokenEmailToText("yash twenty and one at gmail dot com"),
+            "yash21@gmail.com"
+        )
+
+        # Custom domain with numbers
+        self.assertEqual(
+            convertSpokenEmailToText("gaurav ninety nine at company one two three dot com"),
+            "gaurav99@company123.com"
+        )
+
+        # Clean/no-number domain (safe no-op for words)
+        self.assertEqual(
+            convertSpokenEmailToText("gaurav at company dot com"),
+            "gaurav@company.com"
+        )
+
+        # Negative test: "double u" should NOT turn into numbers
+        self.assertEqual(
+            convertSpokenEmailToText("gaurav double u at gmail dot com"),
+            "gauravdoubleu@gmail.com"
+        )
+
+    def test_phone_number_uses_shared_normalizer(self):
+        """Test that phone number normalization works end-to-end with the shared normalize_spoken_numbers logic."""
+        from app.orchestrator.pandit_onboarding import normalize_spoken_input
+
+        # Multipliers in phone
+        res1 = normalize_spoken_input("mera phone number hai double nine eight seven six five four three two one", "pandit-phone")
+        self.assertEqual(res1, "9987654321")
+
+        # Devanagari numerals
+        res2 = normalize_spoken_input("९८७६५४३२१०", "pandit-phone")
+        self.assertEqual(res2, "9876543210")
+
+        # Triple multiplier
+        res3 = normalize_spoken_input("triple nine eight seven six five four three two", "pandit-phone")
+        self.assertEqual(res3, "9998765432")
+
+
 

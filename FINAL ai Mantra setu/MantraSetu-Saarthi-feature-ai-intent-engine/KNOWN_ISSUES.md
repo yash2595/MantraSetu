@@ -17,6 +17,12 @@
 * **Root Cause:** Groq free-tier limits cumulative output tokens to 1000 tokens per rolling minute. Multi-turn voice interactions where intent detection and response generation both emitted tokens exhausted this quota with HTTP 429.
 * **Resolution:** Intent detection output capped at `max_tokens=150`, response generator capped at `max_tokens=512`. Resilient fallback chain configured with `Groq` -> `Gemini` (`gemini-3.6-flash`) -> `gpt-oss-20b` fallback failover.
 
+### 4. Spoken Email Address Number Normalization & Hindi Transliteration [RESOLVED]
+* **Status:** Resolved | Resolved date: 2026-09-04
+* **Root Cause:** Spoken email addresses with compound numbers (e.g. "twelve thirty four"), multipliers (e.g. "double two double three"), or custom domain numbers remained as words, corrupting the email syntax. Additionally, InWorld STT operated in `hi-IN` mode during email collection, transcribing Latin email addresses into Devanagari Hindi text.
+* **Resolution:** Dynamic STT language switching extended to email collection turns via `ALPHANUMERIC_FIELDS` (`"en-IN"` mode). Shared DRY helper `normalize_spoken_numbers()` implemented in `pandit_onboarding.py`, handling multipliers, compound numbers (teens and tens), tens+units combination with noisy punctuation/conjunctions (`twenty, one` -> `21`), and single digits. Refactored phone number normalization to share the same helper, covered with 18 unit tests (0 regressions).
+
+
 ## Pending Manual Verification Items
 
 - **SUBMIT_FORM Voice Trigger (BUG-14 Fix)**: Verified via static code analysis (backend directive + frontend `useSaarthiVoice.ts` listener match). Actual end-to-end live browser click and form submit data persistence remain to be manually verified in a human walkthrough.
