@@ -751,3 +751,148 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
             self.assertGreaterEqual(session.onboarding_state.get("current_field_index", 0), 14)
             saved = str(session.onboarding_state.get("collected_data", {}).get("pandit-achievements", ""))
             self.assertIn("Gold Medalist Sanskrit Seva 2019", saved)
+
+    @patch("app.orchestrator.pandit_onboarding.extract_field_value")
+    async def test_name_confirmation_rejection_triggers_typing_fallback(self, mock_extract):
+        """Test that rejecting a tentative name immediately triggers manual typing fallback rather than infinite voice loop."""
+        session = self.orchestrator._session_manager.get_or_create_session(self.session_id)
+        session.conversation_id = self.conv_id
+        session.onboarding_state = {
+            "active": True,
+            "current_field_index": 1,
+            "status": "awaiting_field_confirmation",
+            "tentative_field": "pandit-first-name",
+            "tentative_value": "Utkarsha",
+            "collected_data": {"pandit-avatar": "skipped"},
+            "fields": ["pandit-avatar", "pandit-first-name", "pandit-last-name", "pandit-phone"]
+        }
+
+        # User says 'nahi galat hai'
+        req_reject = OrchestratorRequest(
+            session_id=self.session_id,
+            conversation_id=self.conv_id,
+            user_message="nahi galat hai",
+            current_page="/signup?role=pandit",
+        )
+        resp = await self.orchestrator.process_request(req_reject)
+
+        # Must offer manual typing fallback and directive with suggest_keyboard
+        self.assertIn("type kar dijiye", resp.text)
+        self.assertEqual(resp.response_type, ResponseType.NAVIGATION_DIRECTIVE)
+        self.assertEqual(resp.navigation_directive["action"], "FILL_FORM")
+        self.assertEqual(resp.navigation_directive["active_field"], "pandit-first-name")
+        self.assertTrue(resp.navigation_directive.get("suggest_keyboard"))
+        self.assertEqual(session.onboarding_state["status"], "collecting")
+        self.assertIsNone(session.onboarding_state.get("tentative_field"))
+
+    @patch("app.orchestrator.pandit_onboarding.extract_field_value")
+    async def test_non_name_confirmation_rejection_allows_one_retry_then_fallbacks(self, mock_extract):
+        """Test that non-name fields allow 1 voice retry on first rejection, but fallback to typing on 2nd rejection."""
+        session = self.orchestrator._session_manager.get_or_create_session(self.session_id)
+        session.conversation_id = self.conv_id
+        session.onboarding_state = {
+            "active": True,
+            "current_field_index": 3,
+            "status": "awaiting_field_confirmation",
+            "tentative_field": "pandit-city",
+            "tentative_value": "Varanasi",
+            "collected_data": {},
+            "fields": ["pandit-avatar", "pandit-first-name", "pandit-last-name", "pandit-city"]
+        }
+
+        # First rejection: should allow voice re-prompt
+        req_reject_1 = OrchestratorRequest(
+            session_id=self.session_id,
+            conversation_id=self.conv_id,
+            user_message="nahi galat hai",
+            current_page="/signup?role=pandit",
+        )
+        resp_1 = await self.orchestrator.process_request(req_reject_1)
+        self.assertIn("dobara bataiye", resp_1.text)
+        self.assertNotIn("type kar dijiye", resp_1.text)
+
+        # Set up 2nd confirmation state for city
+        session.onboarding_state["status"] = "awaiting_field_confirmation"
+        session.onboarding_state["tentative_field"] = "pandit-city"
+        session.onboarding_state["tentative_value"] = "Lucknow"
+
+        # Second rejection: should trigger typing fallback
+        req_reject_2 = OrchestratorRequest(
+            session_id=self.session_id,
+            conversation_id=self.conv_id,
+            user_message="nahi galat hai",
+            current_page="/signup?role=pandit",
+        )
+        resp_2 = await self.orchestrator.process_request(req_reject_2)
+        self.assertIn("type kar dijiye", resp_2.text)
+        self.assertEqual(resp_2.response_type, ResponseType.NAVIGATION_DIRECTIVE)
+        self.assertTrue(resp_2.navigation_directive.get("suggest_keyboard"))
+
+    def test_spoken_email_compound_numbers_and_multipliers(self):
+        """Test spoken compound numbers (twelve thirty four), multipliers, and custom domains in emails."""
+        from app.orchestrator.pandit_onboarding import convertSpokenEmailToText
+
+        # Compound numbers (twelve thirty four -> 1234)
+        self.assertEqual(
+            convertSpokenEmailToText("gaurav twelve thirty four at gmail dot com"),
+            "gaurav1234@gmail.com"
+        )
+
+        # Multipliers (double two double three -> 2233)
+        self.assertEqual(
+            convertSpokenEmailToText("gaurav double two double three at gmail dot com"),
+            "gaurav2233@gmail.com"
+        )
+
+        # Tens + units combination (twenty one forty seven -> 2147)
+        self.assertEqual(
+            convertSpokenEmailToText("priya twenty one forty seven at yahoo dot com"),
+            "priya2147@yahoo.com"
+        )
+
+        # Tens + units with noisy variants (twenty, one -> 21, twenty and one -> 21)
+        self.assertEqual(
+            convertSpokenEmailToText("yash twenty, one at gmail dot com"),
+            "yash21@gmail.com"
+        )
+        self.assertEqual(
+            convertSpokenEmailToText("yash twenty and one at gmail dot com"),
+            "yash21@gmail.com"
+        )
+
+        # Custom domain with numbers
+        self.assertEqual(
+            convertSpokenEmailToText("gaurav ninety nine at company one two three dot com"),
+            "gaurav99@company123.com"
+        )
+
+        # Clean/no-number domain (safe no-op for words)
+        self.assertEqual(
+            convertSpokenEmailToText("gaurav at company dot com"),
+            "gaurav@company.com"
+        )
+
+        # Negative test: "double u" should NOT turn into numbers
+        self.assertEqual(
+            convertSpokenEmailToText("gaurav double u at gmail dot com"),
+            "gauravdoubleu@gmail.com"
+        )
+
+    def test_phone_number_uses_shared_normalizer(self):
+        """Test that phone number normalization works end-to-end with the shared normalize_spoken_numbers logic."""
+        from app.orchestrator.pandit_onboarding import normalize_spoken_input
+
+        # Multipliers in phone
+        res1 = normalize_spoken_input("mera phone number hai double nine eight seven six five four three two one", "pandit-phone")
+        self.assertEqual(res1, "9987654321")
+
+        # Devanagari numerals
+        res2 = normalize_spoken_input("९८७६५४३२१०", "pandit-phone")
+        self.assertEqual(res2, "9876543210")
+
+        # Triple multiplier
+        res3 = normalize_spoken_input("triple nine eight seven six five four three two", "pandit-phone")
+        self.assertEqual(res3, "9998765432")
+
+
+

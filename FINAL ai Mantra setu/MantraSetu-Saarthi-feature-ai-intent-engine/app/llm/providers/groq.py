@@ -112,7 +112,7 @@ class GroqProvider(BaseLLMProvider):
             client = AsyncGroq(api_key=self._api_key, timeout=15.0)
 
             temp = request.temperature if request.temperature is not None else self._settings.temperature
-            max_toks = request.max_tokens or self._settings.max_tokens
+            max_toks = min(request.max_tokens or self._settings.max_tokens or 512, 512)
 
             kw: dict[str, Any] = {
                 "model": self._model,
@@ -174,8 +174,9 @@ class GroqProvider(BaseLLMProvider):
                             "messages": messages,
                             "temperature": request.temperature if request.temperature is not None else self._settings.temperature,
                         }
-                        if request.max_tokens or self._settings.max_tokens:
-                            fallback_kw["max_tokens"] = request.max_tokens or self._settings.max_tokens
+                        fb_max = min(request.max_tokens or self._settings.max_tokens or 512, 512)
+                        if fb_max:
+                            fallback_kw["max_tokens"] = fb_max
                         if request.stop:
                             fallback_kw["stop"] = request.stop
 
@@ -229,7 +230,7 @@ class GroqProvider(BaseLLMProvider):
             client = AsyncGroq(api_key=self._api_key, timeout=15.0)
 
             temp = request.temperature if request.temperature is not None else self._settings.temperature
-            max_toks = request.max_tokens or self._settings.max_tokens
+            max_toks = min(request.max_tokens or self._settings.max_tokens or 512, 512)
 
             kw: dict[str, Any] = {
                 "model": self._model,

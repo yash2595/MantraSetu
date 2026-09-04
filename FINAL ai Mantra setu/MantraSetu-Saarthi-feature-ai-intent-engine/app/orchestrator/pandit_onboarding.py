@@ -493,33 +493,106 @@ Return ONLY the exact field string."""
     except Exception:
         return "pandit-phone"
 
+def normalize_spoken_numbers(text: str) -> str:
+    """Normalize spoken numbers, multipliers (double/triple), compound teens/tens, and Hindi digits to ASCII digits."""
+    if not text:
+        return ""
+    devanagari_digits = str.maketrans("०१२३४५६७८९", "0123456789")
+    t = text.translate(devanagari_digits)
+
+    # 1. Multipliers: "double 7" -> "77", "triple 9" -> "999", "double zero" -> "00"
+    # Note: Only replaces when followed by digit words or digits. Non-digit words ("double u") remain intact.
+    digit_word_to_char = {
+        "zero": "0", "shunya": "0", "jiro": "0", "0": "0", "शून्य": "0", "जीरो": "0", "जिरो": "0",
+        "one": "1", "ek": "1", "ekk": "1", "1": "1", "एक": "1", "वन": "1",
+        "two": "2", "do": "2", "doo": "2", "2": "2", "दो": "2", "टू": "2",
+        "three": "3", "teen": "3", "tin": "3", "3": "3", "तीन": "3", "थ्री": "3",
+        "four": "4", "char": "4", "chaar": "4", "4": "4", "चार": "4", "फोर": "4",
+        "five": "5", "panch": "5", "paanch": "5", "5": "5", "पांच": "5", "पाँच": "5", "फाइव": "5",
+        "six": "6", "chhe": "6", "che": "6", "chh": "6", "6": "6", "छह": "6", "छः": "6", "सिक्स": "6",
+        "seven": "7", "saat": "7", "sat": "7", "7": "7", "सात": "7", "सेवन": "7",
+        "eight": "8", "aath": "8", "ath": "8", "8": "8", "आठ": "8", "एट": "8",
+        "nine": "9", "nau": "9", "now": "9", "9": "9", "नौ": "9", "नाइन": "9"
+    }
+    for word, char in sorted(digit_word_to_char.items(), key=lambda x: len(x[0]), reverse=True):
+        t = re.sub(r'\b(double|डबल)\s+' + re.escape(word) + r'\b', char * 2, t, flags=re.IGNORECASE)
+        t = re.sub(r'\b(triple|ट्रिपल)\s+' + re.escape(word) + r'\b', char * 3, t, flags=re.IGNORECASE)
+
+    # 2. Compound numbers: teens and tens
+    compound_numbers = [
+        # Teens
+        ('eleven', '11'), ('twelve', '12'), ('thirteen', '13'), ('fourteen', '14'),
+        ('fifteen', '15'), ('sixteen', '16'), ('seventeen', '17'), ('eighteen', '18'),
+        ('nineteen', '19'),
+        ('gyarah', '11'), ('baarah', '12'), ('barah', '12'), ('terah', '13'),
+        ('chaudah', '14'), ('pandrah', '15'), ('solah', '16'), ('satrah', '17'),
+        ('atharah', '18'), ('unnees', '19'),
+        ('ग्यारह', '11'), ('बारह', '12'), ('तेरह', '13'), ('चौदह', '14'),
+        ('पंद्रह', '15'), ('सोलह', '16'), ('सत्रह', '17'), ('अठारह', '18'), ('उन्नीस', '19'),
+        # Tens
+        ('twenty', '20'), ('thirty', '30'), ('forty', '40'), ('fifty', '50'),
+        ('sixty', '60'), ('seventy', '70'), ('eighty', '80'), ('ninety', '90'),
+        ('bees', '20'), ('tees', '30'), ('chaalis', '40'), ('chalis', '40'),
+        ('pachaas', '50'), ('pachas', '50'), ('saath', '60'), ('sattar', '70'),
+        ('assi', '80'), ('nabbe', '90'),
+        ('बीस', '20'), ('तीस', '30'), ('चालीस', '40'), ('पचास', '50'),
+        ('साठ', '60'), ('सत्तर', '70'), ('अस्सी', '80'), ('नब्बे', '90'),
+    ]
+    for word, digits in sorted(compound_numbers, key=lambda x: len(x[0]), reverse=True):
+        t = re.sub(r'\b' + re.escape(word) + r'\b', digits, t, flags=re.IGNORECASE)
+
+    # 3. Tens + units combination (e.g. "20 1" -> "21", "twenty, one" -> "21", "twenty and one" -> "21")
+    t = re.sub(r'\b([2-9])0[\s,\-]+(?:and\s+)?([1-9])\b', r'\g<1>\2', t, flags=re.IGNORECASE)
+
+    # 4. Map remaining single digit words (Hindi Devanagari, transliterations, and English)
+    hindi_digit_map = {
+        'शून्य': '0', 'जीरो': '0', 'जिरो': '0',
+        'एक': '1', 'वन': '1',
+        'दो': '2', 'टू': '2',
+        'तीन': '3', 'थ्री': '3',
+        'चार': '4', 'फोर': '4',
+        'पांच': '5', 'पाँच': '5', 'फाइव': '5',
+        'छह': '6', 'छः': '6', 'सिक्स': '6',
+        'सात': '7', 'सेवन': '7',
+        'आठ': '8', 'एट': '8',
+        'नौ': '9', 'नाइन': '9'
+    }
+    for word in sorted(hindi_digit_map.keys(), key=len, reverse=True):
+        t = t.replace(word, hindi_digit_map[word])
+
+    roman_hindi_digit_map = [
+        (r'\b(shunya|zero|jiro)\b', '0'),
+        (r'\b(ek|ekk|one)\b', '1'),
+        (r'\b(do|doo|two)\b', '2'),
+        (r'\b(teen|tin|three)\b', '3'),
+        (r'\b(char|chaar|four)\b', '4'),
+        (r'\b(panch|paanch|five)\b', '5'),
+        (r'\b(chhe|che|chh|six)\b', '6'),
+        (r'\b(saat|sat|seven)\b', '7'),
+        (r'\b(aath|ath|eight)\b', '8'),
+        (r'\b(nau|now|nine)\b', '9')
+    ]
+    for pattern, digit in roman_hindi_digit_map:
+        t = re.sub(pattern, digit, t, flags=re.IGNORECASE)
+
+    # Re-check tens + units combination in case single digit word conversion created new tens+units pair
+    t = re.sub(r'\b([2-9])0[\s,\-]+(?:and\s+)?([1-9])\b', r'\g<1>\2', t, flags=re.IGNORECASE)
+
+    return t
+
 def normalize_spoken_input(user_message: str, field: str) -> str:
     """Pre-process spoken transcripts for emails and phone numbers before LLM extraction."""
     text = user_message.strip()
     
     if field in ["pandit-email", "email"]:
-
         # Remove common email filler prefixes & framing phrases ("Mere email idea", "email id hai", "my email address is", etc.)
         framing_pattern = r'^(?:mera|mere|meri|my|apna|apne|apni|मेरा|मेरे|मेरी|अपना|अपने|अपनी)\s*(?:email|e-mail|mail|emel|ईमेल|ई-मेल|इमेल|मेल)?\s*(?:id|idea|address|number|adres|adress|आईडी|आइडी|आइडिया|एड्रेस|पता|नंबर)?\s*(?:hai|is|hi|h|hoon|hun|है|हूँ|हूं|हे|हैं)?\s*,?\s*'
         text = re.sub(framing_pattern, '', text, flags=re.IGNORECASE).strip()
         text = re.sub(r'^(?:email|e-mail|mail|emel|ईमेल|ई-मेल|इमेल|मेल)\s*(?:id|idea|address|number|adres|adress|आईडी|आइडी|आइडिया|एड्रेस|पता|नंबर)?\s*(?:hai|is|hi|h|hoon|hun|है|हूँ|हूं|हे|हैं)?\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
         text = re.sub(r'^(?:id|idea|address|adres|adress|आईडी|आइडी|आइडिया|एड्रेस|पता)\s*(?:hai|is|hi|h|hoon|hun|है|हूँ|हूं|हे|हैं)?\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
 
-        # 0. Convert spoken digit words inside emails (e.g. "one two one two three four at the rate gmail dot com" -> "121234 at the rate gmail dot com")
-        english_digit_words = [
-            (r'\b(zero|shunya|jiro)\b', '0'),
-            (r'\b(one|ek|ekk)\b', '1'),
-            (r'\b(two|do|doo)\b', '2'),
-            (r'\b(three|teen|tin)\b', '3'),
-            (r'\b(four|char|chaar)\b', '4'),
-            (r'\b(five|panch|paanch)\b', '5'),
-            (r'\b(six|chhe|che)\b', '6'),
-            (r'\b(seven|saat|sat)\b', '7'),
-            (r'\b(eight|aath|ath)\b', '8'),
-            (r'\b(nine|nau|now)\b', '9')
-        ]
-        for pattern, digit in english_digit_words:
-            text = re.sub(pattern, digit, text, flags=re.IGNORECASE)
+        # 0. Convert spoken numbers inside emails using shared normalizer
+        text = normalize_spoken_numbers(text)
 
         # 1. Transliterate Devanagari Hindi phonetic letters to English ASCII
         devanagari_phrases = [
@@ -591,69 +664,19 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
         text = text_no_space
             
     elif field in ["pandit-phone", "phone"]:
-        # 1. Convert Devanagari digits to ASCII
-        devanagari_digits = str.maketrans("०१२३४५६७८९", "0123456789")
-        text = text.translate(devanagari_digits)
-
-        # 2. Convert spoken multipliers e.g. "double 7" -> "77", "triple 9" -> "999", "double zero" -> "00"
-        # First convert digit words following "double"/"triple"
-        digit_word_to_char = {
-            "zero": "0", "shunya": "0", "jiro": "0", "0": "0", "शून्य": "0", "जीरो": "0", "जिरो": "0",
-            "one": "1", "ek": "1", "1": "1", "एक": "1", "वन": "1",
-            "two": "2", "do": "2", "2": "2", "दो": "2", "टू": "2",
-            "three": "3", "teen": "3", "3": "3", "तीन": "3", "थ्री": "3",
-            "four": "4", "char": "4", "4": "4", "चार": "4", "फोर": "4",
-            "five": "5", "panch": "5", "5": "5", "पांच": "5", "पाँच": "5", "फाइव": "5",
-            "six": "6", "chhe": "6", "6": "6", "छह": "6", "सिक्स": "6",
-            "seven": "7", "saat": "7", "7": "7", "सात": "7", "सेवन": "7",
-            "eight": "8", "aath": "8", "8": "8", "आठ": "8", "एट": "8",
-            "nine": "9", "nau": "9", "9": "9", "नौ": "9", "नाइन": "9"
-        }
-        for word, char in digit_word_to_char.items():
-            text = re.sub(r'\b(double|डबल)\s+' + word + r'\b', char * 2, text, flags=re.IGNORECASE)
-            text = re.sub(r'\b(triple|ट्रिपल)\s+' + word + r'\b', char * 3, text, flags=re.IGNORECASE)
-        
-        # 3. Map spoken Hindi words & Devanagari transliterated English words to digits
-        hindi_digit_map = {
-            "शून्य": "0", "जीरो": "0", "जिरो": "0",
-            "एक": "1", "वन": "1",
-            "दो": "2", "टू": "2",
-            "तीन": "3", "थ्री": "3",
-            "चार": "4", "फोर": "4",
-            "पांच": "5", "पाँच": "5", "फाइव": "5",
-            "छह": "6", "छः": "6", "सिक्स": "6",
-            "सात": "7", "सेवन": "7",
-            "आठ": "8", "एट": "8",
-            "नौ": "9", "नाइन": "9"
-        }
-        for word in sorted(hindi_digit_map.keys(), key=len, reverse=True):
-            text = text.replace(word, hindi_digit_map[word])
-        roman_hindi_digit_map = [
-            (r'\b(shunya|zero|jiro)\b', '0'),
-            (r'\b(ek|ekk|one)\b', '1'),
-            (r'\b(do|doo|two)\b', '2'),
-            (r'\b(teen|tin|three)\b', '3'),
-            (r'\b(char|chaar|four)\b', '4'),
-            (r'\b(panch|paanch|five)\b', '5'),
-            (r'\b(chhe|che|chh|six)\b', '6'),
-            (r'\b(saat|sat|seven)\b', '7'),
-            (r'\b(aath|ath|eight)\b', '8'),
-            (r'\b(nau|now|nine)\b', '9')
-        ]
-        for pattern, digit in roman_hindi_digit_map:
-            text = re.sub(pattern, digit, text, flags=re.IGNORECASE)
+        # 1. Normalize spoken numbers using shared normalizer
+        text = normalize_spoken_numbers(text)
             
-        # 5. Extract digits only and strip spaces
+        # 2. Extract digits only and strip spaces
         digits_only = re.sub(r'\D', '', text)
         
-        # 6. Strip country codes +91, 91, or leading 0 if 11 or 12 digits
+        # 3. Strip country codes +91, 91, or leading 0 if 11 or 12 digits
         if len(digits_only) == 11 and digits_only.startswith('0'):
-
             digits_only = digits_only[1:]
         elif len(digits_only) == 12 and digits_only.startswith('91'):
             digits_only = digits_only[2:]
             
-        # 6. Find 10-digit Indian mobile number starting with 5-9
+        # 4. Find 10-digit Indian mobile number starting with 5-9
         if len(digits_only) == 10 and re.match(r'^[56789]', digits_only):
             text = digits_only
         else:
@@ -723,21 +746,8 @@ def convertSpokenEmailToText(spoken: str) -> str:
     text = re.sub(r'^(?:email|e-mail|mail|emel|ईमेल|ई-मेल|इमेल|मेल)\s*(?:id|idea|address|number|adres|adress|आईडी|आइडी|आइडिया|एड्रेस|पता|नंबर)?\s*(?:hai|is|hi|h|hoon|hun|है|हूँ|हूं|हे|हैं)?\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
     text = re.sub(r'^(?:id|idea|address|adres|adress|आईडी|आइडी|आइडिया|एड्रेस|पता)\s*(?:hai|is|hi|h|hoon|hun|है|हूँ|हूं|हे|हैं)?\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
     
-    # 2. Convert spoken digit words inside emails
-    english_digit_words = [
-        (r'\b(zero|shunya|jiro)\b', '0'),
-        (r'\b(one|ek|ekk)\b', '1'),
-        (r'\b(two|do|doo)\b', '2'),
-        (r'\b(three|teen|tin)\b', '3'),
-        (r'\b(four|char|chaar)\b', '4'),
-        (r'\b(five|panch|paanch)\b', '5'),
-        (r'\b(six|chhe|che)\b', '6'),
-        (r'\b(seven|saat|sat)\b', '7'),
-        (r'\b(eight|aath|ath)\b', '8'),
-        (r'\b(nine|nau|now)\b', '9')
-    ]
-    for pattern, digit in english_digit_words:
-        text = re.sub(pattern, digit, text, flags=re.IGNORECASE)
+    # 2. Convert spoken numbers (compound numbers, multipliers, digits) inside emails
+    text = normalize_spoken_numbers(text)
 
     # 3. Filter common phonetic mistranscriptions of "@". Local-parts are
     # deliberately never fuzzy-corrected: an email identity is user data.
@@ -1496,6 +1506,7 @@ async def process_onboarding_step(
         if is_affirmative(request.user_message):
             logger.info("[PANDIT-ONBOARDING] Field %s value %r CONFIRMED by user.", tentative_field, tentative_value)
             state["collected_data"][tentative_field] = tentative_value
+            state.setdefault("field_rejection_count", {}).pop(tentative_field, None)
             state["tentative_field"] = None
             state["tentative_value"] = None
             state["status"] = "collecting"
@@ -1530,9 +1541,44 @@ async def process_onboarding_step(
             )
         elif is_pure_negative(request.user_message):
             logger.info("[PANDIT-ONBOARDING] User REJECTED tentative value for field %s without inline correction: %r", tentative_field, request.user_message)
+            
+            # Rejection Circuit Breaker:
+            # If the user rejects a tentative name field, asking them to repeat via voice
+            # risks putting them into an endless STT mistranscription loop.
+            # Immediately offer a clean manual typing fallback.
+            field_rejections = state.setdefault("field_rejection_count", {})
+            field_rejections[tentative_field] = field_rejections.get(tentative_field, 0) + 1
+            rejection_count = field_rejections[tentative_field]
+            
             state["tentative_field"] = None
             state["tentative_value"] = None
             state["status"] = "collecting"
+            
+            is_name_field = tentative_field in ["pandit-first-name", "pandit-last-name", "pandit-name", "first-name", "last-name", "name"]
+            
+            if is_name_field or rejection_count >= 2:
+                logger.info(
+                    "[PANDIT-ONBOARDING] Rejection circuit-breaker triggered for %s (is_name=%s, rejections=%d). Offering typing fallback.",
+                    tentative_field, is_name_field, rejection_count
+                )
+                question = "Koi baat nahi! Kripya screen par apna sahi naam type kar dijiye." if is_name_field else f"Koi baat nahi! Kripya screen par apna sahi {PANDIT_FIELD_LABELS.get(tentative_field, 'jankari')} type kar dijiye."
+                nav_directive = {
+                    "action": "FILL_FORM",
+                    "target": tentative_field,
+                    "query": None,
+                    "active_field": tentative_field,
+                    "intent": "PANDIT_ONBOARDING",
+                    "fields": None,
+                    "suggest_keyboard": True
+                }
+                session.update_location(page="/signup?role=pandit", field=tentative_field)
+                return orchestrator._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override=question,
+                    response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                    navigation_directive=nav_directive,
+                    metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
+                )
             
             field_hname = PANDIT_FIELD_LABELS.get(tentative_field, tentative_field)
             question = f"Maaf kijiye! Kripya apna sahi {field_hname} dobara bataiye."
@@ -2178,7 +2224,9 @@ async def process_onboarding_step(
         "query": val,
         "active_field": current_field,
         "intent": "PANDIT_ONBOARDING",
-        "fields": None
+        "fields": None,
+        "allow_manual_edit": True,
+        "suggest_keyboard": current_field in ["pandit-first-name", "pandit-last-name", "pandit-name"]
     }
     nav_directive = structured_onboarding_directive(nav_directive)
     orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)

@@ -16,10 +16,10 @@ class LLMSettings(BaseSettings):
     )
 
     base_url: str = Field(default="https://generativelanguage.googleapis.com/v1beta")
-    model_name: str = Field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest"))
+    model_name: str = Field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.6-flash"))
 
     temperature: float = Field(default=0.7)
-    max_tokens: int = Field(default=1024)
+    max_tokens: int = Field(default=512)
 
     app_name: str = Field(default="MantraSetu AI Backend")
     app_url: str = Field(default="http://localhost:8000")

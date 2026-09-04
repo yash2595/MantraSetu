@@ -247,6 +247,11 @@ class VoiceGateway:
 
         buffer_size_bytes = buffer.size
         session.context_data["client_active_field"] = user_parameters.get("active_field") if user_parameters else None
+        if hasattr(session, "onboarding_state") and session.onboarding_state:
+            ob_idx = session.onboarding_state.get("current_field_index", 0)
+            ob_fields = session.onboarding_state.get("fields", [])
+            if ob_idx < len(ob_fields):
+                session.context_data["onboarding_active_field"] = ob_fields[ob_idx]
         stt_result = await self._speech_recognizer.finish_session(session, buffer)
         # This object was detached before STT.  Clearing it after the provider has
         # consumed it proves it cannot leak PCM into a later voice turn.
