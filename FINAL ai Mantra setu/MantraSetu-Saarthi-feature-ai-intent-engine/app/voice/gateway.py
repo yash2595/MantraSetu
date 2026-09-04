@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 import logging
 import time
 from typing import Any
@@ -453,7 +452,7 @@ class VoiceGateway:
                 "vad_valid": vad_valid,
                 "stt_confidence_available": confidence_available,
             })
-            repeat_response = replace(repeat_response, navigation_directive=updated_directive)
+            repeat_response = repeat_response.model_copy(update={"navigation_directive": updated_directive})
             logger.warning("[DIAG-INVESTIGATION][STT] request_id=%s session_id=%s provider=%s pcm_bytes=%d transcript_length=%d confidence=%.3f confidence_available=%s status=%s provider_error=%s", turn_request_id, session_id, stt_result.provider, buffer_size_bytes, len(final_text), stt_result.confidence or 0.0, confidence_available, repeat_response.navigation_directive["recognition_status"], stt_result.metadata.get("error"))
             return repeat_response, ""
         else:
@@ -524,7 +523,7 @@ class VoiceGateway:
             "audio_bytes_received": buffer_size_bytes,
             "vad_valid": vad_valid,
         })
-        response = replace(response, navigation_directive=updated_directive)
+        response = response.model_copy(update={"navigation_directive": updated_directive})
         logger.info(
             "[DIAG-INVESTIGATION][STT] request_id=%s session_id=%s provider=%s pcm_bytes=%d transcript_length=%d confidence=%.3f confidence_available=%s status=%s provider_error=%s",
             turn_request_id, session_id, stt_result.provider, buffer_size_bytes, len(final_text), stt_result.confidence or 0.0, confidence_available, recognition_status, stt_result.metadata.get("error"),

@@ -16,6 +16,8 @@ from app.orchestrator.onboarding_intent_matcher import OnboardingIntent, match_o
     ("nahi", OnboardingIntent.CONFIRM_NO), ("galat hai", OnboardingIntent.CONFIRM_NO),
     ("ye galat hai", OnboardingIntent.CONFIRM_NO), ("wrong", OnboardingIntent.CONFIRM_NO),
     ("no", OnboardingIntent.CONFIRM_NO),
+    ("sahi nahi hai", OnboardingIntent.CONFIRM_NO), ("theek nahi hai", OnboardingIntent.CONFIRM_NO),
+    ("yeh sahi nahi hai", OnboardingIntent.CONFIRM_NO), ("bilkul nahi", OnboardingIntent.CONFIRM_NO),
     ("peeche jao", OnboardingIntent.GO_BACK), ("wapas jao", OnboardingIntent.GO_BACK),
     ("pichla wala", OnboardingIntent.GO_BACK), ("go back", OnboardingIntent.GO_BACK),
 ])

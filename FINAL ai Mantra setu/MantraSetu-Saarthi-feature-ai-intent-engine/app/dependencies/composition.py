@@ -125,8 +125,18 @@ class _StubNavigationAnalyzer(BaseNavigationAnalyzer):
 # RAG Subsystem
 # ---------------------------------------------------------------------------
 
-_embedding_service = EmbeddingService(provider=_StubEmbeddingProvider())
-_vector_service = VectorStoreService(vector_store=_StubVectorStore())
+from app.core.config import settings
+from app.rag.providers.local_embedding_provider import LocalEmbeddingProvider
+from app.rag.providers.chroma_vector_store import ChromaVectorStore
+
+_local_embedding_provider = LocalEmbeddingProvider()
+_chroma_vector_store = ChromaVectorStore(
+    db_path=settings.chroma_db_path,
+    embedding_provider=_local_embedding_provider,
+)
+
+_embedding_service = EmbeddingService(provider=_local_embedding_provider)
+_vector_service = VectorStoreService(vector_store=_chroma_vector_store)
 _retriever_service = RetrieverService(vector_service=_vector_service)
 
 rag_service = RAGService(
