@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from threading import RLock
@@ -75,6 +77,34 @@ class ProviderManager:
                 return await self._fallback_bridge.generate(context)
             except Exception as fallback_err:
                 logger.error("Fallback provider also failed: %s", fallback_err)
+                # If both primary and fallback bridge failed, attempt direct Groq call with gpt-oss-20b
+                try:
+                    from groq import AsyncGroq
+                    from app.llm.models import TokenUsage
+                    groq_key = os.getenv("GROQ_API_KEY", "")
+                    if groq_key:
+                        fb_client = AsyncGroq(api_key=groq_key, timeout=15.0)
+                        fb_res = await asyncio.wait_for(
+                            fb_client.chat.completions.create(
+                                model="openai/gpt-oss-20b",
+                                messages=[
+                                    {"role": "system", "content": "You are MantraSetu Saarthi, a spiritual assistant. Answer briefly in friendly Hinglish."},
+                                    {"role": "user", "content": context.request.user_message}
+                                ],
+                                max_tokens=250,
+                            ),
+                            timeout=15.0
+                        )
+                        txt = fb_res.choices[0].message.content or ""
+                        return ProviderResponse(
+                            provider_type=ProviderType.GROQ,
+                            text=txt,
+                            usage_tokens=getattr(fb_res.usage, "total_tokens", 0) if hasattr(fb_res, "usage") else 0,
+                            latency_ms=100,
+                        )
+                except Exception as final_err:
+                    logger.critical("All provider fallbacks exhausted: %s", final_err)
+
                 return ProviderResponse(
                     provider_type=ProviderType.GEMINI,
                     text="The AI Service encountered an error. Please try again.",

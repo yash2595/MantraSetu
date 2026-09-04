@@ -232,6 +232,7 @@ class LLMIntentDetector(BaseIntentDetector):
                 {"role": "user", "content": user_input}
             ],
             temperature=0.0,  # Low temperature for deterministic classification
+            max_tokens=150,   # Intent classification JSON is small (<80 tokens)
         )
 
         try:

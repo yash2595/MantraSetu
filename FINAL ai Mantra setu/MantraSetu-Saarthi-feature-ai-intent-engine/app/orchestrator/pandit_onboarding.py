@@ -1496,6 +1496,7 @@ async def process_onboarding_step(
         if is_affirmative(request.user_message):
             logger.info("[PANDIT-ONBOARDING] Field %s value %r CONFIRMED by user.", tentative_field, tentative_value)
             state["collected_data"][tentative_field] = tentative_value
+            state.setdefault("field_rejection_count", {}).pop(tentative_field, None)
             state["tentative_field"] = None
             state["tentative_value"] = None
             state["status"] = "collecting"
@@ -1530,9 +1531,44 @@ async def process_onboarding_step(
             )
         elif is_pure_negative(request.user_message):
             logger.info("[PANDIT-ONBOARDING] User REJECTED tentative value for field %s without inline correction: %r", tentative_field, request.user_message)
+            
+            # Rejection Circuit Breaker:
+            # If the user rejects a tentative name field, asking them to repeat via voice
+            # risks putting them into an endless STT mistranscription loop.
+            # Immediately offer a clean manual typing fallback.
+            field_rejections = state.setdefault("field_rejection_count", {})
+            field_rejections[tentative_field] = field_rejections.get(tentative_field, 0) + 1
+            rejection_count = field_rejections[tentative_field]
+            
             state["tentative_field"] = None
             state["tentative_value"] = None
             state["status"] = "collecting"
+            
+            is_name_field = tentative_field in ["pandit-first-name", "pandit-last-name", "pandit-name", "first-name", "last-name", "name"]
+            
+            if is_name_field or rejection_count >= 2:
+                logger.info(
+                    "[PANDIT-ONBOARDING] Rejection circuit-breaker triggered for %s (is_name=%s, rejections=%d). Offering typing fallback.",
+                    tentative_field, is_name_field, rejection_count
+                )
+                question = "Koi baat nahi! Kripya screen par apna sahi naam type kar dijiye." if is_name_field else f"Koi baat nahi! Kripya screen par apna sahi {PANDIT_FIELD_LABELS.get(tentative_field, 'jankari')} type kar dijiye."
+                nav_directive = {
+                    "action": "FILL_FORM",
+                    "target": tentative_field,
+                    "query": None,
+                    "active_field": tentative_field,
+                    "intent": "PANDIT_ONBOARDING",
+                    "fields": None,
+                    "suggest_keyboard": True
+                }
+                session.update_location(page="/signup?role=pandit", field=tentative_field)
+                return orchestrator._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override=question,
+                    response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                    navigation_directive=nav_directive,
+                    metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
+                )
             
             field_hname = PANDIT_FIELD_LABELS.get(tentative_field, tentative_field)
             question = f"Maaf kijiye! Kripya apna sahi {field_hname} dobara bataiye."
@@ -2178,7 +2214,9 @@ async def process_onboarding_step(
         "query": val,
         "active_field": current_field,
         "intent": "PANDIT_ONBOARDING",
-        "fields": None
+        "fields": None,
+        "allow_manual_edit": True,
+        "suggest_keyboard": current_field in ["pandit-first-name", "pandit-last-name", "pandit-name"]
     }
     nav_directive = structured_onboarding_directive(nav_directive)
     orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
