@@ -17,6 +17,11 @@
 * **Root Cause:** Groq free-tier limits cumulative output tokens to 1000 tokens per rolling minute. Multi-turn voice interactions where intent detection and response generation both emitted tokens exhausted this quota with HTTP 429.
 * **Resolution:** Intent detection output capped at `max_tokens=150`, response generator capped at `max_tokens=512`. Resilient fallback chain configured with `Groq` -> `Gemini` (`gemini-3.6-flash`) -> `gpt-oss-20b` fallback failover.
 
+### 4. Temporary LLM Provider Swap (Groq -> Gemini) [RESOLVED]
+* **Status:** Resolved | Date: 2026-09-03 11:01 IST
+* **Component:** `LLM_PROVIDER` in `.env`
+* **Resolution:** Replaced `GROQ_API_KEY` with a new key from a separate team account/quota, verified with isolated test call, and reverted `LLM_PROVIDER=groq`. Active provider is now Groq with full clean quota.
+
 ## Pending Manual Verification Items
 
 - **SUBMIT_FORM Voice Trigger (BUG-14 Fix)**: Verified via static code analysis (backend directive + frontend `useSaarthiVoice.ts` listener match). Actual end-to-end live browser click and form submit data persistence remain to be manually verified in a human walkthrough.
@@ -33,5 +38,10 @@
    - Periodically monitor `gemini-3.6-flash` against Google GenAI API release lifecycle / deprecation notices to ensure long-term stability and migrate to designated GA versions as announced.
 3. **`VoiceGatewayIntegration` Dead-Code Resolution**:
    - Clean up or deprecate orphaned `VoiceGatewayIntegration` in `app/orchestrator/voice_gateway.py` once live voice testing confirms the primary `VoiceGateway` (`app/voice/gateway.py`) flow is fully solidified.
+
+## Watch
+
+- **Gemini Fallback SSL Handshake Timeout**: During a live Groq 429 rate-limit event on 2026-09-03 at 10:27:01 IST, the failover to Gemini also failed with `_ssl.c:989: The handshake operation timed out`, causing the engine to emit the generic error fallback string. Flagged to monitor whether secondary provider failovers remain reliable under simultaneous provider stress.
+
 
 
