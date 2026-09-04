@@ -200,3 +200,99 @@ class TestVoiceGateway(IsolatedAsyncioTestCase):
         self.voice_gateway._vads[sess2.session_id] = mock_vad2
         with self.assertRaises(SpeechProviderUnavailable):
             await self.voice_gateway.finish_voice_session(sess2.session_id)
+
+    async def test_stt_provider_error_directive(self) -> None:
+        """Verify VoiceGateway returns explicit technical error when provider reports status=error."""
+        sess = await self.voice_gateway.start_voice_session("conn-err-test")
+        mock_vad = MagicMock()
+        mock_vad.get_analysis.return_value = {
+            "is_valid_speech": True,
+            "speech_duration_sec": 1.0,
+            "total_duration_sec": 1.0,
+            "reason": "VALID_SPEECH"
+        }
+        self.voice_gateway._vads[sess.session_id] = mock_vad
+        self.mock_speech_recognizer.finish_session.side_effect = None
+        self.mock_speech_recognizer.finish_session.return_value = TranscriptResult(
+            text="",
+            confidence=0.0,
+            language="hi",
+            provider="inworld",
+            duration_seconds=1.0,
+            metadata={"status": "error", "error": "HTTP 500: Server error", "error_type": "provider_error"}
+        )
+
+        resp, transcript = await self.voice_gateway.finish_voice_session(sess.session_id)
+        self.assertEqual(transcript, "")
+        self.assertEqual(resp.navigation_directive.get("recognition_status"), "stt_error")
+        self.assertIn("takneeki samasya", resp.text)
+        # Verify stt_fail_count was NOT incremented on provider error
+        self.assertEqual(getattr(sess, "stt_fail_count", 0), 0)
+
+    async def test_hindi_filler_filtered_as_noise(self) -> None:
+        """Verify Hindi filler 'हम्म।' triggers noise gate rather than being passed to LLM."""
+        sess = await self.voice_gateway.start_voice_session("conn-filler-test")
+        mock_vad = MagicMock()
+        mock_vad.get_analysis.return_value = {
+            "is_valid_speech": True,
+            "speech_duration_sec": 1.0,
+            "total_duration_sec": 1.0,
+            "reason": "VALID_SPEECH"
+        }
+        self.voice_gateway._vads[sess.session_id] = mock_vad
+        self.mock_speech_recognizer.finish_session.side_effect = None
+        self.mock_speech_recognizer.finish_session.return_value = TranscriptResult(
+            text="हम्म।",
+            confidence=0.9,
+            language="hi",
+            provider="inworld",
+            duration_seconds=1.0,
+            metadata={"status": "success"}
+        )
+
+        resp, transcript = await self.voice_gateway.finish_voice_session(sess.session_id)
+        self.assertEqual(transcript, "")
+        self.assertEqual(resp.navigation_directive.get("recognition_status"), "no_speech")
+        # stt_fail_count SHOULD increment on noise/silence
+        self.assertEqual(getattr(sess, "stt_fail_count", 0), 1)
+
+    async def test_orchestrator_dataclass_response_handling(self) -> None:
+        """Verify VoiceGateway correctly handles real frozen OrchestratorResponse dataclasses without model_copy error."""
+        from app.orchestrator.orchestrator_models import OrchestratorResponse, ResponseType
+        real_dataclass_response = OrchestratorResponse(
+            response_id="resp-dataclass-test",
+            request_id="req-123",
+            text="Aapka swagat hai",
+            response_type=ResponseType.CHAT,
+            navigation_directive={"action": "NAVIGATE", "target": "/puja"}
+        )
+        self.mock_ai_orchestrator.process.return_value = real_dataclass_response
+
+        sess = await self.voice_gateway.start_voice_session("conn-dataclass-test")
+        mock_vad = MagicMock()
+        mock_vad.get_analysis.return_value = {
+            "is_valid_speech": True,
+            "speech_duration_sec": 1.0,
+            "total_duration_sec": 1.0,
+            "reason": "VALID_SPEECH"
+        }
+        self.voice_gateway._vads[sess.session_id] = mock_vad
+        self.mock_speech_recognizer.finish_session.side_effect = None
+        self.mock_speech_recognizer.finish_session.return_value = TranscriptResult(
+            text="Mujhe puja book karni hai",
+            confidence=0.95,
+            language="hi",
+            provider="inworld",
+            duration_seconds=2.0,
+            metadata={"status": "success"}
+        )
+
+        resp, transcript = await self.voice_gateway.finish_voice_session(sess.session_id)
+        self.assertEqual(transcript, "Mujhe puja book karni hai")
+        self.assertIsInstance(resp, OrchestratorResponse)
+        self.assertEqual(resp.navigation_directive.get("recognition_status"), "ok")
+        self.assertEqual(resp.navigation_directive.get("stt_provider"), "inworld")
+        self.assertEqual(resp.navigation_directive.get("action"), "NAVIGATE")
+        self.assertEqual(resp.text, "Aapka swagat hai")
+
+

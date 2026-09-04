@@ -151,16 +151,51 @@ class InWorldSTTAdapter(ISpeechRecognizer):
             }
             
             try:
-                response = await client.post(
-                    'https://api.inworld.ai/stt/v1/transcribe',
-                    headers=headers,
-                    json=payload,
-                    timeout=25.0
-                )
-                response_body = response.text
-                logger.info("[DIAG-INVESTIGATION][STT] request_id=%s session_id=%s provider=inworld http_status=%d pcm_bytes=%d response_body=%r", request_id, session.session_id, response.status_code, len(raw_pcm), response_body[:2048])
-                response.raise_for_status()
-                
+                # Retry transient 5xx / timeout once before failing
+                max_attempts = 2
+                last_error: Exception | None = None
+                response = None
+                for attempt in range(1, max_attempts + 1):
+                    try:
+                        response = await client.post(
+                            'https://api.inworld.ai/stt/v1/transcribe',
+                            headers=headers,
+                            json=payload,
+                            timeout=25.0
+                        )
+                        response_body = response.text
+                        logger.info(
+                            "[DIAG-INVESTIGATION][STT] request_id=%s session_id=%s provider=inworld attempt=%d http_status=%d pcm_bytes=%d response_body=%r",
+                            request_id, session.session_id, attempt, response.status_code, len(raw_pcm), response_body[:2048]
+                        )
+                        if response.status_code >= 500 and attempt < max_attempts:
+                            logger.warning(
+                                "[INWORLD-STT-RETRY] Transient HTTP %d from Inworld STT. Retrying once (attempt %d/%d)...",
+                                response.status_code, attempt, max_attempts
+                            )
+                            await asyncio.sleep(0.3)
+                            continue
+
+                        response.raise_for_status()
+                        last_error = None
+                        break
+                    except (httpx.TimeoutException, httpx.NetworkError) as net_err:
+                        last_error = net_err
+                        if attempt < max_attempts:
+                            logger.warning(
+                                "[INWORLD-STT-RETRY] Network/Timeout error (%s). Retrying once (attempt %d/%d)...",
+                                net_err, attempt, max_attempts
+                            )
+                            await asyncio.sleep(0.3)
+                            continue
+                        raise net_err
+                    except httpx.HTTPStatusError as status_err:
+                        last_error = status_err
+                        raise status_err
+
+                if last_error is not None:
+                    raise last_error
+
                 try:
                     data = response.json()
                 except Exception as e:
@@ -173,17 +208,65 @@ class InWorldSTTAdapter(ISpeechRecognizer):
                 if isinstance(candidate_confidence, (int, float)) and 0.0 <= float(candidate_confidence) <= 1.0:
                     stt_confidence = float(candidate_confidence)
                     confidence_available = True
+            except httpx.HTTPStatusError as http_err:
+                status_code = http_err.response.status_code
+                error_category = "client_error" if 400 <= status_code < 500 else "provider_error"
+                body = http_err.response.text[:500] if http_err.response is not None else ''
+                logger.error(
+                    "[DIAG-INVESTIGATION][STT] request_id=%s session_id=%s provider=inworld status=error category=%s http_status=%d error=%s body=%r",
+                    request_id, session.session_id, error_category, status_code, http_err, body
+                )
+                return TranscriptResult(
+                    text="",
+                    confidence=0.0,
+                    language=session.language,
+                    provider=self.provider_name,
+                    duration_seconds=duration_sec,
+                    metadata={
+                        "model": self._model,
+                        "status": "error",
+                        "error_type": error_category,
+                        "http_status": status_code,
+                        "error": f"HTTP {status_code}: {http_err}",
+                        "confidence_available": False,
+                    },
+                )
+            except (httpx.TimeoutException, asyncio.TimeoutError) as timeout_err:
+                logger.error(
+                    "[DIAG-INVESTIGATION][STT] request_id=%s session_id=%s provider=inworld status=error category=timeout error=%s",
+                    request_id, session.session_id, timeout_err
+                )
+                return TranscriptResult(
+                    text="",
+                    confidence=0.0,
+                    language=session.language,
+                    provider=self.provider_name,
+                    duration_seconds=duration_sec,
+                    metadata={
+                        "model": self._model,
+                        "status": "error",
+                        "error_type": "timeout",
+                        "error": "STT request timed out after retries",
+                        "confidence_available": False,
+                    },
+                )
             except Exception as e:
-                body = response.text[:500] if 'response' in locals() else ''
+                body = response.text[:500] if 'response' in locals() and response is not None else ''
                 logger.error(f"[DIAG-INVESTIGATION][STT] request_id={request_id} session_id={session.session_id} provider=inworld status=error error={type(e).__name__}:{e} body={body!r}")
                 return TranscriptResult(
-                        text="",
-                        confidence=0.0,
-                        language=session.language,
-                        provider=self.provider_name,
-                        duration_seconds=duration_sec,
-                        metadata={"model": self._model, "status": "error", "error": f"{type(e).__name__}: {e}", "confidence_available": False},
-                    )
+                    text="",
+                    confidence=0.0,
+                    language=session.language,
+                    provider=self.provider_name,
+                    duration_seconds=duration_sec,
+                    metadata={
+                        "model": self._model,
+                        "status": "error",
+                        "error_type": "unknown_error",
+                        "error": f"{type(e).__name__}: {e}",
+                        "confidence_available": False,
+                    },
+                )
 
             stt_elapsed_ms = int((time.time() - stt_start_time) * 1000)
             logger.info(

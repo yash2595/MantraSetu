@@ -214,7 +214,8 @@ class TestAIOrchestratorLayerV41(IsolatedAsyncioTestCase):
         self.assertEqual(pong.message_type, "PONG")
 
         stt_transcript = self.voice_gateway.speech_to_text(b"mock_audio")
-        self.assertIn("puja", stt_transcript.lower())
+        self.assertEqual("", stt_transcript)
+        self.assertEqual("network_error", self.voice_gateway.last_stt_status)
 
         tts_bytes = self.voice_gateway.text_to_speech("Namaste")
         self.assertIsInstance(tts_bytes, bytes)

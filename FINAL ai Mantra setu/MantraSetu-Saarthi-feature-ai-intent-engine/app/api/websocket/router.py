@@ -218,7 +218,10 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
 
                     recognition_status = (getattr(resp, "navigation_directive", None) or {}).get("recognition_status", "no_speech")
                     stt_meta = getattr(resp, "navigation_directive", None) or {}
-                    repeat_msg = "Kshama karein, main sun nahi paya. Kripya dobara bataiye."
+                    if recognition_status == "stt_error":
+                        repeat_msg = "Kshama karein, hamare server mein takneeki samasya aayi hai. Kripya thodi der baad prayas karein."
+                    else:
+                        repeat_msg = "Kshama karein, main sun nahi paya. Kripya dobara bataiye."
                     ai_reply = WebSocketEnvelope(
                         request_id=end_frame.request_id,
                         session_id=active_session_id,

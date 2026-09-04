@@ -43,10 +43,11 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO")
     cors_origins: str = Field(default="")
     voice_ticket_secret: str = Field(
-        default="mantrasetu_voice_ticket_secret_shared_2026",
         validation_alias=AliasChoices("VOICE_TICKET_SECRET", "voice_ticket_secret"),
     )
     jwt_algorithm: str = Field(default="HS256")
+    chroma_db_path: str = Field(default="./data/chroma_db")
+    embedding_model_name: str = Field(default="paraphrase-multilingual-MiniLM-L12-v2")
 
     @property
     def cors_origins_list(self) -> list[str]:

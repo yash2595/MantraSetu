@@ -1,8 +1,6 @@
 """Lightweight VoiceGateway coordinator integrating STT stream processing with AIOrchestrator."""
 
-from __future__ import annotations
-
-from dataclasses import replace
+from dataclasses import is_dataclass, replace
 import logging
 import time
 from typing import Any
@@ -284,7 +282,7 @@ class VoiceGateway:
         # 2. Filler words check
         fillers = {
             "uh", "um", "ah", "eh", "oh", "hm", "hmm", "hmmm", "oops", "mhm", "uh-huh",
-            "ummm", "ehh", "err", "uhh", "like", "actually", "basically"
+            "ummm", "ehh", "err", "uhh", "like", "actually", "basically", "हम्म", "हम्म।"
         }
         words = [w.strip(".,?!;:") for w in clean_marker.split() if w.strip(".,?!;:")]
         remaining_words = [w for w in words if w not in fillers]
@@ -353,6 +351,38 @@ class VoiceGateway:
                 current_field = fields[idx]
         
         is_name_field = current_field in ["pandit-first-name", "pandit-last-name", "pandit-name"]
+
+        if stt_status == "error":
+            logger.error(
+                "[STT-PROVIDER-ERROR] Provider %s encountered an error: %s. Returning technical error directive.",
+                stt_result.provider, stt_result.metadata.get("error")
+            )
+            self._buffers.pop(session_id, None)
+            self._aggregators.pop(session_id, None)
+            self._vads.pop(session_id, None)
+            from app.orchestrator.orchestrator_models import OrchestratorResponse, ResponseType
+            error_msg = "Kshama karein, hamare server mein takneeki samasya aayi hai. Kripya thodi der baad prayas karein."
+            error_response = OrchestratorResponse(
+                response_id=f"resp_stt_err_{session_id[:8]}",
+                request_id=session_id,
+                text=error_msg,
+                response_type=ResponseType.CHAT,
+                navigation_directive={
+                    "action": None,
+                    "target": None,
+                    "query": None,
+                    "active_field": current_field,
+                    "intent": "ERROR_FALLBACK",
+                    "recognition_status": "stt_error",
+                    "transcript": "",
+                    "stt_provider": stt_result.provider,
+                    "stt_confidence": stt_result.confidence,
+                    "audio_bytes_received": buffer_size_bytes,
+                    "vad_valid": vad_valid,
+                    "stt_confidence_available": confidence_available,
+                }
+            )
+            return error_response, ""
 
         if is_noise:
             recognition_status = "low_confidence" if is_low_confidence else "no_speech"
@@ -453,7 +483,10 @@ class VoiceGateway:
                 "vad_valid": vad_valid,
                 "stt_confidence_available": confidence_available,
             })
-            repeat_response = replace(repeat_response, navigation_directive=updated_directive)
+            if hasattr(repeat_response, "model_copy"):
+                repeat_response = repeat_response.model_copy(update={"navigation_directive": updated_directive})
+            elif is_dataclass(repeat_response):
+                repeat_response = replace(repeat_response, navigation_directive=updated_directive)
             logger.warning("[DIAG-INVESTIGATION][STT] request_id=%s session_id=%s provider=%s pcm_bytes=%d transcript_length=%d confidence=%.3f confidence_available=%s status=%s provider_error=%s", turn_request_id, session_id, stt_result.provider, buffer_size_bytes, len(final_text), stt_result.confidence or 0.0, confidence_available, repeat_response.navigation_directive["recognition_status"], stt_result.metadata.get("error"))
             return repeat_response, ""
         else:
@@ -465,7 +498,7 @@ class VoiceGateway:
 
 
         if not final_text:
-            logger.info("[STT-DIAGNOSTIC] Session %s | Empty transcript detected (silence/background noise). Suppressing AI response.", session.session_id)
+            logger.info("[STT-DIAGNOSTIC] Session %s | Empty transcript detected (silence/background noise/error: %s). Suppressing AI response.", session.session_id, recognition_status)
             self._buffers.pop(session_id, None)
             self._aggregators.pop(session_id, None)
             self._vads.pop(session_id, None)
@@ -476,7 +509,19 @@ class VoiceGateway:
                 response_id=f"resp_empty_{session_id[:8]}",
                 request_id=session_id,
                 text="",
-                response_type=ResponseType.CHAT
+                response_type=ResponseType.CHAT,
+                navigation_directive={
+                    "action": None,
+                    "target": None,
+                    "query": None,
+                    "recognition_status": recognition_status,
+                    "transcript": "",
+                    "stt_provider": stt_result.provider,
+                    "stt_confidence": stt_result.confidence,
+                    "audio_bytes_received": buffer_size_bytes,
+                    "vad_valid": vad_valid,
+                    "stt_confidence_available": confidence_available,
+                }
             )
             return empty_response, ""
 
@@ -524,7 +569,10 @@ class VoiceGateway:
             "audio_bytes_received": buffer_size_bytes,
             "vad_valid": vad_valid,
         })
-        response = replace(response, navigation_directive=updated_directive)
+        if hasattr(response, "model_copy"):
+            response = response.model_copy(update={"navigation_directive": updated_directive})
+        elif is_dataclass(response):
+            response = replace(response, navigation_directive=updated_directive)
         logger.info(
             "[DIAG-INVESTIGATION][STT] request_id=%s session_id=%s provider=%s pcm_bytes=%d transcript_length=%d confidence=%.3f confidence_available=%s status=%s provider_error=%s",
             turn_request_id, session_id, stt_result.provider, buffer_size_bytes, len(final_text), stt_result.confidence or 0.0, confidence_available, recognition_status, stt_result.metadata.get("error"),

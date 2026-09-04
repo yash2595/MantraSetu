@@ -33,25 +33,39 @@ PANDIT_ONBOARDING_INTENTS = {
     "repeat_question", "correction", "submit_form",
 }
 
+import os
+
 # This JSON schema is the single requiredness authority for the browser and
 # voice flow.  Changing a field's `required` value updates both systems.
-_PANDIT_SCHEMA_PATH = Path(__file__).resolve().parents[4] / "final frontend mantrasetu" / "MantraSetu-Saarthi-main" / "src" / "config" / "panditOnboardingSchema.json"
-with _PANDIT_SCHEMA_PATH.open(encoding="utf-8") as _schema_file:
-    PANDIT_ONBOARDING_SCHEMA = json.load(_schema_file)["fields"]
+_env_path = os.environ.get("PANDIT_ONBOARDING_SCHEMA_PATH")
+if _env_path:
+    _PANDIT_SCHEMA_PATH = Path(_env_path).resolve()
+else:
+    _PANDIT_SCHEMA_PATH = Path(__file__).resolve().parents[4] / "final frontend mantrasetu" / "MantraSetu-Saarthi-main" / "src" / "config" / "panditOnboardingSchema.json"
+
+try:
+    with _PANDIT_SCHEMA_PATH.open(encoding="utf-8") as _schema_file:
+        PANDIT_ONBOARDING_SCHEMA = json.load(_schema_file)["fields"]
+except FileNotFoundError:
+    raise RuntimeError(
+        f"Pandit onboarding schema not found at {_PANDIT_SCHEMA_PATH}. "
+        "Set PANDIT_ONBOARDING_SCHEMA_PATH in .env or ensure the frontend repo is checked out alongside the backend."
+    )
 PANDIT_REQUIRED_FIELD_QUEUE = tuple(field["id"] for field in PANDIT_ONBOARDING_SCHEMA if field["required"])
 PANDIT_OPTIONAL_FIELD_QUEUE = tuple(field["id"] for field in PANDIT_ONBOARDING_SCHEMA if not field["required"])
 # Optional fields remain available to the browser, but never block or divert
 # the deterministic voice-required queue.
 PANDIT_ONBOARDING_FIELD_QUEUE = ("pandit-avatar",) + PANDIT_REQUIRED_FIELD_QUEUE
 PANDIT_FIELD_LABELS = {
+    "pandit-avatar": "profile photo",
     "pandit-first-name": "pehla naam", "pandit-last-name": "last name",
     "pandit-email": "email address", "pandit-phone": "mobile number",
     "pandit-gender": "gender", "pandit-availability": "availability",
     "pandit-city": "sheher", "pandit-state": "state", "pandit-service-areas": "service areas",
     "pandit-exp": "anubhav", "pandit-gurukul": "shiksha/gurukul", "pandit-languages": "bhashaen",
     "pandit-spec": "specialization", "pandit-achievements": "achievements", "pandit-bio": "bio",
-    "pandit-certFile": "certificate", "pandit-aadhaarFile": "Aadhaar", "pandit-galleryFiles": "gallery",
-    "pandit-password": "password", "pandit-confirm": "password confirmation", "pandit-code-of-conduct": "Code of Conduct",
+    "pandit-certFile": "shiksha pramanpatra", "pandit-aadhaarFile": "Aadhaar", "pandit-galleryFiles": "gallery photos aur videos",
+    "pandit-password": "password", "pandit-confirm": "confirm password", "pandit-code-of-conduct": "Code of Conduct",
 }
 
 def missing_required_pandit_fields(state: dict) -> list[str]:
@@ -1091,28 +1105,7 @@ Return ONLY the extracted clean value, the QUESTION: string, or 'INVALID'. Do NO
         return "INVALID"
 
 # ── CENTRALIZED FIELD VALIDATION REGISTRY ──
-field_hinglish_names = {
-    "pandit-first-name": "pehla naam",
-    "pandit-last-name": "last name",
-    "pandit-email": "email address",
-    "pandit-phone": "mobile number",
-    "pandit-gender": "gender",
-    "pandit-availability": "availability mode",
-    "pandit-city": "sheher",
-    "pandit-state": "state ya rajya",
-    "pandit-service-areas": "service areas",
-    "pandit-exp": "experience",
-    "pandit-gurukul": "education ya gurukul background",
-    "pandit-languages": "bhashayein",
-    "pandit-spec": "specialization",
-    "pandit-achievements": "achievements",
-    "pandit-bio": "bio",
-    "pandit-certFile": "shiksha pramanpatra",
-    "pandit-aadhaarFile": "pehchan praman",
-    "pandit-galleryFiles": "gallery photos aur videos",
-    "pandit-password": "password",
-    "pandit-confirm": "confirm password"
-}
+
 
 class FieldValidationResult:
     def __init__(self, is_valid: bool, cleaned_value: Any = None, error_message: str | None = None, metadata: dict | None = None):
@@ -1357,7 +1350,7 @@ register_field_validator("pandit-bio", _make_non_empty_validator("bio"))
 def validate_and_process_field(field_name: str, raw_val: str, user_params: dict, retry_map: dict) -> tuple[bool, Any, str | None, dict]:
     if raw_val and raw_val.startswith("QUESTION:"):
         answer = raw_val.replace("QUESTION:", "").strip()
-        hinglish_name = field_hinglish_names.get(field_name, "jankari")
+        hinglish_name = PANDIT_FIELD_LABELS.get(field_name, "jankari")
         return False, None, f"{answer} Ab wapas aate hain, kripya apna {hinglish_name} bataiye.", {}
 
     validator = FIELD_VALIDATION_REGISTRY.get(field_name)
@@ -1376,7 +1369,7 @@ def validate_and_process_field(field_name: str, raw_val: str, user_params: dict,
         if current_retries >= max_allowed_retries:
             if field_name in ["pandit-first-name", "pandit-last-name", "pandit-name"]:
                 return False, None, "Kripya apna naam type karein", {"manual_entry_required": True}
-            hinglish_name = field_hinglish_names.get(field_name, "jankari")
+            hinglish_name = PANDIT_FIELD_LABELS.get(field_name, "jankari")
             fallback_msg = f"Lagta hai {hinglish_name} ko samajhne mein dikkat ho rahi hai. Kripya screen par highlight ki gayi field par click karke ise manually fill kar dijiye, taaki hum aage badh sakein."
             return False, None, fallback_msg, {"manual_entry_required": True}
 
@@ -1490,30 +1483,7 @@ async def process_onboarding_step(
     sn_ji = address_info["surname_ji"]
     pji = address_info["panditji"]
 
-    # Map hinglish names for fallback and correction prompts
-    field_hinglish_names_step = {
-        "pandit-avatar": "profile photo",
-        "pandit-first-name": "pehla naam",
-        "pandit-last-name": "last name",
-        "pandit-email": "email address",
-        "pandit-phone": "mobile number",
-        "pandit-gender": "gender",
-        "pandit-availability": "availability mode",
-        "pandit-city": "sheher",
-        "pandit-state": "state ya rajya",
-        "pandit-service-areas": "service areas",
-        "pandit-exp": "experience",
-        "pandit-gurukul": "education ya gurukul background",
-        "pandit-languages": "bhashayein",
-        "pandit-spec": "specialization",
-        "pandit-achievements": "achievements",
-        "pandit-bio": "bio",
-        "pandit-certFile": "shiksha pramanpatra",
-        "pandit-aadhaarFile": "pehchan praman",
-        "pandit-galleryFiles": "gallery photos aur videos",
-        "pandit-password": "password",
-        "pandit-confirm": "confirm password"
-    }
+    # field_hinglish_names_step was merged into PANDIT_FIELD_LABELS
 
     # -------------------------------------------------------------------------
     # CASE 0: Awaiting Individual Field Confirmation ("Maine suna — X. Kya ye sahi hai?")
@@ -1535,7 +1505,7 @@ async def process_onboarding_step(
             if next_idx < len(fields):
                 next_field = fields[next_idx]
                 session.update_location(page="/signup?role=pandit", field=next_field)
-                next_hname = field_hinglish_names_step.get(next_field, next_field)
+                next_hname = PANDIT_FIELD_LABELS.get(next_field, next_field)
                 question = f"Perfect! Ab aage chalte hain. Ab apna {next_hname} bataiye."
                 # A transition that targets the next field must be actionable
                 # for every field kind; never emit a target with action=None.
@@ -1564,7 +1534,7 @@ async def process_onboarding_step(
             state["tentative_value"] = None
             state["status"] = "collecting"
             
-            field_hname = field_hinglish_names_step.get(tentative_field, tentative_field)
+            field_hname = PANDIT_FIELD_LABELS.get(tentative_field, tentative_field)
             question = f"Maaf kijiye! Kripya apna sahi {field_hname} dobara bataiye."
             nav_directive = {"action": "FILL_FORM", "target": tentative_field, "query": None, "active_field": tentative_field, "intent": "PANDIT_ONBOARDING", "fields": None}
             session.update_location(page="/signup?role=pandit", field=tentative_field)
@@ -1677,7 +1647,7 @@ async def process_onboarding_step(
             state["status"] = "correcting_field"
             state["correcting_field_name"] = target_field
             state.setdefault("field_retry_count", {})[target_field] = 0
-            hinglish_name = field_hinglish_names_step.get(target_field, "jankari")
+            hinglish_name = PANDIT_FIELD_LABELS.get(target_field, "jankari")
             question = f"Kshama karein {fn_ji}! Kripya apna naya {hinglish_name} bataiye."
             nav_directive = {"action": "FILL_FORM", "target": target_field, "query": None, "active_field": target_field, "intent": "PANDIT_ONBOARDING", "fields": None}
             return orchestrator._response_builder.build_response(
@@ -1776,7 +1746,7 @@ async def process_onboarding_step(
         state["status"] = "awaiting_confirmation"
         state["correcting_field_name"] = None
         
-        hinglish_name = field_hinglish_names_step.get(target_field, "jankari")
+        hinglish_name = PANDIT_FIELD_LABELS.get(target_field, "jankari")
         summary_body = generate_summary_text(first_name, state["collected_data"], address_info)
         question = f"Dhanyawad {address_info['surname_ji']}! Maine {hinglish_name} update kar diya hai. {summary_body}"
         
@@ -1846,10 +1816,10 @@ async def process_onboarding_step(
     if any(k in user_msg_lower for k in CHANGE_KEYWORDS):
         for past_field in state.get("collected_data", {}).keys():
             if past_field != current_field and state["collected_data"][past_field]:
-                h_name = field_hinglish_names_step.get(past_field, past_field)
+                h_name = PANDIT_FIELD_LABELS.get(past_field, past_field)
                 if h_name in user_msg_lower or past_field.replace("pandit-", "") in user_msg_lower:
                     logger.info("[PANDIT-ONBOARDING] User attempted mid-flow correction of past field '%s'", past_field)
-                    current_hname = field_hinglish_names_step.get(current_field, current_field)
+                    current_hname = PANDIT_FIELD_LABELS.get(current_field, current_field)
                     msg = f"Abhi hum pichla field change nahi kar sakte. Pehle kripya current field ({current_hname}) poora karein, aage summary screen par aap ise change kar sakte hain."
                     return orchestrator._response_builder.build_response(
                         request_id=request.request_id,

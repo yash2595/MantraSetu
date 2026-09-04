@@ -89,6 +89,14 @@ def match_onboarding_intent(text: str) -> IntentMatch:
     normalized = normalize_transcript(text)
     if not normalized:
         return IntentMatch(OnboardingIntent.UNKNOWN, 0.0, normalized)
+
+    message_tokens = set(normalized.split())
+    
+    # Negation override: explicit negative terms flip positive-leaning phrases
+    negation_tokens = {"nahi", "nahin", "na", "no", "not"}
+    positive_tokens = {"sahi", "theek", "bilkul", "correct"}
+    if message_tokens & negation_tokens and message_tokens & positive_tokens:
+        return IntentMatch(OnboardingIntent.CONFIRM_NO, 0.95, normalized)
     # Exact normalized controls are unambiguous, including short words such as
     # "ha", "no", and "ok".  Do this only for the entire utterance: substring
     # matching "ha" inside a surname such as Sharma is unsafe.
