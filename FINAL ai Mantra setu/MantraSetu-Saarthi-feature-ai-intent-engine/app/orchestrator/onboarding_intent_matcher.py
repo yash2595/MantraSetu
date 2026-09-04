@@ -57,10 +57,21 @@ _DEVANAGARI = {
     "स्किप": "skip", "छोड़ो": "chhodo", "अगला सवाल": "agla sawal",
     "फिर से बोलो": "phir se bolo", "दोबारा बोलिए": "dobara boliye", "क्या बोला": "kya bola",
     "हाँ": "haan", "हां": "haan", "सही है": "sahi hai", "ठीक है": "theek hai",
-    "नहीं": "nahi", "गलत है": "galat hai", "पीछे जाओ": "peeche jao", "वापस जाओ": "wapas jao",
+    "नहीं": "nahi", "नही": "nahi", "ना": "no", "गलत है": "galat hai", "गलत": "galat", "पीछे जाओ": "peeche jao", "वापस जाओ": "wapas jao",
 }
 
-_TOKEN_ALIASES = {"age": "aage", "bado": "badho", "badhe": "badhte", "phirse": "phir se", "nhi": "nahi", "thik": "theek"}
+_TOKEN_ALIASES = {
+    "age": "aage",
+    "bado": "badho",
+    "badhe": "badhte",
+    "phirse": "phir se",
+    "nhi": "nahi",
+    "naheen": "nahi",
+    "nahiin": "nahi",
+    "nehi": "nahi",
+    "nahee": "nahi",
+    "thik": "theek",
+}
 _MIN_CONFIDENCE = 0.78
 _MIN_MARGIN = 0.10
 

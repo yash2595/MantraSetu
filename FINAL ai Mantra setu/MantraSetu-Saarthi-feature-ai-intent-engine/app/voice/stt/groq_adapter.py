@@ -113,12 +113,14 @@ class GroqSTTAdapter(ISpeechRecognizer):
 
             # Language code formatting
             lang_code = session.language.split("-")[0] if session.language else "hi"
+            prompt = "Indian English, Hindi conversation, Indian names, surnames, Sharma, Mishra, Verma, Singh, Varanasi, mobile digits, email address"
 
             response = await asyncio.wait_for(
                 client.audio.transcriptions.create(
                     file=("speech.wav", wav_data, "audio/wav"),
                     model=self._model,
                     language=lang_code,
+                    prompt=prompt,
                     response_format="verbose_json",
                 ),
                 timeout=10.0,

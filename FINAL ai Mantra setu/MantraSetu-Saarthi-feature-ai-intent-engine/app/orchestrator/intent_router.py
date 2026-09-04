@@ -42,6 +42,8 @@ class FastPathResolution:
     target_route: str | None = None
     intent_name: str = "UNKNOWN"
     query: str | None = None
+    service: str | None = None
+    location: str | None = None
     response_type: ResponseType = ResponseType.CHAT
     confidence: float = 0.0
 
@@ -256,19 +258,47 @@ class FastPathIntentRouter:
                 if not any(w in msg_clean for w in ["login", "signup", "kundali", "muhurat"]):
                     self._fast_path_hits_count += 1
                     puja_name_display = detected_puja_query or "Puja"
-                    resp = f"Ji, main aapke liye {puja_name_display} ki booking open kar raha hoon."
-                    logger.info(
-                        "[FAST-PATH HIT] transcript=%r intent=BOOK_PUJA target=/puja query=%s",
-                        msg_clean, detected_puja_query,
-                    )
-                    return FastPathResolution(
-                        is_fast_path=True,
-                        response_text=resp,
-                        intent_name="BOOK_PUJA",
-                        target_route="/puja",
-                        query=detected_puja_query,
-                        confidence=1.0,
-                    )
+                    
+                    # Extract city if present in user message
+                    from app.orchestrator.pandit_onboarding import INDIAN_CITIES_DATASET
+                    detected_city = None
+                    for city_key in INDIAN_CITIES_DATASET.keys():
+                        if city_key in msg_clean:
+                            detected_city = city_key.capitalize()
+                            break
+
+                    if detected_city:
+                        resp = f"Ji, main aapke liye {detected_city} mein {puja_name_display} ki booking open kar raha hoon."
+                        query_val = f"{puja_name_display} in {detected_city}" if detected_puja_query else detected_city
+                        logger.info(
+                            "[FAST-PATH HIT] transcript=%r intent=BOOK_PUJA target=/puja service=%s location=%s query=%s",
+                            msg_clean, puja_name_display, detected_city, query_val,
+                        )
+                        return FastPathResolution(
+                            is_fast_path=True,
+                            response_text=resp,
+                            intent_name="BOOK_PUJA",
+                            target_route="/puja",
+                            query=query_val,
+                            service=puja_name_display,
+                            location=detected_city,
+                            confidence=1.0,
+                        )
+                    else:
+                        resp = f"Kis city mein {puja_name_display} book karni hai?"
+                        logger.info(
+                            "[FAST-PATH HIT] transcript=%r intent=BOOK_PUJA missing_location query=%s",
+                            msg_clean, detected_puja_query,
+                        )
+                        return FastPathResolution(
+                            is_fast_path=True,
+                            response_text=resp,
+                            intent_name="BOOK_PUJA",
+                            target_route=None,
+                            query=detected_puja_query,
+                            service=puja_name_display,
+                            confidence=1.0,
+                        )
 
             for rule_phrase, tuple_val in rule_based_mappings.items():
                 intent = tuple_val[0]
@@ -283,6 +313,44 @@ class FastPathIntentRouter:
                 if msg_clean == rule_phrase or rule_phrase in msg_clean:
                     self._fast_path_hits_count += 1
                     final_query = rule_query or detected_puja_query
+
+                    # ── PARAMETER GATING FOR KUNDALI & MUHURAT ──
+                    if intent == "OPEN_KUNDALI":
+                        from app.orchestrator.navigation_intent_detector import extract_dob
+                        detected_dob = extract_dob(msg_clean)
+                        if not detected_dob:
+                            logger.info(
+                                "[FAST-PATH HIT] transcript=%r intent=OPEN_KUNDALI missing_dob",
+                                msg_clean,
+                            )
+                            return FastPathResolution(
+                                is_fast_path=True,
+                                response_text="Aapki janm tareekh (Date of Birth) kya hai?",
+                                intent_name="OPEN_KUNDALI",
+                                target_route=None,
+                                query=None,
+                                confidence=1.0,
+                            )
+                        final_query = detected_dob
+
+                    elif intent == "SHOW_MUHURAT":
+                        from app.orchestrator.navigation_intent_detector import extract_muhurat_event
+                        detected_event = extract_muhurat_event(msg_clean)
+                        if not detected_event:
+                            logger.info(
+                                "[FAST-PATH HIT] transcript=%r intent=SHOW_MUHURAT missing_event",
+                                msg_clean,
+                            )
+                            return FastPathResolution(
+                                is_fast_path=True,
+                                response_text="Kis event ke liye Muhurat chahiye — shaadi, griha pravesh, ya kuch aur?",
+                                intent_name="SHOW_MUHURAT",
+                                target_route=None,
+                                query=None,
+                                confidence=1.0,
+                            )
+                        final_query = detected_event
+
                     if isinstance(response_text_obj, (list, tuple)):
                         selected_text = random.choice(response_text_obj)
                     else:

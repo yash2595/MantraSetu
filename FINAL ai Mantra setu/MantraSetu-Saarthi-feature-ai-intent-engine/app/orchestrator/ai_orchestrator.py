@@ -392,12 +392,19 @@ class AIOrchestrator:
         if not is_active_onboarding and is_navigation_command(sanitized_req.user_message) and not getattr(session, "pending_pandit_clarification", False) and not getattr(session, "pending_tour_clarification", False):
             nav_result = resolve_navigation_target(sanitized_req.user_message)
             if nav_result["needs_clarification"]:
+                msg_clean_check = sanitized_req.user_message.lower()
+                if "book" in msg_clean_check or "puja" in msg_clean_check or "pooja" in msg_clean_check:
+                    session.pending_booking = {"service": nav_result.get("query") or "Puja"}
+                elif "kundali" in msg_clean_check or "kundli" in msg_clean_check or "birth chart" in msg_clean_check or "patri" in msg_clean_check:
+                    session.pending_kundali = {"active": True}
+                elif "muhurat" in msg_clean_check or "muhurth" in msg_clean_check or "samay" in msg_clean_check:
+                    session.pending_muhurat = {"active": True}
                 elapsed_ms = (time.perf_counter() - t_start) * 1000.0
                 return self._response_builder.build_response(
                     request_id=request.request_id,
                     text_override=nav_result["clarification_msg"],
                     response_type=ResponseType.CHAT,
-                    navigation_directive={"action": None, "target": None, "query": None, "active_field": None, "intent": "CLARIFY_NAVIGATION"},
+                    navigation_directive=None,
                     metadata=ResponseMetadata(fast_path=True, latency_ms=round(elapsed_ms, 2)),
                 )
             elif nav_result["target"]:
@@ -418,7 +425,17 @@ class AIOrchestrator:
                     session.onboarding_state = {}
                     elapsed_ms = (time.perf_counter() - t_start) * 1000.0
                     mapped_target = _ROUTE_MAP.get(target_route, target_route)
-                    nav_directive = {"action": "NAVIGATE", "target": mapped_target, "query": nav_result.get("query"), "intent": "NAVIGATE"}
+                    nav_intent = "BOOK_PUJA" if target_route == "/puja" else "NAVIGATE"
+                    nav_directive = {
+                        "action": "NAVIGATE",
+                        "target": mapped_target,
+                        "query": nav_result.get("query"),
+                        "intent": nav_intent,
+                    }
+                    if nav_result.get("service"):
+                        nav_directive["service"] = nav_result["service"]
+                    if nav_result.get("location"):
+                        nav_directive["location"] = nav_result["location"]
                     self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
                     
                     if target_route == "/signup?role=pandit":
@@ -558,7 +575,98 @@ class AIOrchestrator:
                     metadata=ResponseMetadata(fast_path=False, latency_ms=round(elapsed_ms, 2)),
                 )
 
-        # Check if we are waiting for a Site Tour clarification (Pandit vs Devotee tour)
+        # Check if we are waiting for a Puja Booking location clarification
+        pending_booking = getattr(session, "pending_booking", None)
+        if pending_booking:
+            from app.orchestrator.pandit_onboarding import INDIAN_CITIES_DATASET
+            msg_lower_booking = sanitized_req.user_message.strip().lower()
+            detected_city = None
+            for city_key in INDIAN_CITIES_DATASET.keys():
+                if city_key in msg_lower_booking:
+                    detected_city = city_key.capitalize()
+                    break
+
+            if detected_city:
+                service_name = pending_booking.get("service") or "Puja"
+                session.pending_booking = None
+                nav_directive = {
+                    "action": "NAVIGATE",
+                    "target": "/puja",
+                    "intent": "BOOK_PUJA",
+                    "service": service_name,
+                    "location": detected_city,
+                    "query": f"{service_name} in {detected_city}",
+                }
+                self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+                elapsed_ms = (time.perf_counter() - t_start) * 1000.0
+                self._telemetry_manager.record_request(is_success=True, latency_ms=elapsed_ms)
+                self._lifecycle_manager.complete_request_lifecycle(request.request_id)
+                self._scheduler.complete_request(request.request_id)
+                return self._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override=f"Ji, main aapke liye {detected_city} mein {service_name} ki booking open kar raha hoon.",
+                    response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                    navigation_directive=nav_directive,
+                    metadata=ResponseMetadata(fast_path=True, latency_ms=round(elapsed_ms, 2)),
+                )
+            elif is_navigation_command(sanitized_req.user_message) and not any(w in msg_lower_booking for w in ["puja", "pooja", "satyanarayan", "durga", "rudra", "city", "mein"]):
+                session.pending_booking = None
+
+        # Check if we are waiting for a Kundali DOB clarification
+        pending_kundali = getattr(session, "pending_kundali", None)
+        if pending_kundali:
+            from app.orchestrator.navigation_intent_detector import extract_dob
+            detected_dob = extract_dob(sanitized_req.user_message)
+            if detected_dob:
+                session.pending_kundali = None
+                nav_directive = {
+                    "action": "NAVIGATE",
+                    "target": "/kundali-creation",
+                    "intent": "OPEN_KUNDALI",
+                    "query": detected_dob,
+                }
+                self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+                elapsed_ms = (time.perf_counter() - t_start) * 1000.0
+                self._telemetry_manager.record_request(is_success=True, latency_ms=elapsed_ms)
+                self._lifecycle_manager.complete_request_lifecycle(request.request_id)
+                self._scheduler.complete_request(request.request_id)
+                return self._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override=f"Ji, main {detected_dob} ke liye Kundali Creation page open kar raha hoon.",
+                    response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                    navigation_directive=nav_directive,
+                    metadata=ResponseMetadata(fast_path=True, latency_ms=round(elapsed_ms, 2)),
+                )
+            elif is_navigation_command(sanitized_req.user_message) and not any(w in sanitized_req.user_message.lower() for w in ["kundali", "kundli", "dob", "birth", "janam"]):
+                session.pending_kundali = None
+
+        # Check if we are waiting for a Muhurat Event clarification
+        pending_muhurat = getattr(session, "pending_muhurat", None)
+        if pending_muhurat:
+            from app.orchestrator.navigation_intent_detector import extract_muhurat_event
+            detected_event = extract_muhurat_event(sanitized_req.user_message)
+            if detected_event:
+                session.pending_muhurat = None
+                nav_directive = {
+                    "action": "NAVIGATE",
+                    "target": "/muhurat-finder",
+                    "intent": "SHOW_MUHURAT",
+                    "query": detected_event,
+                }
+                self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+                elapsed_ms = (time.perf_counter() - t_start) * 1000.0
+                self._telemetry_manager.record_request(is_success=True, latency_ms=elapsed_ms)
+                self._lifecycle_manager.complete_request_lifecycle(request.request_id)
+                self._scheduler.complete_request(request.request_id)
+                return self._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override=f"Ji, main {detected_event} ke liye Shubh Muhurat Finder open kar raha hoon.",
+                    response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                    navigation_directive=nav_directive,
+                    metadata=ResponseMetadata(fast_path=True, latency_ms=round(elapsed_ms, 2)),
+                )
+            elif is_navigation_command(sanitized_req.user_message) and not any(w in sanitized_req.user_message.lower() for w in ["muhurat", "muhurth", "event", "samay", "shaadi", "vivah"]):
+                session.pending_muhurat = None
         pending_tour_clarification = getattr(session, "pending_tour_clarification", False)
         if pending_tour_clarification:
             msg_lower = sanitized_req.user_message.strip().lower()
@@ -923,13 +1031,27 @@ class AIOrchestrator:
             nav_directive = None
             if fast_res.target_route:
                 mapped_target = _ROUTE_MAP.get(fast_res.target_route, fast_res.target_route)
-                nav_directive = {"action": "NAVIGATE", "target": mapped_target, "intent": fast_res.intent_name, "query": fast_res.query}
+                nav_directive = {
+                    "action": "NAVIGATE",
+                    "target": mapped_target,
+                    "intent": fast_res.intent_name,
+                    "query": fast_res.query,
+                }
+                if fast_res.service:
+                    nav_directive["service"] = fast_res.service
+                if fast_res.location:
+                    nav_directive["location"] = fast_res.location
                 logger.info(
-                    "[ORCHESTRATOR] FAST-PATH NAV: intent=%s target=%s mapped=%s query=%s",
-                    fast_res.intent_name, fast_res.target_route, mapped_target, fast_res.query,
+                    "[ORCHESTRATOR] FAST-PATH NAV: intent=%s target=%s mapped=%s service=%s location=%s query=%s",
+                    fast_res.intent_name, fast_res.target_route, mapped_target, fast_res.service, fast_res.location, fast_res.query,
                 )
                 self._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
-
+            elif fast_res.intent_name == "BOOK_PUJA":
+                session.pending_booking = {"service": fast_res.service or fast_res.query or "Puja"}
+            elif fast_res.intent_name == "OPEN_KUNDALI":
+                session.pending_kundali = {"active": True}
+            elif fast_res.intent_name == "SHOW_MUHURAT":
+                session.pending_muhurat = {"active": True}
 
             return self._response_builder.build_response(
                 request_id=request.request_id,

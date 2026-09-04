@@ -10,6 +10,8 @@ import os
 import time
 import wave
 
+import httpx
+
 from app.voice.audio_buffer import AudioBuffer
 from app.voice.schemas import TranscriptChunk, TranscriptResult
 from app.voice.session import VoiceSession
@@ -31,6 +33,21 @@ class InWorldSTTAdapter(ISpeechRecognizer):
         if not self._api_key:
             raise ValueError("INWORLD_API_KEY environment variable is missing")
         self._model = model or os.environ.get("INWORLD_STT_MODEL", "inworld/inworld-stt-1")
+        self._client: httpx.AsyncClient | None = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        """Return or lazily initialize shared persistent httpx.AsyncClient with connection pooling."""
+        if self._client is None or self._client.is_closed:
+            limits = httpx.Limits(max_connections=20, max_keepalive_connections=10, keepalive_expiry=30.0)
+            timeout = httpx.Timeout(25.0, connect=5.0)
+            self._client = httpx.AsyncClient(limits=limits, timeout=timeout)
+        return self._client
+
+    async def aclose(self) -> None:
+        """Close shared HTTP client connection pool on teardown."""
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
 
     @property
     def provider_name(self) -> str:
@@ -127,47 +144,39 @@ class InWorldSTTAdapter(ISpeechRecognizer):
                 }
             }
 
-            # Long free-text turns are valid; allow the provider a bounded,
-            # realistic response window rather than converting them to empty STT.
-            async with httpx.AsyncClient(timeout=25.0) as client:
-                headers = {
-                    "Authorization": f"Basic {self._api_key}",
-                    "Content-Type": "application/json",
-                }
+            client = self._get_client()
+            headers = {
+                "Authorization": f"Basic {self._api_key}",
+                "Content-Type": "application/json",
+            }
+            
+            try:
+                response = await client.post(
+                    'https://api.inworld.ai/stt/v1/transcribe',
+                    headers=headers,
+                    json=payload,
+                    timeout=25.0
+                )
+                response_body = response.text
+                logger.info("[DIAG-INVESTIGATION][STT] request_id=%s session_id=%s provider=inworld http_status=%d pcm_bytes=%d response_body=%r", request_id, session.session_id, response.status_code, len(raw_pcm), response_body[:2048])
+                response.raise_for_status()
                 
                 try:
-                    response = await client.post(
-                        'https://api.inworld.ai/stt/v1/transcribe',
-                        headers=headers,
-                        json=payload,
-                        timeout=25.0
-                    )
-                    response_body = response.text
-                    logger.info("[DIAG-INVESTIGATION][STT] request_id=%s session_id=%s provider=inworld http_status=%d pcm_bytes=%d response_body=%r", request_id, session.session_id, response.status_code, len(raw_pcm), response_body[:2048])
-                    response.raise_for_status()
-                    
-                    try:
-                        data = response.json()
-                    except Exception as e:
-                        logger.error(f"[INWORLD-STT-ERROR] JSON Parse Error. Status: {response.status_code}, Response body: {response.text}")
-                        raise e
-                    
-                    
-                    # Based on test_inworld_stt.py response parsing structure or fallback
-                    # In test script it prints the JSON, but typically recognize returns transcription text
-                    # Depending on InWorld format, it might be in data.get('text') or similar. 
-                    # Assuming data.get('transcript') based on typical multipart STT, wait...
-                    # Let's extract safely.
-                    transcription = data.get("transcription", {})
-                    text = data.get("text", "") or data.get("transcript", "") or transcription.get("transcript", "")
-                    candidate_confidence = transcription.get("confidence", data.get("confidence"))
-                    if isinstance(candidate_confidence, (int, float)) and 0.0 <= float(candidate_confidence) <= 1.0:
-                        stt_confidence = float(candidate_confidence)
-                        confidence_available = True
+                    data = response.json()
                 except Exception as e:
-                    body = response.text[:500] if 'response' in locals() else ''
-                    logger.error(f"[DIAG-INVESTIGATION][STT] request_id={request_id} session_id={session.session_id} provider=inworld status=error error={type(e).__name__}:{e} body={body!r}")
-                    return TranscriptResult(
+                    logger.error(f"[INWORLD-STT-ERROR] JSON Parse Error. Status: {response.status_code}, Response body: {response.text}")
+                    raise e
+                
+                transcription = data.get("transcription", {})
+                text = data.get("text", "") or data.get("transcript", "") or transcription.get("transcript", "")
+                candidate_confidence = transcription.get("confidence", data.get("confidence"))
+                if isinstance(candidate_confidence, (int, float)) and 0.0 <= float(candidate_confidence) <= 1.0:
+                    stt_confidence = float(candidate_confidence)
+                    confidence_available = True
+            except Exception as e:
+                body = response.text[:500] if 'response' in locals() else ''
+                logger.error(f"[DIAG-INVESTIGATION][STT] request_id={request_id} session_id={session.session_id} provider=inworld status=error error={type(e).__name__}:{e} body={body!r}")
+                return TranscriptResult(
                         text="",
                         confidence=0.0,
                         language=session.language,

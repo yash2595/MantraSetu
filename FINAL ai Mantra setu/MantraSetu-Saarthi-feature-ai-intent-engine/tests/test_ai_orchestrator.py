@@ -122,3 +122,104 @@ class TestAIOrchestratorEnterprise(IsolatedAsyncioTestCase):
         """Verify default factories construct functional instances."""
         ai_orch = build_ai_orchestrator()
         self.assertIsInstance(ai_orch, AIOrchestrator)
+
+    async def test_booking_location_gate_missing_city(self) -> None:
+        """Verify puja booking without city triggers location follow-up without navigating, then completes navigation upon city reply."""
+        session_id = f"sess-booking-gate-{uuid4().hex[:8]}"
+
+        # Turn 1: User asks for puja booking without city
+        req_1 = OrchestratorRequest(
+            user_message="Satyanarayan Pooja book karni hai",
+            session_id=session_id,
+        )
+        resp_1 = await self.orchestrator.process_request(req_1)
+
+        self.assertEqual(resp_1.response_type, ResponseType.CHAT)
+        self.assertIsNone(resp_1.navigation_directive)
+        self.assertEqual(resp_1.text, "Kis city mein Satyanarayan book karni hai?")
+
+        # Turn 2: User provides city
+        req_2 = OrchestratorRequest(
+            user_message="Varanasi mein",
+            session_id=session_id,
+        )
+        resp_2 = await self.orchestrator.process_request(req_2)
+
+        self.assertEqual(resp_2.response_type, ResponseType.NAVIGATION_DIRECTIVE)
+        self.assertIsNotNone(resp_2.navigation_directive)
+        self.assertEqual(resp_2.navigation_directive.get("target"), "/puja")
+        self.assertIn("Varanasi", resp_2.text)
+        self.assertIn("Satyanarayan", resp_2.text)
+
+    async def test_kundali_gate_missing_dob(self) -> None:
+        """Verify Kundali intent without DOB triggers follow-up without navigating, then navigates upon DOB reply."""
+        session_id = f"sess-kundali-gate-{uuid4().hex[:8]}"
+
+        # Turn 1: User asks for Kundali without DOB
+        req_1 = OrchestratorRequest(
+            user_message="Kundali banana hai",
+            session_id=session_id,
+        )
+        resp_1 = await self.orchestrator.process_request(req_1)
+
+        self.assertEqual(resp_1.response_type, ResponseType.CHAT)
+        self.assertIsNone(resp_1.navigation_directive)
+        self.assertEqual(resp_1.text, "Aapki janm tareekh (Date of Birth) kya hai?")
+
+        # Turn 2: User provides DOB
+        req_2 = OrchestratorRequest(
+            user_message="15-08-1995",
+            session_id=session_id,
+        )
+        resp_2 = await self.orchestrator.process_request(req_2)
+
+        self.assertEqual(resp_2.response_type, ResponseType.NAVIGATION_DIRECTIVE)
+        self.assertIsNotNone(resp_2.navigation_directive)
+        self.assertEqual(resp_2.navigation_directive.get("target"), "/kundali-creation")
+        self.assertIn("15-08-1995", resp_2.text)
+
+    async def test_muhurat_gate_missing_event_type(self) -> None:
+        """Verify Muhurat intent without event type triggers follow-up without navigating, then navigates upon event reply."""
+        session_id = f"sess-muhurat-gate-{uuid4().hex[:8]}"
+
+        # Turn 1: User asks for Muhurat without event type
+        req_1 = OrchestratorRequest(
+            user_message="Shubh Muhurat dikhao",
+            session_id=session_id,
+        )
+        resp_1 = await self.orchestrator.process_request(req_1)
+
+        self.assertEqual(resp_1.response_type, ResponseType.CHAT)
+        self.assertIsNone(resp_1.navigation_directive)
+        self.assertEqual(resp_1.text, "Kis event ke liye Muhurat chahiye — shaadi, griha pravesh, ya kuch aur?")
+
+        # Turn 2: User provides event type
+        req_2 = OrchestratorRequest(
+            user_message="Griha Pravesh ke liye",
+            session_id=session_id,
+        )
+        resp_2 = await self.orchestrator.process_request(req_2)
+
+        self.assertEqual(resp_2.response_type, ResponseType.NAVIGATION_DIRECTIVE)
+        self.assertIsNotNone(resp_2.navigation_directive)
+        self.assertEqual(resp_2.navigation_directive.get("target"), "/muhurat-finder")
+        self.assertIn("Griha Pravesh", resp_2.text)
+
+    async def test_puja_structured_service_and_location_directive(self) -> None:
+        """Verify puja booking produces separate service and location fields in navigation_directive."""
+        session_id = f"sess-structured-{uuid4().hex[:8]}"
+
+        req = OrchestratorRequest(
+            user_message="Satyanarayan Pooja Varanasi mein book karni hai",
+            session_id=session_id,
+        )
+        resp = await self.orchestrator.process_request(req)
+
+        self.assertEqual(resp.response_type, ResponseType.NAVIGATION_DIRECTIVE)
+        self.assertIsNotNone(resp.navigation_directive)
+        nav = resp.navigation_directive
+        self.assertEqual(nav.get("target"), "/puja")
+        self.assertEqual(nav.get("intent"), "BOOK_PUJA")
+        self.assertEqual(nav.get("service"), "Satyanarayan")
+        self.assertEqual(nav.get("location"), "Varanasi")
+        self.assertIn("Satyanarayan", nav.get("query", ""))

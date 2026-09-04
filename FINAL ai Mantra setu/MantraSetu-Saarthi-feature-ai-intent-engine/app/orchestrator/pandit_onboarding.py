@@ -16,7 +16,11 @@ from app.orchestrator.orchestrator_models import (
 )
 
 from app.orchestrator.navigation_intent_detector import is_navigation_command, resolve_navigation_target
-from app.orchestrator.onboarding_intent_matcher import OnboardingIntent, match_onboarding_intent
+from app.orchestrator.onboarding_intent_matcher import (
+    OnboardingIntent,
+    match_onboarding_intent,
+    normalize_transcript,
+)
 from app.utils.identifier_speech import render_identifier_digits
 
 logger = logging.getLogger(__name__)
@@ -416,7 +420,7 @@ def is_negative(user_message: str) -> bool:
         return False
     user_text = (user_message or "").lower().strip()
     REJECTION_PHRASES = [
-        "nahi", "nahin", "nhi", "na", "no", "nope", "not",
+        "nahi", "nahin", "nhi", "naheen", "nahiin", "nehi", "nahee", "na", "no", "nope", "not",
         "galat", "galat hai", "wrong", "incorrect", "badlo", "change",
         "dobara", "phir se", "re-enter", "nahi galat hai", "no wrong", "galat hai nahi",
         "नहीं", "नही", "ना", "गलत", "गलत है", "बदलो", "दोबारा", "फिर से"
@@ -424,16 +428,19 @@ def is_negative(user_message: str) -> bool:
     return any(phrase in user_text for phrase in REJECTION_PHRASES)
 
 def is_pure_negative(user_message: str) -> bool:
-    """Check if user message is ONLY a rejection phrase without an inline replacement value."""
-    user_text = (user_message or "").lower().strip()
-    text_no_apostrophe = re.sub(r"['’`]", "", user_text)
-    text_nopunct = re.sub(r"[^\w\s\u0900-\u097f]", " ", text_no_apostrophe)
-    cleaned = re.sub(
-        r'(?<![\w\u0900-\u097f])(nahi|nahin|nhi|na|no|nope|not|galat|hai|is|that|thats|wrong|incorrect|badlo|change|dobara|phir|se|re-enter|ji|jee|jiya|जी|नहीं|नही|ना|गलत|है|बदलो|दोबारा|फिर|से)(?![\w\u0900-\u097f])',
-        '', text_nopunct, flags=re.IGNORECASE
-    ).strip()
-    cleaned = re.sub(r'\s+', '', cleaned).strip()
-    return is_negative(user_message) and len(cleaned) == 0
+    """Check if the normalized utterance is strictly a negative intent without extra entities."""
+    canonical = match_onboarding_intent(user_message)
+    if canonical.intent is not OnboardingIntent.CONFIRM_NO or canonical.confidence < 0.85:
+        return False
+    normalized = normalize_transcript(user_message)
+    tokens = [t for t in normalized.split() if t]
+    CONTROL_TOKENS = {
+        "nahi", "nahin", "na", "no", "nope", "not", "galat", "wrong",
+        "badlo", "change", "dobara", "phir", "se", "hai", "ye", "yeh",
+        "ji", "jee", "is", "that", "thats"
+    }
+    payload_tokens = [t for t in tokens if t not in CONTROL_TOKENS]
+    return len(payload_tokens) == 0
 
 
 async def detect_correction_field(user_message: str, ai_service: AIService) -> str:

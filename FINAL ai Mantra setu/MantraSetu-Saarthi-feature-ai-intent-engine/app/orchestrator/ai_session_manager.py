@@ -27,6 +27,9 @@ class AISessionRecord:
     last_active_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     active_requests: set[str] = field(default_factory=set)
     onboarding_state: dict[str, Any] | None = None
+    pending_booking: dict[str, Any] | None = None
+    pending_kundali: dict[str, Any] | None = None
+    pending_muhurat: dict[str, Any] | None = None
     current_page: str = "/"
     current_field: str | None = None
     lock: Any = field(default_factory=__import__('asyncio').Lock)

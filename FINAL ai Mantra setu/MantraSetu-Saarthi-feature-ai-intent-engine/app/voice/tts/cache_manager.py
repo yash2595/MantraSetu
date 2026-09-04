@@ -89,12 +89,40 @@ class TTSCacheManager:
         logger.debug("[CACHE-KEY-TRACE] key=%s | raw_string=%r", key[:8], content[:60])
         return key
 
+    def _get_active_keys(self) -> set[str]:
+        """Compute the set of expected cache keys for current provider and voice."""
+        active_keys: set[str] = set()
+        provider = os.environ.get("DEFAULT_TTS_PROVIDER", "inworld").strip().lower()
+        active_voice = os.environ.get("INWORLD_VOICE_ID", "Aarav").strip()
+        voices = {"pandit", "default", "saarthi", "meera", active_voice, active_voice.lower()}
+
+        try:
+            from app.voice.tts.voice_response_pipeline import clean_text_for_tts
+
+            for raw_text in STATIC_ONBOARDING_PROMPTS:
+                cleaned = clean_text_for_tts(raw_text)
+                for v in voices:
+                    for lang in ("hi", "hi-IN", "en", "en-IN"):
+                        active_keys.add(self.get_cache_key(cleaned, v, lang, provider))
+        except Exception as e:
+            logger.warning("Could not compute active cache keys: %s", e)
+        return active_keys
+
     def _load_disk_cache(self) -> None:
-        """Load pre-generated .mp3 files from disk into memory on startup."""
+        """Load pre-generated .mp3 files from disk into memory on startup.
+
+        Validates against active TTS provider and voice aliases to avoid loading
+        stale audio files generated under previous providers/voices.
+        """
         count = 0
+        active_keys = self._get_active_keys()
+
         try:
             for file_path in self.cache_dir.glob("*.mp3"):
                 key = file_path.stem
+                # Skip loading stale cache files from disk that don't match active provider/voice keys
+                if active_keys and key not in active_keys:
+                    continue
                 try:
                     data = file_path.read_bytes()
                     if data:
@@ -102,7 +130,7 @@ class TTSCacheManager:
                         count += 1
                 except Exception as err:
                     logger.warning("Failed to read cached file %s: %s", file_path, err)
-            logger.info("TTSCacheManager loaded %d cached audio prompts into memory.", count)
+            logger.info("TTSCacheManager loaded %d active cached audio prompts into memory.", count)
         except Exception as e:
             logger.error("Error loading disk cache: %s", e)
 
@@ -195,10 +223,13 @@ class TTSCacheManager:
         )
 
 
-# Singleton instance
-_tts_cache_manager_instance = TTSCacheManager()
+# Singleton instance (lazy initialized)
+_tts_cache_manager_instance: TTSCacheManager | None = None
 
 
 def get_tts_cache_manager() -> TTSCacheManager:
     """Dependency provider returning singleton TTSCacheManager instance."""
+    global _tts_cache_manager_instance
+    if _tts_cache_manager_instance is None:
+        _tts_cache_manager_instance = TTSCacheManager()
     return _tts_cache_manager_instance

@@ -1081,6 +1081,8 @@ export function useSaarthiVoice() {
             let target = msg.payload.target || (msg.payload.navigation_directive && msg.payload.navigation_directive.target) || null;
             let intent = msg.payload.intent || (msg.payload.navigation_directive && msg.payload.navigation_directive.intent) || null;
             let query = msg.payload.query || (msg.payload.navigation_directive && msg.payload.navigation_directive.query) || null;
+            let service = msg.payload.service || (msg.payload.navigation_directive && msg.payload.navigation_directive.service) || null;
+            let location = msg.payload.location || (msg.payload.navigation_directive && msg.payload.navigation_directive.location) || null;
             let activeField = msg.payload.active_field || (msg.payload.navigation_directive && msg.payload.navigation_directive.active_field) || null;
             
             try {
@@ -1089,11 +1091,13 @@ export function useSaarthiVoice() {
               if (!target && parsed.target) target = parsed.target;
               if (!intent && parsed.intent) intent = parsed.intent;
               if (!query && parsed.query) query = parsed.query;
+              if (!service && parsed.service) service = parsed.service;
+              if (!location && parsed.location) location = parsed.location;
               if (!activeField && parsed.active_field) activeField = parsed.active_field;
               if (parsed.response_text) contentStr = parsed.response_text;
             } catch (e) {}
 
-            console.log('[DEBUG-PAYLOAD-EXTRACT] Extracted action:', action, 'target:', target, 'activeField:', activeField, 'intent:', intent);
+            console.log('[DEBUG-PAYLOAD-EXTRACT] Extracted action:', action, 'target:', target, 'service:', service, 'location:', location, 'activeField:', activeField, 'intent:', intent);
 
             // ── HIGHLIGHT TRIGGER & GENERALIZED DROPDOWN AUTO-EXPAND ON BOT QUESTION ASK ──
             if (activeField) {
@@ -1354,12 +1358,20 @@ export function useSaarthiVoice() {
               if (cursor) cursor.style.opacity = '0';
               
               // 🚨 GENERIC AUTO-BOOKING SEQUENCE FOR ALL PUJAS
-              // If navigating to /puja or /services AND (a specific query exists OR intent is BOOK_PUJA)
-              if ((cleanTarget.startsWith('/puja') || cleanTarget.startsWith('/services')) && (query || intentName === 'BOOK_PUJA')) {
-                 console.log(`[PUJA-AUTOBOOK] Auto-booking sequence triggered for query: ${query || 'general'}`);
+              // If navigating to /puja or /services AND (a specific query/service exists OR intent is BOOK_PUJA)
+              if ((cleanTarget.startsWith('/puja') || cleanTarget.startsWith('/services')) && (service || query || intentName === 'BOOK_PUJA')) {
+                 const resolvedService = service || (query && !query.includes(' in ') ? query : null);
+                 const resolvedCity = location || null;
+                 console.log(`[PUJA-AUTOBOOK] Auto-booking sequence triggered for service: ${resolvedService}, city: ${resolvedCity}, query: ${query}`);
+                 
+                 const params = new URLSearchParams();
+                 if (resolvedService) params.set('service', resolvedService);
+                 if (resolvedCity) params.set('city', resolvedCity);
+                 if (query && !resolvedService) params.set('q', query);
+                 const qs = params.toString() ? `?${params.toString()}` : '';
+
                  const seq: any[] = [];
-                 const qParam = query ? `?q=${encodeURIComponent(query)}` : '';
-                 seq.push({ action: 'navigate', path: `/puja${qParam}`, delay: 400 });
+                 seq.push({ action: 'navigate', path: `/puja${qs}`, delay: 400 });
                  seq.push({ action: 'wait_for_selector', target: '[data-testid^="card-puja-"], .service-card', delay: 400 });
                  seq.push({ action: 'scroll', target: '[data-testid^="card-puja-"], .service-card', delay: 400 });
                  seq.push({ action: 'move', target: '[data-testid^="button-book-now-"], .service-card button', delay: 800 });

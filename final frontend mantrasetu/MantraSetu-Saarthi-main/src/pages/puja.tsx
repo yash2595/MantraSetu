@@ -131,31 +131,71 @@ export default function Puja() {
   const [modal, setModal] = useState<ModalType>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('All Pujas');
   const [searchParams] = useSearchParams();
-  const initialSearch = searchParams.get('q') || '';
+  const serviceParam = searchParams.get('service') || '';
+  const cityParam = searchParams.get('city') || '';
+  const initialSearch = serviceParam || searchParams.get('q') || '';
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [bookingPuja, setBookingPuja] = useState<PujaItem | null>(null);
   const [pujas, setPujas] = useState<PujaItem[]>(defaultPujaCatalog);
 
+  // Helper to check if a puja title matches a search/service term
+  const matchPujaScore = (puja: PujaItem, queryText: string): boolean => {
+    if (!queryText.trim()) return true;
+    const cleanQuery = queryText.toLowerCase().trim();
+    const titleLower = puja.title.toLowerCase();
+    const descLower = puja.description.toLowerCase();
+
+    // 1. Exact or direct substring match
+    if (titleLower.includes(cleanQuery) || descLower.includes(cleanQuery)) {
+      return true;
+    }
+
+    // 2. Tokenized word matching (ignoring generic filler words)
+    const stopWords = new Set(['puja', 'pooja', 'katha', 'havan', 'and', '&', 'in', 'mein', 'the', 'for', 'ki', 'ke', 'shanti', 'nivaran']);
+    const tokens = cleanQuery.split(/[\s,/-]+/).filter((t) => t.length > 2 && !stopWords.has(t));
+    if (tokens.length > 0) {
+      return tokens.some((token) => titleLower.includes(token) || descLower.includes(token));
+    }
+
+    return false;
+  };
+
   const filteredPujas = useMemo(() => {
     return pujas.filter((puja) => {
       const matchesCategory = selectedCategory === 'All Pujas' || puja.category === selectedCategory;
-      const matchesSearch =
-        puja.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        puja.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = matchPujaScore(puja, searchQuery);
       return matchesCategory && matchesSearch;
     });
   }, [pujas, selectedCategory, searchQuery]);
 
   useEffect(() => {
-    if (searchParams.get('q')) {
-      setSearchQuery(searchParams.get('q') || '');
+    const sParam = searchParams.get('service');
+    const qParam = searchParams.get('q');
+    if (sParam) {
+      setSearchQuery(sParam);
+    } else if (qParam) {
+      setSearchQuery(qParam);
+    }
+    const cParam = searchParams.get('city');
+    if (cParam) {
+      setBookingCity(cParam);
     }
   }, [searchParams]);
 
+  // Auto-open booking modal if a single confident service match exists
+  useEffect(() => {
+    const targetService = searchParams.get('service') || searchParams.get('q');
+    if (targetService && pujas.length > 0) {
+      const exactMatches = pujas.filter((p) => matchPujaScore(p, targetService));
+      if (exactMatches.length === 1) {
+        setBookingPuja(exactMatches[0]);
+      }
+    }
+  }, [searchParams, pujas]);
 
   // Form state for booking modal
   const [bookingDate, setBookingDate] = useState('2026-08-15');
-  const [bookingCity, setBookingCity] = useState('New Delhi');
+  const [bookingCity, setBookingCity] = useState(cityParam || 'New Delhi');
   const [bookingTime, setBookingTime] = useState('09:00 AM');
   const [devoteeName, setDevoteeName] = useState('');
   const [devoteePhone, setDevoteePhone] = useState('');
