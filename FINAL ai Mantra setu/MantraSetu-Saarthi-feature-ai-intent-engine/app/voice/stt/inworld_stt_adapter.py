@@ -129,23 +129,29 @@ class InWorldSTTAdapter(ISpeechRecognizer):
             import httpx
             
             # Dynamic STT language selection:
-            # Use 'en-IN' for name fields to ensure crisp English proper noun transcription
-            # and avoid inherent Hindi schwa vowel additions (e.g. Utkarsh -> Utkarsha).
+            # Use 'en-IN' for alphanumeric fields (names and email addresses) to ensure
+            # crisp English transcription, prevent Hindi schwa additions (Utkarsh -> Utkarsha),
+            # and accurately capture English letters, numbers, and symbols (@gmail.com).
             # Default to 'hi-IN' for all other conversational turns.
             NAME_FIELDS = {
                 "pandit-first-name", "pandit-last-name", "pandit-name",
                 "first-name", "last-name", "name"
             }
+            EMAIL_FIELDS = {
+                "pandit-email", "email"
+            }
+            ALPHANUMERIC_FIELDS = NAME_FIELDS | EMAIL_FIELDS
+
             active_field = (
                 session.context_data.get("client_active_field")
                 or session.context_data.get("onboarding_active_field")
                 or ""
             )
-            is_name_field = active_field in NAME_FIELDS
-            lang_code = "en-IN" if is_name_field else (session.language or "hi-IN")
+            is_alphanumeric_field = active_field in ALPHANUMERIC_FIELDS
+            lang_code = "en-IN" if is_alphanumeric_field else (session.language or "hi-IN")
             logger.info(
-                "[INWORLD-STT] Active field=%r (is_name=%s) -> STT language=%s",
-                active_field, is_name_field, lang_code
+                "[INWORLD-STT] Active field=%r (is_alphanumeric=%s) -> STT language=%s",
+                active_field, is_alphanumeric_field, lang_code
             )
             
             audio_b64 = base64.b64encode(wav_data).decode('utf-8')
