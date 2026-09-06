@@ -196,14 +196,22 @@ class AIOrchestrator:
         session_manager: AISessionManager | None = None,
         streaming_manager: StreamingManagerEngine | None = None,
         frontend_bridge: FrontendIntegrationBridge | None = None,
+        ai_service: Any = None,
     ) -> None:
         self._navigation_service = navigation_service
         self._lifecycle_manager = lifecycle_manager or AIRequestLifecycleManager()
         self._security_manager = security_manager or SecurityManager()
         self._intent_router = intent_router or FastPathIntentRouter()
         
-        from app.services.ai_service import AIService
-        self._llm_intent_detector = LLMIntentDetector(ai_service=AIService())
+        ai_service_inst = ai_service
+        if ai_service_inst is None:
+            try:
+                from app.dependencies.providers import get_ai_service
+                ai_service_inst = get_ai_service()
+            except Exception:
+                from app.services.ai_service import AIService
+                ai_service_inst = AIService()
+        self._llm_intent_detector = LLMIntentDetector(ai_service=ai_service_inst)
         
         self._prompt_builder = prompt_builder or DynamicPromptBuilder()
         self._provider_manager = provider_manager or ProviderManager()

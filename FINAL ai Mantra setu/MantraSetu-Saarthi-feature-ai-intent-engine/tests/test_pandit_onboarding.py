@@ -894,5 +894,54 @@ class TestPanditOnboardingStateMachine(IsolatedAsyncioTestCase):
         res3 = normalize_spoken_input("triple nine eight seven six five four three two", "pandit-phone")
         self.assertEqual(res3, "9998765432")
 
+    async def test_manual_input_phone_direct_commit_and_advance(self):
+        """Test that manual input on pandit-phone directly commits and advances without confirmation."""
+        from app.orchestrator.pandit_onboarding import process_onboarding_step, PANDIT_ONBOARDING_FIELD_QUEUE
+        session = self.orchestrator._session_manager.get_or_create_session(self.session_id)
+        session.onboarding_state = {
+            "status": "collecting",
+            "current_field_index": 4,
+            "fields": list(PANDIT_ONBOARDING_FIELD_QUEUE),
+            "collected_data": {
+                "pandit-avatar": "skipped",
+                "pandit-first-name": "Ramesh",
+                "pandit-last-name": "Sharma",
+                "pandit-email": "ramesh@example.com",
+            }
+        }
+        req = OrchestratorRequest(
+            session_id=self.session_id,
+            conversation_id=self.conv_id,
+            user_message="9087654321",
+            current_page="/signup?role=pandit",
+            user_parameters={
+                "source": "manual_input",
+                "active_field": "pandit-phone",
+                "dom_form_data": {"pandit-phone": "9087654321"}
+            }
+        )
+        resp = await process_onboarding_step(req, session, self.orchestrator)
+        self.assertIsNotNone(resp)
+        self.assertEqual(session.onboarding_state["collected_data"]["pandit-phone"], "9087654321")
+        self.assertEqual(session.onboarding_state["status"], "collecting")
+        self.assertIsNone(session.onboarding_state.get("tentative_field"))
+        self.assertEqual(resp.navigation_directive["active_field"], "pandit-gender")
+        self.assertIn("gender", resp.text.lower())
+
+    async def test_gender_hindi_and_english_extraction(self):
+        """Regression test: ensure female and male keywords in Hindi/Hinglish/English map correctly."""
+        from app.orchestrator.pandit_onboarding import extract_field_value
+        # Female variants
+        for val in ["female", "mahila", "aurat", "stree", "महिला", "स्त्री", "फीमेल", "फिमेल"]:
+            res = await extract_field_value(val, "pandit-gender", None)
+            self.assertEqual(res, "Female", f"Failed for female input: {val}")
+
+        # Male variants
+        for val in ["male", "purush", "aadmi", "पुरुष", "आदमी", "मेल"]:
+            res = await extract_field_value(val, "pandit-gender", None)
+            self.assertEqual(res, "Male", f"Failed for male input: {val}")
+
+
+
 
 

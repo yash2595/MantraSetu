@@ -105,7 +105,7 @@ class VoiceActivityDetector:
         """Return final analysis for the utterance."""
         speech_dur = self.get_speech_duration_sec()
         total_dur = self.get_total_duration_sec()
-        is_valid = (speech_dur >= self.min_speech_duration_sec) or (self.max_rms >= 120.0 and total_dur >= 0.25)
+        is_valid = (speech_dur >= 0.20) and (self.max_rms >= 200.0)
         
         logger.info(
             "[VAD-GATE] Total Duration: %.2fs | Verified Speech Duration: %.2fs (min req: %.2fs) | Valid Speech: %s | Max RMS: %.2f | Calibrated Noise: %.2f",
