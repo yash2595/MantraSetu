@@ -3,11 +3,25 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from collections import defaultdict
 from threading import Lock
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+
+def _get_env_int(key: str, default: int) -> int:
+    val = os.getenv(key)
+    if val is not None:
+        try:
+            return int(val.strip())
+        except (ValueError, TypeError):
+            pass
+    return default
 
 
 class SlidingWindowRateLimiter:
@@ -15,18 +29,58 @@ class SlidingWindowRateLimiter:
 
     def __init__(
         self,
-        guest_limit: int = 5,
-        guest_window_seconds: int = 600,
-        auth_limit: int = 50,
-        auth_window_seconds: int = 600,
+        guest_limit: int | None = None,
+        guest_window_seconds: int | None = None,
+        auth_limit: int | None = None,
+        auth_window_seconds: int | None = None,
     ) -> None:
-        self.guest_limit = guest_limit
-        self.guest_window_seconds = guest_window_seconds
-        self.auth_limit = auth_limit
-        self.auth_window_seconds = auth_window_seconds
+        self._guest_limit_override = guest_limit
+        self._guest_window_override = guest_window_seconds
+        self._auth_limit_override = auth_limit
+        self._auth_window_override = auth_window_seconds
         self._lock = Lock()
         self._guest_records: dict[str, list[float]] = defaultdict(list)
         self._auth_records: dict[str, list[float]] = defaultdict(list)
+
+    @property
+    def guest_limit(self) -> int:
+        if self._guest_limit_override is not None:
+            return self._guest_limit_override
+        return _get_env_int("VOICE_GUEST_SESSION_LIMIT", 5)
+
+    @guest_limit.setter
+    def guest_limit(self, value: int | None) -> None:
+        self._guest_limit_override = value
+
+    @property
+    def guest_window_seconds(self) -> int:
+        if self._guest_window_override is not None:
+            return self._guest_window_override
+        return _get_env_int("VOICE_GUEST_WINDOW_SECONDS", 600)
+
+    @guest_window_seconds.setter
+    def guest_window_seconds(self, value: int | None) -> None:
+        self._guest_window_override = value
+
+    @property
+    def auth_limit(self) -> int:
+        if self._auth_limit_override is not None:
+            return self._auth_limit_override
+        return _get_env_int("VOICE_AUTH_SESSION_LIMIT", 50)
+
+    @auth_limit.setter
+    def auth_limit(self, value: int | None) -> None:
+        self._auth_limit_override = value
+
+    @property
+    def auth_window_seconds(self) -> int:
+        if self._auth_window_override is not None:
+            return self._auth_window_override
+        return _get_env_int("VOICE_AUTH_WINDOW_SECONDS", 600)
+
+    @auth_window_seconds.setter
+    def auth_window_seconds(self, value: int | None) -> None:
+        self._auth_window_override = value
 
     def is_allowed(self, ticket_type: str, identifier: str) -> tuple[bool, str]:
         """Check if connection is allowed under rate limits.

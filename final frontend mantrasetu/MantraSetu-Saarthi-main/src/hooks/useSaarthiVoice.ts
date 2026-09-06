@@ -190,7 +190,8 @@ export function useSaarthiVoice() {
 
   const isVoiceEnabledRef = useRef<boolean>(true);
   const wsRef = useRef<WebSocket | null>(null);
-  // Rate limiting refs managed in rate limit commit
+  const isRateLimitedRef = useRef<boolean>(false);
+  const hasAnnouncedRateLimitRef = useRef<boolean>(false);
   const lastHighlightedFieldRef = useRef<string | null>(null);
   const isNavigatingRef = useRef<boolean>(false);
   // Tracks fields the user has manually interacted with (typed/clicked) during this active voice session
@@ -1078,6 +1079,7 @@ export function useSaarthiVoice() {
     }
 
     isConnectingRef.current = true;
+    hasAnnouncedRateLimitRef.current = false;
 
     // ── 1. Fetch Ephemeral Voice Ticket from Backend ──
     let ticket = '';
@@ -2161,6 +2163,19 @@ export function useSaarthiVoice() {
         event.reason.includes('Bahut zyada attempts');
 
       if (isRateLimit) {
+        console.warn('[Voice] WebSocket closed due to rate limiting. Reason:', event.reason);
+        isConnectingRef.current = false;
+        isRateLimitedRef.current = false;
+        if (reconnectTimerRef.current) {
+          clearTimeout(reconnectTimerRef.current);
+          reconnectTimerRef.current = null;
+        }
+        const displayMsg = 'Bahut zyada attempts ho gaye hain, kripya thodi der baad try karein';
+        if (!hasAnnouncedRateLimitRef.current) {
+          hasAnnouncedRateLimitRef.current = true;
+          announceMessage(displayMsg, false);
+          setError(displayMsg);
+        }
         return;
       }
 
