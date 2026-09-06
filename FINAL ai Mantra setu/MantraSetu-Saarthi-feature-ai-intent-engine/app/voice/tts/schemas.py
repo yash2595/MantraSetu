@@ -30,7 +30,7 @@ class VoiceSynthesisRequest(SchemaModel):
     conversation_id: UUID | None = Field(default=None, description="Correlated conversation identifier.")
     text: str = Field(min_length=1, description="Normalized text content to synthesize into speech.")
     language: str = Field(default="hi", description="Language ISO code (e.g., 'hi', 'en').")
-    voice: str = Field(default="meera", description="Target voice profile or speaker ID.")
+    voice: str = Field(default="pandit", description="Target voice profile or speaker ID.")
     sample_rate: int = Field(default=24000, description="Target sample rate in Hz.")
     encoding: AudioEncoding = Field(default=AudioEncoding.MP3, description="Target audio encoding format.")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional request metadata.")

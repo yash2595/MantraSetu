@@ -8,12 +8,10 @@ from app.voice.tts.base import ITTSProvider
 from app.voice.tts.inworld_adapter import InWorldTTSAdapter
 from app.voice.tts.openai_adapter import OpenAIAdapter
 from app.voice.tts.sarvam_adapter import SarvamAdapter
-from app.voice.tts.elevenlabs_adapter import ElevenLabsAdapter
 
 PROVIDERS: dict[str, type[ITTSProvider]] = {
     "sarvam": SarvamAdapter,
     "openai": OpenAIAdapter,
-    "elevenlabs": ElevenLabsAdapter,
     "inworld": InWorldTTSAdapter,
 }
 
