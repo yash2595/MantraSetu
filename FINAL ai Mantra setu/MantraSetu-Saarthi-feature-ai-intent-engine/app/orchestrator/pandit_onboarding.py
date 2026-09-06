@@ -174,7 +174,8 @@ def get_contextual_reaction(current_field: str, val: str, address_info: dict) ->
         return f"Shukriya {sn_ji}! Maine aapka mobile number {formatted_phone} record kar liya hai."
 
     if current_field == "pandit-email":
-        return f"Bahut badhiya {pji}! Maine aapka email address {val} record kar liya hai."
+        email_speech = format_email_for_speech(val)
+        return f"Bahut badhiya {pji}! Maine aapka email address {email_speech} record kar liya hai."
 
     return f"Bahut sundar {fn_ji}!"
 
@@ -393,7 +394,8 @@ def generate_summary_text(first_name: str, collected_data: dict, address_info: d
     
     phone_raw = collected_data.get("pandit-phone", "Not provided")
     phone_val = format_phone_for_speech(phone_raw)
-    email_val = collected_data.get("pandit-email", "Not provided")
+    email_raw = collected_data.get("pandit-email", "Not provided")
+    email_val = format_email_for_speech(email_raw)
     gender_val = collected_data.get("pandit-gender", "Not provided")
     avail_val = collected_data.get("pandit-availability", "Not provided")
     city_val = collected_data.get("pandit-city", "Not provided")
