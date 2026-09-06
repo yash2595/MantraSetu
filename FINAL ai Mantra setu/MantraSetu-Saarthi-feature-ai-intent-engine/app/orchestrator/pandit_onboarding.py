@@ -68,6 +68,31 @@ PANDIT_FIELD_LABELS = {
     "pandit-password": "password", "pandit-confirm": "confirm password", "pandit-code-of-conduct": "Code of Conduct",
 }
 
+PANDIT_FIELD_QUESTIONS = {
+    "pandit-avatar": "Namaste! Aap chahein to apni profile photo upload kar sakte hain, ye optional hai. Agar upload karna hai to 'Choose Picture' par click kijiye, nahi to bas 'skip' ya 'aage badho' boliye.",
+    "pandit-first-name": "Ab apna pehla naam (First Name) bataiye.",
+    "pandit-last-name": "Ab apna last name bataiye.",
+    "pandit-email": "Ab apna email address bataiye.",
+    "pandit-phone": "Ab apna mobile number bataiye.",
+    "pandit-gender": "Aapka gender kya hai? Jaise Purush ya Mahila.",
+    "pandit-availability": "Aapki availability kya hai? Full-time ya Part-time?",
+    "pandit-city": "Aap kis sheher (City) mein rehte hain?",
+    "pandit-state": "Aapka state ya rajya kaunsa hai?",
+    "pandit-service-areas": "Aap kin service areas mein puja karwane ke liye uplabdh hain? Jaise Delhi NCR, Online Puja, ya Mumbai?",
+    "pandit-exp": "Aapko puja karwane ka kitne saal ka anubhav hai?",
+    "pandit-gurukul": "Aapne Vedic shiksha kis gurukul ya sansthan se prapt ki hai?",
+    "pandit-languages": "Aap kin-kin bhashaon mein puja karwa sakte hain? Jaise Hindi, Sanskrit ya koi anya bhasha.",
+    "pandit-spec": "Aapki mukhya specialization ya visheshagya kya hai? Jaise Vivah, Griha Pravesh ya Rudrabhishek.",
+    "pandit-achievements": "Kripya apni kisi mukhya upalabdhi (achievement) ke baare mein batayein, ya 'skip' boliye.",
+    "pandit-bio": "Kripya apne baare mein thoda batayein (Bio), jaise aapki spiritual journey.",
+    "pandit-aadhaarFile": "Kripya apna Aadhaar card upload kijiye.",
+    "pandit-certFile": "Kripya apna shiksha pramanpatra upload kijiye.",
+    "pandit-galleryFiles": "Kripya apni gallery photos aur videos upload kijiye.",
+    "pandit-password": "Apne account ke liye ek surakshit password banayein.",
+    "pandit-confirm": "Kripya wahi password dobara darj karke confirm kijiye.",
+    "pandit-code-of-conduct": "Kripya Code of Conduct ke niyam sweekar karke checkbox par tick kijiye.",
+}
+
 def missing_required_pandit_fields(state: dict) -> list[str]:
     """Return queue fields not confirmed from voice or the current DOM form snapshot."""
     collected = state.get("collected_data", {})
@@ -161,6 +186,16 @@ def format_phone_for_speech(phone: str) -> str:
     if re.search(r'\d', str(phone)):
         return render_identifier_digits(phone)
     return phone
+
+
+def format_email_for_speech(email: str) -> str:
+    """Format an email address so digits in the local part are separated by spaces for digit-by-digit TTS reading."""
+    if not email or email == "Not provided":
+        return email
+    def _split_digits(m: re.Match) -> str:
+        return " " + " ".join(m.group(1)) + " "
+    formatted = re.sub(r'(\d+)', _split_digits, str(email))
+    return re.sub(r'\s+', ' ', formatted).strip()
 
 INDIAN_CITIES_DATASET: dict[str, list[str]] = {
     # Unambiguous cities (mapping to exactly 1 state)
@@ -544,36 +579,25 @@ def normalize_spoken_numbers(text: str) -> str:
     # 3. Tens + units combination (e.g. "20 1" -> "21", "twenty, one" -> "21", "twenty and one" -> "21")
     t = re.sub(r'\b([2-9])0[\s,\-]+(?:and\s+)?([1-9])\b', r'\g<1>\2', t, flags=re.IGNORECASE)
 
-    # 4. Map remaining single digit words (Hindi Devanagari, transliterations, and English)
-    hindi_digit_map = {
-        'शून्य': '0', 'जीरो': '0', 'जिरो': '0',
-        'एक': '1', 'वन': '1',
-        'दो': '2', 'टू': '2',
-        'तीन': '3', 'थ्री': '3',
-        'चार': '4', 'फोर': '4',
-        'पांच': '5', 'पाँच': '5', 'फाइव': '5',
-        'छह': '6', 'छः': '6', 'सिक्स': '6',
-        'सात': '7', 'सेवन': '7',
-        'आठ': '8', 'एट': '8',
-        'नौ': '9', 'नाइन': '9'
+    # 4. Map remaining single digit words (Unified Hindi Devanagari, transliterations, and English)
+    unified_digit_map = {
+        'शून्य': '0', 'जीरो': '0', 'जिरो': '0', 'shunya': '0', 'zero': '0', 'jiro': '0',
+        'एक': '1', 'वन': '1', 'ek': '1', 'ekk': '1', 'one': '1',
+        'दो': '2', 'टू': '2', 'do': '2', 'doo': '2', 'two': '2',
+        'तीन': '3', 'थ्री': '3', 'teen': '3', 'tin': '3', 'three': '3',
+        'चार': '4', 'फोर': '4', 'char': '4', 'chaar': '4', 'four': '4',
+        'पांच': '5', 'पाँच': '5', 'फाइव': '5', 'panch': '5', 'paanch': '5', 'five': '5',
+        'छह': '6', 'छः': '6', 'सिक्स': '6', 'chhe': '6', 'che': '6', 'chh': '6', 'six': '6',
+        'सात': '7', 'सेवन': '7', 'saat': '7', 'sat': '7', 'seven': '7',
+        'आठ': '8', 'एट': '8', 'aath': '8', 'ath': '8', 'eight': '8',
+        'नौ': '9', 'नाइन': '9', 'nau': '9', 'now': '9', 'nine': '9'
     }
-    for word in sorted(hindi_digit_map.keys(), key=len, reverse=True):
-        t = t.replace(word, hindi_digit_map[word])
-
-    roman_hindi_digit_map = [
-        (r'\b(shunya|zero|jiro)\b', '0'),
-        (r'\b(ek|ekk|one)\b', '1'),
-        (r'\b(do|doo|two)\b', '2'),
-        (r'\b(teen|tin|three)\b', '3'),
-        (r'\b(char|chaar|four)\b', '4'),
-        (r'\b(panch|paanch|five)\b', '5'),
-        (r'\b(chhe|che|chh|six)\b', '6'),
-        (r'\b(saat|sat|seven)\b', '7'),
-        (r'\b(aath|ath|eight)\b', '8'),
-        (r'\b(nau|now|nine)\b', '9')
-    ]
-    for pattern, digit in roman_hindi_digit_map:
-        t = re.sub(pattern, digit, t, flags=re.IGNORECASE)
+    for word, digit in sorted(unified_digit_map.items(), key=lambda x: len(x[0]), reverse=True):
+        if re.search(r'[\u0900-\u097F]', word):
+            t = re.sub(r'(?<![^\s,।!?.])' + re.escape(word) + r'(?![^\s,।!?.])', digit, t)
+            t = t.replace(word, digit)
+        else:
+            t = re.sub(r'\b' + re.escape(word) + r'\b', digit, t, flags=re.IGNORECASE)
 
     # Re-check tens + units combination in case single digit word conversion created new tens+units pair
     t = re.sub(r'\b([2-9])0[\s,\-]+(?:and\s+)?([1-9])\b', r'\g<1>\2', t, flags=re.IGNORECASE)
@@ -848,7 +872,9 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
     user_message_normalized = normalize_spoken_input(user_message, field)
     logger.info("[PANDIT-ONBOARDING] extract_field_value | field: %s | raw: %r | normalized: %r", field, user_message, user_message_normalized)
 
-    if is_pure_negative(user_message):
+    # Never treat an input as a pure negative rejection if digits are present or field is phone/numeric
+    has_digits = bool(re.search(r'\d{3,}', user_message_normalized))
+    if not has_digits and is_pure_negative(user_message):
         logger.info("[PANDIT-ONBOARDING] extract_field_value received pure negative rejection message %r. Returning INVALID.", user_message)
         return "INVALID"
 
@@ -1001,13 +1027,29 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
     # Deterministic Fast-Path for Gender (pandit-gender)
     if field in ["pandit-gender", "gender"]:
         msg_lower = user_message_normalized.lower()
-        if any(w in msg_lower for w in ["female", "mahila", "aurat", "stree", "woman", "lady", "महिला", "औरत", "स्त्री"]):
+        female_keywords = [
+            "female", "mahila", "aurat", "stree", "woman", "lady", "girl", "ladki",
+            "महिला", "औरत", "स्त्री", "फीमेल", "फिमेल", "लड़की", "कन्या"
+        ]
+        other_keywords = [
+            "other", "transgender", "third gender", "anya", "अन्य"
+        ]
+        male_keywords = [
+            "male", "purush", "aadmi", "man", "gents", "boy", "ladka",
+            "पुरुष", "आदमी", "मेल", "लड़का"
+        ]
+
+        def _match_gender_kw(kw: str, text: str) -> bool:
+            return bool(re.search(rf'(?<!\w){re.escape(kw)}(?!\w)', text, flags=re.UNICODE) or
+                        re.search(rf'(?<!\S){re.escape(kw)}(?!\S)', text))
+
+        if any(_match_gender_kw(w, msg_lower) for w in female_keywords):
             logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-gender: Female")
             return "Female"
-        elif any(w in msg_lower for w in ["other", "transgender", "third gender", "anya", "अन्य"]):
+        elif any(_match_gender_kw(w, msg_lower) for w in other_keywords):
             logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-gender: Other")
             return "Other"
-        elif any(w in msg_lower for w in ["male", "purush", "aadmi", "man", "gents", "पुरुष", "आदमी", "मेल"]):
+        elif any(_match_gender_kw(w, msg_lower) for w in male_keywords):
             logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-gender: Male")
             return "Male"
 
@@ -1066,8 +1108,8 @@ Your task is to extract ONLY the clean, structured value for this field in Roman
 
 STRICT VALIDATION RULES:
 1. The user's response MUST contain a valid, reasonable answer for the field '{field}'.
-   - Extract a 10-digit phone number string (e.g. '9876543210').
-   - Remove any spaces, hyphens, or non-digit characters.
+2. If the field is 'pandit-gender', you MUST extract and map to exactly 'Male', 'Female', or 'Other'. For example: 'female', 'mahila', 'aurat', 'stree', 'lady', 'girl', 'फीमेल', 'फिमेल', 'महिला', 'स्त्री' MUST map to 'Female'. 'male', 'purush', 'aadmi', 'man', 'पुरुष', 'आदमी' MUST map to 'Male'. If not valid or off-topic, return 'INVALID'.
+3. If the field is 'pandit-phone', extract a 10-digit phone number string (e.g. '9876543210'). Remove any spaces, hyphens, or non-digit characters.
 4. If the field is 'pandit-exp', you MUST extract the clean numeric integer string for years of experience (e.g. '8', '10', '12', '15', '20'). If they say "das saal" or "10 years", return '10'. If not clear or off-topic, return 'INVALID'.
 5. If the field is 'pandit-spec', you MUST map the user's spoken answer to one of these exact values: 'Vedic Pujas & Havan', 'Jyotish & Kundali', 'Sanskar Ceremonies', 'Katha & Pravachan'. For example, if they say "havan" or "pujas", map to 'Vedic Pujas & Havan'. If they say "jyotish" or "kundali", map to 'Jyotish & Kundali'. If not clear or off-topic, return 'INVALID'.
 6. If the field is 'pandit-lang':
@@ -1430,7 +1472,16 @@ async def process_onboarding_step(
     status = state.get("status", "collecting")
     
     user_params = request.user_parameters if isinstance(request.user_parameters, dict) else {}
-    client_active_field = user_params.get("active_field")
+    client_active_field = user_params.get("active_field") or user_params.get("field")
+    if client_active_field and not client_active_field.startswith("pandit-") and f"pandit-{client_active_field}" in PANDIT_ONBOARDING_FIELD_QUEUE:
+        client_active_field = f"pandit-{client_active_field}"
+
+    if user_params.get("source") == "manual_input" and status == "awaiting_field_confirmation":
+        logger.info("[PANDIT-ONBOARDING] Manual input received while awaiting confirmation. Clearing confirmation state.")
+        state["status"] = "collecting"
+        state["tentative_field"] = None
+        state["tentative_value"] = None
+        status = "collecting"
     
     # Canonical required queue; avatar is optional and deliberately excluded.
     default_fields = list(PANDIT_ONBOARDING_FIELD_QUEUE)
@@ -1821,7 +1872,9 @@ async def process_onboarding_step(
 
     # ── Active Field Tag & DOM Input Sync ──
     user_params = request.user_parameters if isinstance(request.user_parameters, dict) else {}
-    client_active_field = user_params.get("active_field")
+    client_active_field = user_params.get("active_field") or user_params.get("field")
+    if client_active_field and not client_active_field.startswith("pandit-") and f"pandit-{client_active_field}" in fields:
+        client_active_field = f"pandit-{client_active_field}"
     raw_msg = user_params.get("raw_user_message", request.user_message)
     dom_data = user_params.get("dom_form_data", {})
     collected = state.setdefault("collected_data", {})
@@ -1961,7 +2014,7 @@ async def process_onboarding_step(
                 navigation_directive=nav_directive,
                 metadata=ResponseMetadata(fast_path=True, latency_ms=0.0)
             )
-        elif is_upload_intent:
+        elif is_upload_intent or (user_params.get("source") == "manual_input" and is_file_attached_in_dom):
             if is_file_attached_in_dom:
                 state["collected_data"]["pandit-avatar"] = "uploaded"
                 state["current_field_index"] += 1
@@ -2018,7 +2071,10 @@ async def process_onboarding_step(
     
     manual_dom_val = dom_data.get(current_field) or dom_data.get(current_field.replace("pandit-", ""))
     
-    if manual_dom_val and str(manual_dom_val).strip() and not is_multiselect_field and not (raw_msg and raw_msg.strip()):
+    if user_params.get("source") == "manual_input":
+        val = str(user_params.get("raw_user_message") or request.user_message).strip() or str(manual_dom_val or "").strip()
+        logger.info("[PANDIT-ONBOARDING] Manual input received directly for field %s: %r", current_field, val)
+    elif manual_dom_val and str(manual_dom_val).strip() and not is_multiselect_field and not (raw_msg and raw_msg.strip()):
         logger.info("[PANDIT-ONBOARDING] Found manual DOM value for field %s: %r", current_field, manual_dom_val)
         val = str(manual_dom_val).strip()
     elif is_upload_confirmed(raw_msg):
@@ -2045,7 +2101,7 @@ async def process_onboarding_step(
     )
 
     # ── Tier-2 Voice Confirmation Trigger ──
-    if is_valid and meta and meta.get("needs_explicit_confirmation"):
+    if is_valid and meta and meta.get("needs_explicit_confirmation") and user_params.get("source") != "manual_input":
         state["status"] = "awaiting_field_confirmation"
         state["tentative_field"] = current_field
         state["tentative_value"] = cleaned_val
@@ -2208,6 +2264,53 @@ async def process_onboarding_step(
                 navigation_directive=nav_directive,
                 metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
             )
+
+    # Direct commit and advance for manual input (keyboard typing / pill click)
+    if user_params.get("source") == "manual_input":
+        state["collected_data"][current_field] = val
+        state["status"] = "collecting"
+        state["tentative_field"] = None
+        state["tentative_value"] = None
+        state.setdefault("field_rejection_count", {}).pop(current_field, None)
+        state.setdefault("field_retry_count", {}).pop(current_field, None)
+        logger.info("[PANDIT-ONBOARDING] Direct-commit for manual input on field %s: %r", current_field, val)
+
+        next_idx = sync_next_field_index(state)
+        if next_idx < len(fields):
+            next_field = fields[next_idx]
+            session.update_location(page="/signup?role=pandit", field=next_field)
+            next_prompt = PANDIT_FIELD_QUESTIONS.get(
+                next_field,
+                f"Ab apna {PANDIT_FIELD_LABELS.get(next_field, next_field)} bataiye."
+            )
+            question = f"Bahut badhiya! {next_prompt}"
+            nav_directive = {
+                "action": "FILL_FORM",
+                "target": next_field,
+                "query": None,
+                "active_field": next_field,
+                "intent": "PANDIT_ONBOARDING",
+                "fields": None,
+            }
+        else:
+            session.onboarding_state = None
+            question = f"Bahut badhiya {pji}! Main abhi aapka registration submit kar raha hoon."
+            nav_directive = {
+                "action": "SUBMIT_FORM",
+                "target": "[data-testid='button-submit-pandit-signup']",
+                "intent": "PANDIT_ONBOARDING",
+                "fields": None,
+            }
+
+        nav_directive = structured_onboarding_directive(nav_directive)
+        orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+        return orchestrator._response_builder.build_response(
+            request_id=request.request_id,
+            text_override=question,
+            response_type=ResponseType.NAVIGATION_DIRECTIVE,
+            navigation_directive=nav_directive,
+            metadata=ResponseMetadata(fast_path=False, latency_ms=0.0),
+        )
 
     # Set tentative field state for confirmation ("Maine suna — [val]. Kya ye sahi hai?")
     old_tentative = state.get("tentative_value", "")
