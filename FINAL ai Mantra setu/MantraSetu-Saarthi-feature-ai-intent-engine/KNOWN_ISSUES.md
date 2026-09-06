@@ -22,6 +22,10 @@
 * **Root Cause:** Spoken email addresses with compound numbers (e.g. "twelve thirty four"), multipliers (e.g. "double two double three"), or custom domain numbers remained as words, corrupting the email syntax. Additionally, InWorld STT operated in `hi-IN` mode during email collection, transcribing Latin email addresses into Devanagari Hindi text.
 * **Resolution:** Dynamic STT language switching extended to email collection turns via `ALPHANUMERIC_FIELDS` (`"en-IN"` mode). Shared DRY helper `normalize_spoken_numbers()` implemented in `pandit_onboarding.py`, handling multipliers, compound numbers (teens and tens), tens+units combination with noisy punctuation/conjunctions (`twenty, one` -> `21`), and single digits. Refactored phone number normalization to share the same helper, covered with 18 unit tests (0 regressions).
 
+### 5. Temporary LLM Provider Swap (Groq -> Gemini) [RESOLVED]
+* **Status:** Resolved | Date: 2026-09-03 11:01 IST
+* **Component:** `LLM_PROVIDER` in `.env`
+* **Resolution:** Replaced `GROQ_API_KEY` with a new key from a separate team account/quota, verified with isolated test call, and reverted `LLM_PROVIDER=groq`. Active provider is now Groq with full clean quota.
 
 ## Pending Manual Verification Items
 
@@ -39,5 +43,10 @@
    - Periodically monitor `gemini-3.6-flash` against Google GenAI API release lifecycle / deprecation notices to ensure long-term stability and migrate to designated GA versions as announced.
 3. **`VoiceGatewayIntegration` Dead-Code Resolution**:
    - Clean up or deprecate orphaned `VoiceGatewayIntegration` in `app/orchestrator/voice_gateway.py` once live voice testing confirms the primary `VoiceGateway` (`app/voice/gateway.py`) flow is fully solidified.
+
+## Watch
+
+- **Gemini Fallback SSL Handshake Timeout**: During a live Groq 429 rate-limit event on 2026-09-03 at 10:27:01 IST, the failover to Gemini also failed with `_ssl.c:989: The handshake operation timed out`, causing the engine to emit the generic error fallback string. Flagged to monitor whether secondary provider failovers remain reliable under simultaneous provider stress.
+
 
 

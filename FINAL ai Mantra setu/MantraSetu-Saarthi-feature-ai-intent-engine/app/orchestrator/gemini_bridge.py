@@ -22,9 +22,16 @@ logger = logging.getLogger(__name__)
 class GeminiLLMBridge(ILLMProviderBridge):
     """Bridge for Google Gemini API."""
 
-    def __init__(self) -> None:
+    def __init__(self, provider: GeminiProvider | None = None) -> None:
         self.provider_type = ProviderType.GEMINI
-        self._provider = GeminiProvider()
+        if provider is not None:
+            self._provider = provider
+        else:
+            try:
+                from app.dependencies.providers import get_gemini_provider
+                self._provider = get_gemini_provider()
+            except Exception:
+                self._provider = GeminiProvider()
 
     async def generate(self, context: OrchestratorContext) -> ProviderResponse:
         """Generate response from Gemini."""

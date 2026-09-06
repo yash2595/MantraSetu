@@ -11,6 +11,7 @@ from app.voice.tts.cache_manager import get_tts_cache_manager
 
 _session_manager_instance = VoiceSessionManager()
 _tts_pipeline_instance: VoiceResponsePipeline | None = None
+_voice_gateway_instance: VoiceGateway | None = None
 
 
 def get_voice_session_manager() -> VoiceSessionManager:
@@ -19,16 +20,19 @@ def get_voice_session_manager() -> VoiceSessionManager:
 
 
 def get_voice_gateway() -> VoiceGateway:
-    """Dependency provider returning configured VoiceGateway instance."""
-    from app.api.dependencies.orchestrator import get_ai_orchestrator
-    ai_orchestrator = get_ai_orchestrator()
-    session_manager = get_voice_session_manager()
-    stt_provider, _ = resolve_voice_providers()
-    return build_voice_gateway(
-        ai_orchestrator=ai_orchestrator,
-        session_manager=session_manager,
-        stt_provider=stt_provider,
-    )
+    """Dependency provider returning configured VoiceGateway singleton instance."""
+    global _voice_gateway_instance
+    if _voice_gateway_instance is None:
+        from app.api.dependencies.orchestrator import get_ai_orchestrator
+        ai_orchestrator = get_ai_orchestrator()
+        session_manager = get_voice_session_manager()
+        stt_provider, _ = resolve_voice_providers()
+        _voice_gateway_instance = build_voice_gateway(
+            ai_orchestrator=ai_orchestrator,
+            session_manager=session_manager,
+            stt_provider=stt_provider,
+        )
+    return _voice_gateway_instance
 
 
 def get_tts_pipeline() -> VoiceResponsePipeline:

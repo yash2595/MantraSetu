@@ -11,7 +11,7 @@ from app.voice.websocket import WebSocketVoiceHandler
 
 import os
 
-_STT_PROVIDERS = {"whisper", "sarvam", "groq", "inworld", "hybrid"}
+_STT_PROVIDERS = {"sarvam", "groq", "inworld"}
 _TTS_PROVIDERS = {"sarvam", "inworld"}
 
 def resolve_voice_providers(stt_provider: str | None = None, tts_provider: str | None = None) -> tuple[str, str]:

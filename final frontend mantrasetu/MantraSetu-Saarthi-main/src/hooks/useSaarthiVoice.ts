@@ -190,10 +190,17 @@ export function useSaarthiVoice() {
 
   const isVoiceEnabledRef = useRef<boolean>(true);
   const wsRef = useRef<WebSocket | null>(null);
+  const isRateLimitedRef = useRef<boolean>(false);
+  const hasAnnouncedRateLimitRef = useRef<boolean>(false);
   const lastHighlightedFieldRef = useRef<string | null>(null);
   const isNavigatingRef = useRef<boolean>(false);
   // Tracks fields the user has manually interacted with (typed/clicked) during this active voice session
   const userEditedFieldsRef = useRef<Set<string>>(new Set());
+  const hasSelectedPanditTabRef = useRef<boolean>(false);
+  const manualEditDebounceTimerRef = useRef<any>(null);
+  const isSaarthiTypingRef = useRef<boolean>(false);
+  const lastSaarthiTypingEndTimeRef = useRef<number>(0);
+  const dirtyFieldsRef = useRef<Set<string>>(new Set());
   const userRecordedBytesRef = useRef<number>(0);
   const userHasSpokenRef = useRef<boolean>(false);
   const preRollFramesRef = useRef<{ data: string; bytes: number }[]>([]);
@@ -300,6 +307,7 @@ export function useSaarthiVoice() {
   const sendWsMessage = useCallback((payload: any): boolean => {
     const currentWs = wsRef.current;
     if (currentWs && currentWs.readyState === WebSocket.OPEN) {
+      console.log(`[WS-SEND] [${new Date().toISOString()}] type=${payload?.type} req_id=${payload?.request_id} frame:`, JSON.stringify(payload));
       currentWs.send(JSON.stringify(payload));
       return true;
     }
@@ -385,43 +393,6 @@ export function useSaarthiVoice() {
     }
   }, [navigate]);
 
-  // Tier 2: Track manual user interactions (typing/clicking) on form fields during this active voice session
-  useEffect(() => {
-    const handleUserInteraction = (e: Event) => {
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-
-      const fieldEl = target.closest('[data-field], [id^="pandit-"], [data-testid^="pill-"], [data-testid^="toggle-lang-"]');
-      if (!fieldEl) return;
-
-      let fieldName = fieldEl.getAttribute('data-field') || fieldEl.id || '';
-      if (!fieldName) {
-        const testId = fieldEl.getAttribute('data-testid') || '';
-        if (testId.startsWith('pill-group-')) {
-          fieldName = testId.replace('pill-group-', '');
-        } else if (testId.startsWith('pill-')) {
-          const m = testId.match(/^pill-(pandit-[a-z0-9-]+?)(?:-[a-z0-9-]+)?$/);
-          if (m) fieldName = m[1];
-        } else if (testId.startsWith('toggle-lang-')) {
-          fieldName = 'pandit-languages';
-        }
-      }
-      if (fieldName) {
-        userEditedFieldsRef.current.add(fieldName);
-        console.log('[USER-EDITED-FIELD] Flagged user-edited field during active session:', fieldName);
-      }
-    };
-
-    document.addEventListener('input', handleUserInteraction, true);
-    document.addEventListener('change', handleUserInteraction, true);
-    document.addEventListener('click', handleUserInteraction, true);
-    return () => {
-      document.removeEventListener('input', handleUserInteraction, true);
-      document.removeEventListener('change', handleUserInteraction, true);
-      document.removeEventListener('click', handleUserInteraction, true);
-    };
-  }, []);
-
   const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
@@ -457,8 +428,191 @@ export function useSaarthiVoice() {
       console.log('[BARGE-IN] Flushing active UI animation sequence queue due to interruption.');
       sequenceQueueRef.current = [];
       isExecutingSequenceRef.current = false;
+      isSaarthiTypingRef.current = false;
     }
   }, []);
+
+  // Tier 2: Track manual user interactions (typing/clicking) on form fields and advance voice flow on completion
+  useEffect(() => {
+    const shouldIgnoreEvent = (e: Event): boolean => {
+      // 1. Synthetic programmatic events dispatched by Saarthi (targetEl.dispatchEvent or click)
+      if (!e.isTrusted) return true;
+      // 2. Active Saarthi action sequence currently executing
+      if (isExecutingSequenceRef.current) return true;
+      // 3. Active Saarthi typing in progress
+      if (isSaarthiTypingRef.current) return true;
+      // 4. Cooldown buffer after Saarthi typing or action completion (1500ms)
+      if (Date.now() - lastSaarthiTypingEndTimeRef.current < 1500) return true;
+      return false;
+    };
+
+    const handleManualEditCompletion = (fieldName: string, value: string, source: string = 'UNKNOWN') => {
+      const now = Date.now();
+      console.log(`[TRACE-COMPLETION-CALL] time=${now} source=${source} field=${fieldName} value="${value}" dirtyBefore=${dirtyFieldsRef.current.has(fieldName)}`);
+
+      // Clear dirty flag for this field once handled
+      dirtyFieldsRef.current.delete(fieldName);
+
+      const isSignupPage = window.location.pathname.includes('/signup');
+      if (!isSignupPage || !fieldName || !value.trim()) return;
+      if (wsRef.current?.readyState !== WebSocket.OPEN || !isSessionReadyRef.current) return;
+      if (isExecutingSequenceRef.current || isSaarthiTypingRef.current) return;
+      if (Date.now() - lastSaarthiTypingEndTimeRef.current < 1500) return;
+
+      const trimmedVal = value.trim();
+      // Basic validity check depending on field
+      if (trimmedVal.length < 2 && !['Male', 'Female', 'Other', 'Online', 'Offline', 'Both'].includes(trimmedVal)) {
+        return;
+      }
+
+      console.log(`[MANUAL-FIELD-EDIT-COMPLETED] Advancing flow for field: ${fieldName} with value: "${trimmedVal}" (source=${source})`);
+      userEditedFieldsRef.current.add(fieldName);
+
+      const targetEl = document.querySelector<HTMLElement>(`#${fieldName}, [data-field="${fieldName}"], [data-testid="input-${fieldName}"]`);
+      if (targetEl) {
+        targetEl.classList.remove('saarthi-highlight');
+        targetEl.classList.add('saarthi-filled');
+      }
+
+      // Stop any active TTS audio playback
+      stopAudioPlayback();
+
+      // Transition UI to thinking state
+      stateRef.current = 'thinking';
+      setSaarthiState('thinking');
+
+      // Send TEXT frame to backend to advance turn
+      currentRequestIdRef.current = generateUUID();
+      activeRequestIdRef.current = currentRequestIdRef.current;
+      sendWsMessage({
+        type: 'TEXT',
+        request_id: currentRequestIdRef.current,
+        payload: {
+          text: trimmedVal,
+          current_page: window.location.pathname + window.location.search,
+          active_field: fieldName,
+          dom_form_data: getFormStateData(),
+          user_edited_fields: Array.from(userEditedFieldsRef.current),
+          user_parameters: {
+            source: 'manual_input',
+            field: fieldName,
+          }
+        }
+      });
+    };
+
+    const getFieldInfo = (target: HTMLElement | null) => {
+      if (!target) return null;
+      const fieldEl = target.closest('[data-field], [id^="pandit-"], [data-testid^="pill-"], [data-testid^="toggle-lang-"]');
+      if (!fieldEl) return null;
+
+      let fieldName = fieldEl.getAttribute('data-field') || fieldEl.id || '';
+      if (!fieldName) {
+        const testId = fieldEl.getAttribute('data-testid') || '';
+        if (testId.startsWith('pill-group-')) {
+          fieldName = testId.replace('pill-group-', '');
+        } else if (testId.startsWith('pill-')) {
+          const m = testId.match(/^pill-(pandit-[a-z0-9-]+?)(?:-[a-z0-9-]+)?$/);
+          if (m) fieldName = m[1];
+        } else if (testId.startsWith('toggle-lang-')) {
+          fieldName = 'pandit-languages';
+        }
+      }
+
+      let value = '';
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+        value = target.value;
+      } else if (target.tagName === 'BUTTON') {
+        value = target.textContent?.replace('✓', '').trim() || '';
+      }
+
+      return { fieldName, value };
+    };
+
+    const handleInputOrChange = (e: Event) => {
+      if (shouldIgnoreEvent(e)) return;
+
+      const info = getFieldInfo(e.target as HTMLElement | null);
+      if (!info || !info.fieldName) return;
+
+      const now = Date.now();
+      console.log(`[TRACE-INPUT-OR-CHANGE] time=${now} event=${e.type} field=${info.fieldName} value="${info.value}" dirtyBefore=${dirtyFieldsRef.current.has(info.fieldName)} hasTimer=${Boolean(manualEditDebounceTimerRef.current)}`);
+
+      dirtyFieldsRef.current.add(info.fieldName);
+      userEditedFieldsRef.current.add(info.fieldName);
+      console.log('[USER-EDITED-FIELD] Flagged user-edited field during active session:', info.fieldName);
+
+      if (manualEditDebounceTimerRef.current) {
+        clearTimeout(manualEditDebounceTimerRef.current);
+      }
+      if (info.value.trim().length >= 2) {
+        manualEditDebounceTimerRef.current = setTimeout(() => {
+          console.log(`[TRACE-DEBOUNCE-TIMER-FIRED] time=${Date.now()} field=${info.fieldName} value="${info.value}"`);
+          if (!isExecutingSequenceRef.current && !isSaarthiTypingRef.current && Date.now() - lastSaarthiTypingEndTimeRef.current >= 1500) {
+            handleManualEditCompletion(info.fieldName, info.value, 'DEBOUNCE_TIMER');
+          }
+        }, 1200);
+      }
+    };
+
+    const handleBlur = (e: Event) => {
+      if (shouldIgnoreEvent(e)) return;
+
+      const info = getFieldInfo(e.target as HTMLElement | null);
+      if (!info || !info.fieldName) return;
+
+      const now = Date.now();
+      const isDirty = dirtyFieldsRef.current.has(info.fieldName);
+      console.log(`[TRACE-BLUR] time=${now} event=${e.type} field=${info.fieldName} value="${info.value}" isDirty=${isDirty} hasTimer=${Boolean(manualEditDebounceTimerRef.current)}`);
+
+      // CRITICAL GUARD: Only trigger on blur if the user ACTUALLY manually typed into this field.
+      // If Saarthi blurred the field after programmatic fill, or the user just focused and blurred without typing, ignore it!
+      if (!isDirty) return;
+
+      if (manualEditDebounceTimerRef.current) {
+        clearTimeout(manualEditDebounceTimerRef.current);
+      }
+      if (info.value.trim().length >= 2) {
+        handleManualEditCompletion(info.fieldName, info.value, 'BLUR_EVENT');
+      }
+    };
+
+    const handleClick = (e: Event) => {
+      if (shouldIgnoreEvent(e)) return;
+
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const btn = target.closest('button[data-testid*="pill-"], button[data-testid*="toggle-lang-"], div[data-testid*="pill-group-"] button');
+      if (btn) {
+        const info = getFieldInfo(btn as HTMLElement);
+        if (info && info.fieldName && info.value) {
+          console.log(`[TRACE-CLICK] time=${Date.now()} field=${info.fieldName} value="${info.value}"`);
+          dirtyFieldsRef.current.add(info.fieldName);
+          userEditedFieldsRef.current.add(info.fieldName);
+          console.log('[USER-EDITED-FIELD] Flagged user pill selection by human click:', info.fieldName, info.value);
+          setTimeout(() => {
+            if (!isExecutingSequenceRef.current && !isSaarthiTypingRef.current && Date.now() - lastSaarthiTypingEndTimeRef.current >= 1500) {
+              handleManualEditCompletion(info.fieldName, info.value, 'PILL_CLICK');
+            }
+          }, 350);
+        }
+      }
+    };
+
+    document.addEventListener('input', handleInputOrChange, true);
+    document.addEventListener('change', handleInputOrChange, true);
+    document.addEventListener('blur', handleBlur, true);
+    document.addEventListener('click', handleClick, true);
+    return () => {
+      if (manualEditDebounceTimerRef.current) {
+        clearTimeout(manualEditDebounceTimerRef.current);
+      }
+      document.removeEventListener('input', handleInputOrChange, true);
+      document.removeEventListener('change', handleInputOrChange, true);
+      document.removeEventListener('blur', handleBlur, true);
+      document.removeEventListener('click', handleClick, true);
+    };
+  }, [stopAudioPlayback, sendWsMessage, setSaarthiState]);
 
   const processNextStep = useCallback(() => {
     if (sequenceQueueRef.current.length === 0) {
@@ -588,6 +742,7 @@ export function useSaarthiVoice() {
       if (!targetEl && step.target.includes('submit')) {
         targetEl = document.querySelector('[data-testid="button-submit-pandit-signup"], [data-testid="button-submit-signup"], form button[type="submit"], button[type="submit"]') as HTMLElement;
       }
+      console.log(`[FORM-FILL-EXEC] Action: CLICK. Target: "${step.target}". ElementFound: ${!!targetEl}.`);
       if (targetEl) {
         const rect = targetEl.getBoundingClientRect();
         const targetX = rect.left + rect.width / 2;
@@ -599,7 +754,6 @@ export function useSaarthiVoice() {
         cursor.style.backgroundColor = 'rgba(238, 124, 43, 0.9)';
         
         targetEl.click();
-        targetEl.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
         const formEl = targetEl.closest('form');
         if (formEl && (targetEl.getAttribute('type') === 'submit' || step.target.includes('submit'))) {
           console.log('[FORM-SUBMIT] Triggering form.requestSubmit() explicitly');
@@ -609,14 +763,18 @@ export function useSaarthiVoice() {
             formEl.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
           }
         }
+
+        console.log(`[FORM-FILL-PROOF] Click executed on: "${step.target}". Text: "${targetEl.textContent?.trim()}". ActiveAfter: "${targetEl.getAttribute('aria-pressed') || targetEl.className || 'clicked'}"`);
         
         setTimeout(() => {
           cursor!.style.transform = 'scale(1)';
           cursor!.style.backgroundColor = 'rgba(238, 124, 43, 0.6)';
+          lastSaarthiTypingEndTimeRef.current = Date.now();
           setTimeout(processNextStep, step.delay);
         }, 150);
       } else {
         console.warn('[NAV-DEBUG] Click target not found:', step.target);
+        lastSaarthiTypingEndTimeRef.current = Date.now();
         processNextStep();
       }
       return;
@@ -698,18 +856,21 @@ export function useSaarthiVoice() {
             
             setTimeout(() => {
               targetEl.classList.remove('saarthi-highlight');
+              lastSaarthiTypingEndTimeRef.current = Date.now();
               setTimeout(processNextStep, step.delay);
             }, 600);
           }, 150);
         }, 600);
       } else {
         console.warn('[NAV-DEBUG] select_option target not found or not select:', step.target);
+        lastSaarthiTypingEndTimeRef.current = Date.now();
         processNextStep();
       }
       return;
     }
 
     if (step.action === 'type' && step.target && step.text) {
+      isSaarthiTypingRef.current = true;
       const targetEl = document.querySelector(step.target) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
       console.log(`[FORM-FILL-EXEC] Action: TYPE. Target: "${step.target}". ElementFound: ${!!targetEl}. ValueToSet: "${step.text}"`);
       if (targetEl) {
@@ -739,6 +900,8 @@ export function useSaarthiVoice() {
                visualTarget.style.boxShadow = originalBoxShadow;
                visualTarget.style.transition = originalTransition;
                cursor.classList.remove('cursor-active');
+               isSaarthiTypingRef.current = false;
+               lastSaarthiTypingEndTimeRef.current = Date.now();
                processNextStep();
             }, 4000);
             return;
@@ -777,6 +940,8 @@ export function useSaarthiVoice() {
            setTimeout(() => {
              targetEl.classList.remove('saarthi-highlight');
              targetEl.classList.add('saarthi-filled');
+             isSaarthiTypingRef.current = false;
+             lastSaarthiTypingEndTimeRef.current = Date.now();
              processNextStep();
            }, 400);
            return;
@@ -840,6 +1005,8 @@ export function useSaarthiVoice() {
               targetEl.dispatchEvent(new Event('input', { bubbles: true }));
               targetEl.dispatchEvent(new Event('change', { bubbles: true }));
               console.log(`[FORM-FILL-PROOF] Final Char-by-char typing complete for target="${step.target}" | Final DOM Value="${(targetEl as HTMLInputElement).value}"`);
+              isSaarthiTypingRef.current = false;
+              lastSaarthiTypingEndTimeRef.current = Date.now();
               setTimeout(processNextStep, step.delay || 400);
               return;
             }
@@ -868,6 +1035,8 @@ export function useSaarthiVoice() {
           typeNextChar();
       } else {
          console.warn('[NAV-DEBUG] Type target not found:', step.target);
+         isSaarthiTypingRef.current = false;
+         lastSaarthiTypingEndTimeRef.current = Date.now();
          processNextStep();
       }
       return;
@@ -910,6 +1079,7 @@ export function useSaarthiVoice() {
     }
 
     isConnectingRef.current = true;
+    hasAnnouncedRateLimitRef.current = false;
 
     // ── 1. Fetch Ephemeral Voice Ticket from Backend ──
     let ticket = '';
@@ -981,6 +1151,7 @@ export function useSaarthiVoice() {
         sessionStorage.removeItem('ms_saarthi_pandit_form_data');
       }
       userEditedFieldsRef.current.clear();
+      dirtyFieldsRef.current.clear();
       console.log('[Voice] Sending CONNECT with session_id:', persistentSessionId, 'current_page:', window.location.pathname);
 
       // Always read fresh wsRef.current at send time!
@@ -1011,6 +1182,7 @@ export function useSaarthiVoice() {
           }
           // [DIAGNOSTIC] Log every single message type and AI_RESPONSE payload explicitly
           if (msg.type === 'AI_RESPONSE') {
+             console.log(`[WS-RECEIVE-AI_RESPONSE] [${new Date().toISOString()}] req_id=${msg?.request_id} payload:`, JSON.stringify(msg.payload));
              console.log('[DIAGNOSTIC] FULL RAW AI_RESPONSE PAYLOAD:', JSON.stringify(msg.payload));
              // BUG-11.1 FIX: Cancel thinking watchdog — response arrived, no freeze
              if (thinkingWatchdogRef.current) {
@@ -1024,6 +1196,25 @@ export function useSaarthiVoice() {
           console.log(`[Voice] Received message type: ${msg.type}`);
           if (msg.type === 'ERROR') {
              console.error('[Voice] [ERROR-PAYLOAD] Received ERROR envelope from backend:', JSON.stringify(msg.payload || msg));
+             const errPayload = msg.payload || {};
+             const errCode = errPayload.code || '';
+             const errMsg = errPayload.message || '';
+             const isRateLimitErr =
+               errCode === 'RATE_LIMIT_EXCEEDED' ||
+               errMsg.toLowerCase().includes('rate limit') ||
+               errMsg.toLowerCase().includes('403') ||
+               errMsg.includes('Bahut zyada attempts');
+
+             if (isRateLimitErr) {
+               isRateLimitedRef.current = true;
+               const displayMsg = 'Bahut zyada attempts ho gaye hain, kripya thodi der baad try karein';
+               if (!hasAnnouncedRateLimitRef.current) {
+                 hasAnnouncedRateLimitRef.current = true;
+                 announceMessage(displayMsg, false);
+                 setError(displayMsg);
+               }
+               return;
+             }
           }
 
           // Check if this response belongs to an abandoned request
@@ -1047,6 +1238,7 @@ export function useSaarthiVoice() {
               console.log('[BARGE-IN] Interrupted active sequence queue due to new user speech.');
               sequenceQueueRef.current = [];
               isExecutingSequenceRef.current = false;
+              isSaarthiTypingRef.current = false;
             }
 
             if (is_final) {
@@ -1323,13 +1515,20 @@ export function useSaarthiVoice() {
 
                 // Visually highlight active field in DOM
                 setTimeout(() => {
+                  const now = Date.now();
+                  const prevFocused = document.activeElement ? `${document.activeElement.tagName}#${document.activeElement.id}` : 'none';
+                  console.log(`[TRACE-FOCUS-SHIFT] time=${now} activeField="${activeField}" currentlyFocused=${prevFocused}`);
                   document.querySelectorAll('.saarthi-highlight').forEach(el => el.classList.remove('saarthi-highlight'));
                   const sel = `[data-testid="input-${activeField}"], #${activeField}, [data-testid="input-${activeField.replace('pandit-', '')}"]`;
                   const el = document.querySelector<HTMLElement>(sel);
                   if (el) {
+                    console.log(`[TRACE-FOCUS-SHIFT] time=${Date.now()} focusing element: tag=${el.tagName} id=${el.id} testId=${el.getAttribute('data-testid')}`);
                     el.classList.add('saarthi-highlight');
                     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     el.focus();
+                    console.log(`[TRACE-FOCUS-SHIFT-AFTER] time=${Date.now()} newActiveElement=${document.activeElement?.tagName}#${document.activeElement?.id}`);
+                  } else {
+                    console.log(`[TRACE-FOCUS-SHIFT] time=${Date.now()} no element matched for sel: ${sel}`);
                   }
                 }, 100);
               } else {
@@ -1388,7 +1587,41 @@ export function useSaarthiVoice() {
                 resetVadStateRef.current();
               }
               navigate(cleanTarget);
-              
+
+              // 3. Auto-scroll past repetitive hero banners to reveal distinct page content
+              setTimeout(() => {
+                if (cleanTarget === '/' || cleanTarget === '') {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  return;
+                }
+
+                const routeAnchorMap: Record<string, string> = {
+                  '/puja': '#puja-catalog-section, [data-testid="section-puja-catalog"]',
+                  '/services': '#puja-catalog-section, [data-testid="section-puja-catalog"]',
+                  '/kundali-creation': '#kundali-form-section, [data-testid="section-kundali-form"]',
+                  '/kundali': '#kundali-form-section, [data-testid="section-kundali-form"]',
+                  '/muhurat-finder': '#muhurat-finder-section, [data-testid="section-muhurat-finder"]',
+                  '/muhurat': '#muhurat-finder-section, [data-testid="section-muhurat-finder"]',
+                  '/signup': '[data-testid="card-signup"]',
+                  '/sign-up': '[data-testid="card-signup"]',
+                  '/login': '[data-testid="card-login"]',
+                  '/dashboard': 'main',
+                };
+
+                const selector = Object.entries(routeAnchorMap).find(([route]) =>
+                  cleanTarget.startsWith(route)
+                )?.[1] || 'main > section:nth-of-type(2), .section';
+
+                const targetEl = document.querySelector(selector) as HTMLElement | null;
+                if (targetEl) {
+                  const headerHeight = 80;
+                  const elementTop = targetEl.getBoundingClientRect().top + window.scrollY;
+                  window.scrollTo({ top: Math.max(0, elementTop - headerHeight), behavior: 'smooth' });
+                } else {
+                  window.scrollTo({ top: 420, behavior: 'smooth' });
+                }
+              }, 400);
+
               // Allow any cleanup or state resets to happen
               return;
             } else if (action === 'START_TOUR') {
@@ -1440,7 +1673,6 @@ export function useSaarthiVoice() {
               console.log('[FORM-FILL] Fields to fill:', fieldsToFill);
 
               const seq: any[] = [];
-              let hasNavigatedToPandit = false;
 
               for (const field of fieldsToFill) {
                 const fTarget = field.target || '';
@@ -1448,9 +1680,10 @@ export function useSaarthiVoice() {
                 
                 let isPanditField = fTarget.startsWith('pandit-') || 
                                     (activeField && activeField.startsWith('pandit-')) || 
-                                    !!document.querySelector('[data-testid="tab-usertype-pandit"][aria-pressed="true"]');
+                                    window.location.search.includes('role=pandit') ||
+                                    !!document.querySelector('[data-testid="input-pandit-first-name"], [data-testid="pandit-wizard-step"], [data-testid="pill-group-pandit-gender"]');
 
-                if (window.location.pathname.includes('signup') && document.querySelector('[data-testid="tab-usertype-pandit"][aria-pressed="true"]')) {
+                if (window.location.pathname.includes('signup') && (window.location.search.includes('role=pandit') || document.querySelector('[data-testid="input-pandit-first-name"]'))) {
                    isPanditField = true;
                 }
 
@@ -1462,7 +1695,10 @@ export function useSaarthiVoice() {
                 else if (fTarget.includes('city') || fTarget.includes('location')) selector = isPanditField ? '[data-testid="input-pandit-city"]' : 'input[name="city"], [data-testid="input-city"], select#booking-city, #booking-city';
                 else if (fTarget.includes('state')) selector = isPanditField ? '[data-testid="input-pandit-state"]' : 'input[name="state"], [data-testid="input-state"]';
                 else if (fTarget.includes('email')) selector = isPanditField ? '[data-testid="input-pandit-email"]' : 'input[name="email"], input[type="email"], [data-testid="input-email"]';
-                else if (fTarget.includes('lang')) selector = '[data-testid^="toggle-lang-"]';
+                else if (fTarget.includes('gender')) selector = '[data-testid="pill-group-pandit-gender"], [data-field="pandit-gender"]';
+                else if (fTarget.includes('availability') || fTarget.includes('mode')) selector = '[data-testid="pill-group-pandit-availability"], [data-field="pandit-availability"]';
+                else if (fTarget === 'pandit-service-areas' || fTarget.includes('service')) selector = '[data-testid="pill-group-pandit-service-areas"], [data-field="pandit-service-areas"]';
+                else if (fTarget.includes('lang')) selector = '[data-testid="pill-group-pandit-languages"], [data-field="pandit-languages"], [data-testid^="toggle-lang-"]';
                 else if (fTarget.includes('exp')) selector = '#pandit-exp, [data-testid="input-pandit-exp"], [data-testid="select-pandit-exp"]';
                 else if (fTarget.includes('spec')) selector = '[data-testid="select-pandit-spec"]';
                 else if (fTarget.includes('bio')) selector = '#pandit-bio, [data-testid="textarea-pandit-bio"]';
@@ -1473,18 +1709,28 @@ export function useSaarthiVoice() {
                 
                 console.log(`[FORM-FILL] Processing field ${fTarget} -> selector: ${selector}`);
 
-                if (isPanditField && !hasNavigatedToPandit) {
+                const isPanditAlreadyActive = hasSelectedPanditTabRef.current ||
+                  window.location.search.includes('role=pandit') ||
+                  !!document.querySelector('[data-testid="input-pandit-first-name"], [data-testid="pandit-wizard-step"], [data-testid="pill-group-pandit-gender"]') ||
+                  !!document.querySelector('[data-testid="tab-user-pandit"][style*="rgb(238, 124, 43)"], [data-testid="tab-user-pandit"][style*="#ee7c2b"], [data-testid="tab-usertype-pandit"][aria-pressed="true"]');
+
+                let hasNavigatedToPandit = false;
+                if (isPanditField && !isPanditAlreadyActive) {
+                  hasSelectedPanditTabRef.current = true;
                   hasNavigatedToPandit = true;
                   if (window.location.pathname !== '/signup') {
                      seq.push({ action: 'navigate', path: '/signup?role=pandit', delay: 200 });
                      seq.push({ action: 'wait_for_selector', target: selector, delay: 150 });
                   } else {
-                     const isPanditTabActive = !!document.querySelector('[data-testid="tab-usertype-pandit"][aria-pressed="true"]');
-                     if (!isPanditTabActive) {
-                        seq.push({ action: 'click', target: '[data-testid="tab-usertype-pandit"]', delay: 150 });
+                     const tabBtn = document.querySelector('[data-testid="tab-user-pandit"], [data-testid="tab-usertype-pandit"]');
+                     if (tabBtn) {
+                        const tabTarget = tabBtn.getAttribute('data-testid') ? `[data-testid="${tabBtn.getAttribute('data-testid')}"]` : '[data-testid="tab-user-pandit"]';
+                        seq.push({ action: 'click', target: tabTarget, delay: 150 });
                         seq.push({ action: 'wait_for_selector', target: selector, delay: 150 });
                      }
                   }
+                } else if (isPanditField) {
+                  hasSelectedPanditTabRef.current = true;
                 }
 
                 if (isPanditField) {
@@ -1544,10 +1790,20 @@ export function useSaarthiVoice() {
                       const isActive = btnEl ? (btnEl.textContent || '').includes('✓') : false;
 
                       if (isSpoken && !isActive) {
-                        console.log(`[SAARTHI-VOICE] Toggling Service Area pill: ${area} (selector: ${btnSelector})`);
-                        seq.push({ action: 'move', target: btnSelector, delay: 450 });
-                        seq.push({ action: 'click', target: btnSelector, delay: 250 });
+                        const effectiveSelector = btnEl && btnEl.getAttribute('data-testid')
+                          ? `[data-testid="${btnEl.getAttribute('data-testid')}"]`
+                          : btnSelector;
+                        console.log(`[SAARTHI-VOICE] Toggling Service Area pill: ${area} (selector: ${effectiveSelector})`);
+                        seq.push({ action: 'move', target: effectiveSelector, delay: 450 });
+                        seq.push({ action: 'click', target: effectiveSelector, delay: 250 });
                       }
+                    }
+
+                    const unhandledParts = queryParts.filter((p: string) => !serviceCatalog.some((a: string) => a.toLowerCase() === p || a.toLowerCase().includes(p) || p.includes(a.toLowerCase())));
+                    if (unhandledParts.length > 0) {
+                      const textSelector = '#pandit-service-areas';
+                      seq.push({ action: 'move', target: textSelector, delay: 450 });
+                      seq.push({ action: 'type', target: textSelector, text: unhandledParts.join(', '), delay: 350 });
                     }
                   } else if (isButtonGroup) {
                     const btnGroupSel = `[data-field="${fTarget}"] button, [data-testid="pill-group-${fTarget}"] button, [data-testid^="pill-${fTarget}"]`;
@@ -1888,7 +2144,7 @@ export function useSaarthiVoice() {
       };
 
     ws.onclose = (event: CloseEvent) => {
-      console.log(`[Voice] WebSocket Closed (code: ${event.code}, clean: ${event.wasClean})`);
+      console.log(`[Voice] WebSocket Closed (code: ${event.code}, reason: ${event.reason}, clean: ${event.wasClean})`);
       setIsConnected(false);
       updateSessionReady(false);
 
@@ -1897,6 +2153,32 @@ export function useSaarthiVoice() {
         clearTimeout(thinkingWatchdogRef.current);
         thinkingWatchdogRef.current = null;
       }
+
+      const reasonLower = (event.reason || '').toLowerCase();
+      const isRateLimit =
+        isRateLimitedRef.current ||
+        (event.code === 1008 && (reasonLower.includes('rate limit') || reasonLower.includes('403') || reasonLower.includes('attempt') || event.reason.includes('Bahut zyada') || reasonLower.includes('session'))) ||
+        reasonLower.includes('rate limit') ||
+        reasonLower.includes('403') ||
+        event.reason.includes('Bahut zyada attempts');
+
+      if (isRateLimit) {
+        console.warn('[Voice] WebSocket closed due to rate limiting. Reason:', event.reason);
+        isConnectingRef.current = false;
+        isRateLimitedRef.current = false;
+        if (reconnectTimerRef.current) {
+          clearTimeout(reconnectTimerRef.current);
+          reconnectTimerRef.current = null;
+        }
+        const displayMsg = 'Bahut zyada attempts ho gaye hain, kripya thodi der baad try karein';
+        if (!hasAnnouncedRateLimitRef.current) {
+          hasAnnouncedRateLimitRef.current = true;
+          announceMessage(displayMsg, false);
+          setError(displayMsg);
+        }
+        return;
+      }
+
       if (stateRef.current === 'thinking') {
         console.warn('[FREEZE-RECOVERY] WS closed while in thinking state. Resetting to listening.');
         stateRef.current = 'listening';
@@ -2203,61 +2485,64 @@ export function useSaarthiVoice() {
 
           // Stream AUDIO_FRAMEs ONLY when listening for user speech and WebSocket is open
           if (stateRef.current === 'listening' && wsRef.current?.readyState === WebSocket.OPEN && isSessionReadyRef.current) {
-            // Flush pre-roll buffer if starting a new utterance
-            if (userRecordedBytesRef.current === 0 && preRollFramesRef.current.length > 1) {
-              const preRollToFlush = preRollFramesRef.current.slice(0, -1);
-              for (const pf of preRollToFlush) {
-                userRecordedBytesRef.current += pf.bytes;
+            // Only stream audio to server and accumulate bytes once real user speech has been detected by VAD
+            if (userHasSpokenRef.current) {
+              // Flush pre-roll buffer if starting a new utterance
+              if (userRecordedBytesRef.current === 0 && preRollFramesRef.current.length > 0) {
+                const preRollToFlush = preRollFramesRef.current.slice();
+                for (const pf of preRollToFlush) {
+                  userRecordedBytesRef.current += pf.bytes;
+                  sendWsMessage({
+                    type: 'AUDIO_FRAME',
+                    payload: { data: pf.data },
+                  });
+                }
+              }
+
+              chunkCounter++;
+              userRecordedBytesRef.current += pcm16.byteLength;
+              
+              // Hard Safety Cap: If accumulated user speech bytes reach ~10 seconds (320,000 bytes), force AUDIO_END dispatch
+              if (!audioEndSent && userRecordedBytesRef.current >= 320000) {
+                console.warn('[HARD-SAFETY-CAP-TRIGGERED] User audio buffer reached 320,000 bytes (~10s). Forcing AUDIO_END dispatch.');
+                audioEndSent = true;
+                currentRequestIdRef.current = generateUUID();
+                activeRequestIdRef.current = currentRequestIdRef.current;
+                sendWsMessage({
+                  type: 'AUDIO_END',
+                  request_id: currentRequestIdRef.current,
+                  payload: {
+                    current_page: window.location.pathname + window.location.search,
+                    active_field: activeFieldRef.current,
+                    dom_form_data: getFormStateData(),
+                    user_edited_fields: Array.from(userEditedFieldsRef.current),
+                  }
+                });
+                userHasSpokenRef.current = false;
+                userRecordedBytesRef.current = 0;
+                preRollFramesRef.current = [];
+                stateRef.current = 'thinking';
+                setSaarthiState('thinking');
+                // BUG-11.1 FIX: Start 12s watchdog — if no AI_RESPONSE arrives, unfreeze to listening
+                if (thinkingWatchdogRef.current) clearTimeout(thinkingWatchdogRef.current);
+                thinkingWatchdogRef.current = setTimeout(() => {
+                  if (stateRef.current === 'thinking') {
+                    console.warn('[FREEZE-RECOVERY] Thinking watchdog fired — no AI_RESPONSE in 12s. Recovering to listening.');
+                    stateRef.current = 'listening';
+                    setSaarthiState('listening');
+                    announceMessage('Maaf kijiye, response mein thodi der ho gayi. Kripya dobara boliye.', false);
+                    thinkingWatchdogRef.current = null;
+                  }
+                }, 12000);
+              } else {
+                if (chunkCounter % 10 === 0) {
+                  console.log(`[VAD-DIAGNOSTIC] Streaming AUDIO_FRAME (chunk ${chunkCounter}). Total user bytes: ${userRecordedBytesRef.current}. Sending via WebSocket...`);
+                }
                 sendWsMessage({
                   type: 'AUDIO_FRAME',
-                  payload: { data: pf.data },
+                  payload: { data: base64data },
                 });
               }
-            }
-
-            chunkCounter++;
-            userRecordedBytesRef.current += pcm16.byteLength;
-            
-            // Hard Safety Cap: If accumulated user bytes reach ~10 seconds (320,000 bytes), force AUDIO_END dispatch
-            if (userHasSpokenRef.current && !audioEndSent && userRecordedBytesRef.current >= 320000) {
-              console.warn('[HARD-SAFETY-CAP-TRIGGERED] User audio buffer reached 320,000 bytes (~10s). Forcing AUDIO_END dispatch.');
-              audioEndSent = true;
-              currentRequestIdRef.current = generateUUID();
-              activeRequestIdRef.current = currentRequestIdRef.current;
-              sendWsMessage({
-                type: 'AUDIO_END',
-                request_id: currentRequestIdRef.current,
-                payload: {
-                  current_page: window.location.pathname + window.location.search,
-                  active_field: activeFieldRef.current,
-                  dom_form_data: getFormStateData(),
-                  user_edited_fields: Array.from(userEditedFieldsRef.current),
-                }
-              });
-              userHasSpokenRef.current = false;
-              userRecordedBytesRef.current = 0;
-              preRollFramesRef.current = [];
-              stateRef.current = 'thinking';
-              setSaarthiState('thinking');
-              // BUG-11.1 FIX: Start 12s watchdog — if no AI_RESPONSE arrives, unfreeze to listening
-              if (thinkingWatchdogRef.current) clearTimeout(thinkingWatchdogRef.current);
-              thinkingWatchdogRef.current = setTimeout(() => {
-                if (stateRef.current === 'thinking') {
-                  console.warn('[FREEZE-RECOVERY] Thinking watchdog fired — no AI_RESPONSE in 12s. Recovering to listening.');
-                  stateRef.current = 'listening';
-                  setSaarthiState('listening');
-                  announceMessage('Maaf kijiye, response mein thodi der ho gayi. Kripya dobara boliye.', false);
-                  thinkingWatchdogRef.current = null;
-                }
-              }, 12000);
-            } else {
-              if (chunkCounter % 10 === 0) {
-                console.log(`[VAD-DIAGNOSTIC] Streaming AUDIO_FRAME (chunk ${chunkCounter}). Total user bytes: ${userRecordedBytesRef.current}. Sending via WebSocket...`);
-              }
-              sendWsMessage({
-                type: 'AUDIO_FRAME',
-                payload: { data: base64data },
-              });
             }
           } else if (!isSessionReadyRef.current) {
             // Discard audio captured during connection/handshake gap so stale audio does not garble future utterances
@@ -2338,8 +2623,8 @@ export function useSaarthiVoice() {
             return;
           }
 
-          // Responsive Dynamic threshold with +1.8 SNR delta (minimum 3.2, clamped max baseline 12.0)
-          const DYNAMIC_THRESHOLD = Math.max(3.2, backgroundNoise + 1.8);
+          // Responsive Dynamic threshold with +2.2 SNR delta (minimum 6.5, clamped max baseline 14.0)
+          const DYNAMIC_THRESHOLD = Math.max(6.5, backgroundNoise + 2.2);
           const PEAK_THRESHOLD = DYNAMIC_THRESHOLD + 3.0;
 
           // High-Sensitivity Leaky Integrator:
@@ -2354,8 +2639,9 @@ export function useSaarthiVoice() {
             speechConfidence = Math.max(0, speechConfidence - 1);
           }
 
-          // Trigger on speechConfidence >= 1 or immediate energy above dynamic threshold
-          if (speechConfidence >= 1 || average >= DYNAMIC_THRESHOLD) {
+          // Trigger on sustained confidence (>= 2) or sharp speech spike (>= PEAK_THRESHOLD with confidence >= 1)
+          // Eliminates single-tick false-positive triggers on low-amplitude ambient noise/clicks
+          if (speechConfidence >= 2 || (average >= PEAK_THRESHOLD && speechConfidence >= 1)) {
             if (!userHasSpokenRef.current) {
               console.log('[PROXIMITY-SPEECH-DETECTED]', 'avg:', average.toFixed(2), 'threshold:', DYNAMIC_THRESHOLD.toFixed(2), 'confidence:', speechConfidence);
             }
@@ -2366,9 +2652,9 @@ export function useSaarthiVoice() {
 
           const silentFor = Date.now() - lastSpeechTime;
 
-          // Adaptive noise floor tracking during prolonged silence (EMA update)
-          if (silentFor > 1000 && average < 6.0 && !userHasSpokenRef.current) {
-            backgroundNoise = Math.min(10.0, Math.max(2.0, backgroundNoise * 0.95 + average * 0.05));
+          // Adaptive noise floor tracking during prolonged silence (EMA update, minimum floor 4.0)
+          if (silentFor > 1000 && average < 6.5 && !userHasSpokenRef.current) {
+            backgroundNoise = Math.min(10.0, Math.max(4.0, backgroundNoise * 0.95 + average * 0.05));
           }
 
           if (Date.now() % 500 < 100) {
@@ -2385,7 +2671,7 @@ export function useSaarthiVoice() {
             }
 
             // Fix 1 (byte guard — highest priority safety net):
-            const MIN_BYTES_FOR_VALID_SPEECH = 3200; // ~100ms of 16kHz 16-bit mono audio
+            const MIN_BYTES_FOR_VALID_SPEECH = 12800; // ~400ms of 16kHz 16-bit mono audio
             if (userRecordedBytesRef.current < MIN_BYTES_FOR_VALID_SPEECH) {
               console.log(`[VAD-DISCARD-ZERO-BYTES] Discarding spurious trigger: recorded_bytes (${userRecordedBytesRef.current}) < min (${MIN_BYTES_FOR_VALID_SPEECH}). Resetting state silently.`);
               userHasSpokenRef.current = false;

@@ -16,8 +16,8 @@ from app.voice.schemas import TranscriptChunk, TranscriptResult, WebSocketMessag
 from app.voice.session import VoiceSession, VoiceSessionStatus
 from app.voice.session_manager import VoiceSessionManager
 from app.voice.stt.base import ISpeechRecognizer
+from app.voice.stt.inworld_stt_adapter import InWorldSTTAdapter
 from app.voice.stt.sarvam_adapter import SarvamAdapter
-from app.voice.stt.whisper_adapter import WhisperAdapter
 from app.voice.transcript import TranscriptAggregator
 from app.voice.websocket import WebSocketVoiceHandler
 
@@ -95,15 +95,15 @@ class TestVoiceGateway(IsolatedAsyncioTestCase):
         self.assertEqual(final_text, "Delhi me Rudrabhishek pooja book karo")
 
     async def test_stt_adapters_execution(self) -> None:
-        """Verify WhisperAdapter and SarvamAdapter execute finish_session cleanly."""
+        """Verify InWorldSTTAdapter and SarvamAdapter execute finish_session cleanly."""
         session = VoiceSession(session_id="s_test", language="hi")
         buffer = AudioBuffer()
         buffer.append(b"test_audio_bytes_12345678")
 
-        whisper = WhisperAdapter()
-        whisper_res = await whisper.finish_session(session, buffer)
-        self.assertIsInstance(whisper_res, TranscriptResult)
-        self.assertEqual(whisper_res.provider, "whisper")
+        inworld = InWorldSTTAdapter(api_key="dummy_key")
+        inworld_res = await inworld.finish_session(session, buffer)
+        self.assertIsInstance(inworld_res, TranscriptResult)
+        self.assertEqual(inworld_res.provider, "inworld")
 
         sarvam = SarvamAdapter()
         sarvam_res = await sarvam.finish_session(session, buffer)
@@ -149,7 +149,7 @@ class TestVoiceGateway(IsolatedAsyncioTestCase):
 
     def test_factory_builders(self) -> None:
         """Verify build_voice_gateway and build_websocket_voice_handler construct functional instances."""
-        gateway = build_voice_gateway(ai_orchestrator=self.mock_ai_orchestrator, stt_provider="whisper")
+        gateway = build_voice_gateway(ai_orchestrator=self.mock_ai_orchestrator, stt_provider="inworld")
         self.assertIsInstance(gateway, VoiceGateway)
 
         ws_handler = build_websocket_voice_handler(voice_gateway=gateway)

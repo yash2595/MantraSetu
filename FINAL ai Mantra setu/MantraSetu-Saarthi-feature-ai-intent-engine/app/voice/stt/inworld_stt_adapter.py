@@ -107,6 +107,35 @@ class InWorldSTTAdapter(ISpeechRecognizer):
                     metadata={"model": self._model, "status": "skipped"},
                 )
 
+            # Calculate RMS energy of raw PCM16 samples to filter pure silence / ambient room noise
+            rms_energy = 0
+            try:
+                import audioop
+                rms_energy = audioop.rms(raw_pcm, 2)
+            except Exception:
+                import struct
+                import math
+                num_samples = len(raw_pcm) // 2
+                if num_samples > 0:
+                    samples = struct.unpack(f"<{num_samples}h", raw_pcm[:num_samples * 2])
+                    sum_sq = sum(s * s for s in samples)
+                    rms_energy = int(math.sqrt(sum_sq / num_samples))
+
+            # Pure silence / low-amplitude noise gate (RMS < 350 on 16-bit PCM where speech is typically 500-10000)
+            if rms_energy < 350:
+                logger.info(
+                    "[INWORLD-STT] Audio is pure silence / ambient noise (RMS=%d < 350, bytes=%d). Skipping STT to prevent hallucination.",
+                    rms_energy, len(raw_pcm)
+                )
+                return TranscriptResult(
+                    text="",
+                    confidence=0.0,
+                    language=session.language,
+                    provider=self.provider_name,
+                    duration_seconds=duration_sec,
+                    metadata={"model": self._model, "status": "silence", "rms": rms_energy},
+                )
+
             if not self._api_key:
                 logger.warning("[INWORLD-STT] INWORLD_API_KEY is missing or empty")
                 return TranscriptResult(
