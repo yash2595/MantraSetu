@@ -33,4 +33,6 @@ scratch_*.py
 **/scratch_*.py
 verify_regression_personas.py
 verify_names_to_roman.py
-
+verify_fixes.py
+**/verify_fixes.py
+saarthi_rate_limit_speech_bubble.png

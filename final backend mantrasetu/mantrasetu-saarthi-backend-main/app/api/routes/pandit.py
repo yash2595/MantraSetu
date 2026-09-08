@@ -86,15 +86,18 @@ async def apply(
     aadhaar_file: Optional[UploadFile] = File(None),
     certificate_file: Optional[UploadFile] = File(None),
     gallery_files: Optional[List[UploadFile]] = File(None),
+    gallery_files_meta: Optional[str] = Form(None),
 ):
     from fastapi import HTTPException
-    if gallery_files:
-        valid_files = [f for f in gallery_files if f.filename]
-        if len(valid_files) > 7:
-            raise HTTPException(status_code=400, detail="Too many gallery files. Max 7 allowed.")
-        for gf in valid_files:
-            if gf.filename.lower().endswith(".pdf"):
-                raise HTTPException(status_code=400, detail=f".pdf not allowed for gallery files: {gf.filename}")
+    from app.utils.file_handler import ALLOWED_EXTENSIONS
+    valid_files = [f for f in (gallery_files or []) if f and f.filename]
+    if len(valid_files) > 7:
+        raise HTTPException(status_code=400, detail="Too many gallery files. Max 7 allowed.")
+    for gf in valid_files:
+        import os
+        ext = os.path.splitext(gf.filename)[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"Unsupported file format for gallery: {gf.filename}. Allowed: Images, Videos, PDFs.")
     return await process_pandit_application(
         name=name,
         email=email,
@@ -115,5 +118,6 @@ async def apply(
         bio=bio,
         aadhaar_file=aadhaar_file,
         certificate_file=certificate_file,
-        gallery_files=gallery_files or [],
+        gallery_files=valid_files,
+        gallery_files_meta=gallery_files_meta,
     )

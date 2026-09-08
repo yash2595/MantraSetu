@@ -95,6 +95,11 @@ class TTSCacheManager:
             return os.environ.get("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL").strip()
         return voice or "default"
 
+    @staticmethod
+    def resolve_physical_voice_id(voice: str, provider: str = "inworld") -> str:
+        """Resolve logical voice alias to physical voice ID configured in environment."""
+        return TTSCacheManager.resolve_physical_voice(provider, voice)
+
     def get_cache_key(
         self,
         cleaned_text: str,
@@ -110,6 +115,22 @@ class TTSCacheManager:
         key = hashlib.sha256(content.encode("utf-8")).hexdigest()
         logger.debug("[CACHE-KEY-TRACE] key=%s | raw_string=%r", key[:8], content[:80])
         return key
+
+    def clear_cache(self) -> int:
+        """Clear all cached audio files from disk and memory."""
+        self._memory_cache.clear()
+        removed_count = 0
+        try:
+            for file_path in self.cache_dir.glob("*.mp3"):
+                try:
+                    file_path.unlink()
+                    removed_count += 1
+                except Exception as err:
+                    logger.warning("Failed to delete cached file %s: %s", file_path, err)
+            logger.info("Cleared %d cached audio files from %s.", removed_count, self.cache_dir)
+        except Exception as e:
+            logger.error("Error clearing disk cache: %s", e)
+        return removed_count
 
     def _get_active_keys(self) -> set[str]:
         """Compute the set of expected cache keys for current provider, model, and physical voice."""

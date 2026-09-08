@@ -53,9 +53,17 @@ except FileNotFoundError:
     )
 PANDIT_REQUIRED_FIELD_QUEUE = tuple(field["id"] for field in PANDIT_ONBOARDING_SCHEMA if field["required"])
 PANDIT_OPTIONAL_FIELD_QUEUE = tuple(field["id"] for field in PANDIT_ONBOARDING_SCHEMA if not field["required"])
-# Optional fields remain available to the browser, but never block or divert
-# the deterministic voice-required queue.
-PANDIT_ONBOARDING_FIELD_QUEUE = ("pandit-avatar",) + PANDIT_REQUIRED_FIELD_QUEUE
+# Voice sequence includes prompted optional fields in their exact visual position:
+# pandit-avatar at start; pandit-galleryFiles between pandit-aadhaarFile and pandit-password.
+def _build_onboarding_field_queue():
+    queue = ["pandit-avatar"]
+    for f in PANDIT_REQUIRED_FIELD_QUEUE:
+        queue.append(f)
+        if f == "pandit-aadhaarFile":
+            queue.append("pandit-galleryFiles")
+    return tuple(queue)
+
+PANDIT_ONBOARDING_FIELD_QUEUE = _build_onboarding_field_queue()
 PANDIT_FIELD_LABELS = {
     "pandit-avatar": "profile photo",
     "pandit-first-name": "pehla naam", "pandit-last-name": "last name",
@@ -87,7 +95,7 @@ PANDIT_FIELD_QUESTIONS = {
     "pandit-bio": "Kripya apne baare mein thoda batayein (Bio), jaise aapki spiritual journey.",
     "pandit-aadhaarFile": "Kripya apna Aadhaar card upload kijiye.",
     "pandit-certFile": "Kripya apna shiksha pramanpatra upload kijiye.",
-    "pandit-galleryFiles": "Kripya apni gallery photos aur videos upload kijiye.",
+    "pandit-galleryFiles": "Kya aap apni gallery mein photos ya videos jodna chahenge? Ye optional hai. Agar upload karna hai to 'Upload Gallery' button par click kijiye, nahi to 'skip' boliye.",
     "pandit-password": "Apne account ke liye ek surakshit password banayein.",
     "pandit-confirm": "Kripya wahi password dobara darj karke confirm kijiye.",
     "pandit-code-of-conduct": "Kripya Code of Conduct ke niyam sweekar karke checkbox par tick kijiye.",
@@ -449,8 +457,14 @@ def is_affirmative(user_message: str) -> bool:
         "continue", "proceed",
         "move", "move on",
         "accha", "achha", "acha",
+        "aisa hi hai", "aisa hi", "aisa", "aise hi hai", "aise hi",
+        "yahi hai", "yahi", "yahi sahi hai", "yahi theek hai",
+        "theek hai bhaiya", "theek hai ji", "sahi hai ji", "haan ji", "ha ji",
+        "bilkul theek", "confirm", "confirmed", "confirm hai", "done hai", "perfect",
         "हाँ", "हां", "जी", "जी हां", "जी हाँ", "सही", "ठीक", "सब सही", "सब ठीक",
-        "आगे बढ़ो", "आगे बढो", "बढ़िया", "सब सही है", "सही है", "ठीक है", "हां सब सही है", "हाँ सब सही है", "वेरीफाई"
+        "आगे बढ़ो", "आगे बढो", "बढ़िया", "सब सही है", "सही है", "ठीक है", "हां सब सही है", "हाँ सब सही है", "वेरीफाई",
+        "ऐसा ही है", "ऐसा ही", "ऐसा", "ऐसे ही है", "ऐसे ही", "यही है", "यही सही है", "यही ठीक है", "यही",
+        "ठीक है भैया", "ठीक है जी", "सही है जी", "हाँ जी", "हां जी", "बिल्कुल", "बिल्कुल सही", "बिल्कुल ठीक", "कन्फर्म", "कन्फर्म है", "डन", "ओके"
     ]
     negative_keywords = ["nahi", "galat", "wrong", "badlo", "dobara", "correction", "नहीं", "नही", "गलत", "बदलो"]
 
@@ -607,8 +621,14 @@ def normalize_spoken_numbers(text: str) -> str:
     return t
 
 def normalize_spoken_input(user_message: str, field: str) -> str:
-    """Pre-process spoken transcripts for emails and phone numbers before LLM extraction."""
-    text = user_message.strip()
+    """Pre-process spoken transcripts before LLM extraction across all fields."""
+    text = (user_message or "").strip()
+    
+    # Strip terminal STT punctuation (Devanagari danda, double danda, trailing dots/question/exclamation)
+    # so the LLM tokenizer receives clean text tokens without malformed punctuation endings:
+    text = re.sub(r'[\s\u0964\u0965\.\?\!,\'\";]+$', '', text).strip()
+    # Replace any internal dandas with a space to separate clauses cleanly:
+    text = re.sub(r'[\u0964\u0965]', ' ', text).strip()
     
     if field in ["pandit-email", "email"]:
         # Remove common email filler prefixes & framing phrases ("Mere email idea", "email id hai", "my email address is", etc.)
@@ -902,8 +922,8 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
         "pandit-service-areas": "Service areas where the Pandit can perform rituals, comma-separated if multiple (e.g. Delhi NCR, Online Puja, Mumbai, etc.)",
         "pandit-exp": "Years of experience (e.g. 10 years, 5 years, etc.)",
         "pandit-gurukul": "Educational background or Gurukul attended (e.g. Acharya, Sampurnanand Sanskrit Vishwavidyalaya, etc.)",
-        "pandit-languages": "Languages spoken for rituals, comma-separated if multiple (choices: Hindi, Sanskrit, English, Gujarati, Marathi, Bengali, Tamil, Telugu, Odia)",
-        "pandit-spec": "Specializations, comma-separated if multiple (choices: Vedic Pujas & Havan, Jyotish & Kundali, Sanskar Ceremonies, Katha & Pravachan)",
+        "pandit-languages": "Languages spoken for rituals, comma-separated if multiple (choices: Hindi, Sanskrit, English, Tamil, Telugu, Bengali, Gujarati, Marathi, Kannada, Malayalam, Punjabi, Assamese, Odia)",
+        "pandit-spec": "Specializations, comma-separated if multiple (choices: वैदिक अनुष्ठान (Vedic Rituals), ज्योतिष (Astrology), विवाह संस्कार (Marriage Ceremonies), गृह प्रवेश (House Warming), नामकरण (Naming Ceremony), अन्नप्राशन (First Feeding), मुंडन (Hair Cutting), यज्ञ (Yajna), पूजा (Puja), हवन (Havan), संस्कार (Sanskar), व्रत (Vrat), Rudrabhishek & Mahamrityunjaya, Navgraha Shanti & Dosha Nivaran, Satyanarayan Katha & Path, Shodasha Sanskar Ceremonies, अन्य (Other))",
         "pandit-achievements": "Achievements or awards received by the Pandit (e.g. Performed 500+ pujas, Gold medalist in Sanskrit, etc.)",
         "pandit-bio": "Brief biography or description of the Pandit's spiritual journey",
     }
@@ -967,18 +987,57 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
             logger.info("[PANDIT-ONBOARDING] Deterministic regex hit for pandit-email: %s", extracted_email)
             return extracted_email
 
+    # Deterministic Fast-Path for Free-Text Bio (pandit-bio)
+    if field in ["pandit-bio", "bio"]:
+        cleaned = user_message.strip()
+        prefixes_to_strip = [
+            r"^(?:mera\s+bio\s+hai|mere\s+baare\s+mein\s+hai|mera\s+bio|mere\s+baare\s+mein|bio\s+hai|likhiye|likho|ye\s+hai)\s*[:,-]?\s*",
+            r"^(?:my\s+bio\s+is|about\s+me\s+is|bio\s+is|please\s+write)\s*[:,-]?\s*",
+        ]
+        for pat in prefixes_to_strip:
+            cleaned = re.sub(pat, "", cleaned, flags=re.IGNORECASE).strip()
+        if len(cleaned) >= 5:
+            logger.info("[PANDIT-ONBOARDING] Spoken free-text captured directly for %s: %r", field, cleaned)
+            return cleaned
+
     # Deterministic Fast-Path for Specialization (pandit-spec)
     if field in ["pandit-spec", "specialization"]:
         msg_lower = user_message_normalized.lower()
+        spec_map = {
+            'वैदिक अनुष्ठान (Vedic Rituals)': ['vedic anushthan', 'vedic anusthan', 'anushthan', 'anusthan', 'vedic karmakand', 'karmakand', 'purohit', 'vedic rituals', 'vedic ritual', 'वैदिक अनुष्ठान', 'अनुष्ठान', 'कर्मकांड'],
+            'ज्योतिष (Astrology)': ['jyotish', 'jyotishi', 'kundali', 'kundli', 'kundali milan', 'rashifal', 'horoscope', 'grah', 'astrology', 'astrologer', 'ज्योतिष', 'ज्योतिषी', 'कुंडली', 'कुण्डली', 'राशिफल', 'ग्रह'],
+            'विवाह संस्कार (Marriage Ceremonies)': ['vivah sanskar', 'vivah', 'shadi', 'shaadi', 'lagan', 'marriage ceremonies', 'marriage ceremony', 'wedding ceremony', 'wedding', 'marriage', 'विवाह संस्कार', 'विवाह', 'शादी', 'लगन'],
+            'गृह प्रवेश (House Warming)': ['griha pravesh', 'grih pravesh', 'grah pravesh', 'grihapravesh', 'ghar pravesh', 'house warming', 'housewarming', 'गृह प्रवेश', 'गृहप्रवेश', 'घर प्रवेश'],
+            'नामकरण (Naming Ceremony)': ['namkaran', 'naamkaran', 'namakaran', 'naming ceremony', 'naming', 'नामकरण'],
+            'अन्नप्राशन (First Feeding)': ['annaprashan', 'annaprashana', 'first feeding', 'baby feeding', 'अन्नप्राशन'],
+            'मुंडन (Hair Cutting)': ['mundan', 'chudakarana', 'hair cutting', 'tonsure', 'मुंडन', 'चूड़ाकर्म'],
+            'यज्ञ (Yajna)': ['yajna', 'yagya', 'yagy', 'mahayagya', 'fire sacrifice', 'यज्ञ', 'महायज्ञ'],
+            'पूजा (Puja)': ['puja', 'pooja', 'pujan', 'vidhi vidhan', 'worship', 'पूजा', 'पूजन'],
+            'हवन (Havan)': ['havan', 'hawan', 'homam', 'homa', 'fire ritual', 'हवन', 'होम'],
+            'संस्कार (Sanskar)': ['sanskar', 'samskara', 'upanayan', 'janeu', 'sacraments', 'sacrament', 'संस्कार', 'उपनयन', 'जनेऊ'],
+            'व्रत (Vrat)': ['vrat', 'upvas', 'fasting', 'व्रत', 'उपवास'],
+            'Rudrabhishek & Mahamrityunjaya': ['rudrabhishek', 'rudra abhishek', 'mahamrityunjaya', 'mahamrityunjay', 'shiv puja', 'रुद्राभिषेक', 'महामृत्युंजय'],
+            'Navgraha Shanti & Dosha Nivaran': ['navgraha shanti', 'navgrah', 'dosha nivaran', 'dosh nivaran', 'kalsarp', 'manglik dosh', 'नवग्रह शांति', 'दोष निवारण', 'कालसर्प'],
+            'Satyanarayan Katha & Path': ['satyanarayan katha', 'satyanarayan', 'sundarkand', 'ramayan path', 'bhagwat katha', 'katha', 'pravachan', 'सत्यनारायण कथा', 'सत्यनारायण', 'सुंदरकांड', 'भागवत'],
+            'Shodasha Sanskar Ceremonies': ['shodasha sanskar', 'shodash sanskar', '16 sanskar', 'solah sanskar', '16 sacraments', 'षोडश संस्कार', 'सोलह संस्कार'],
+            'अन्य (Other)': ['anya', 'koi aur', 'other', 'others', 'अन्य', 'और']
+        }
+        all_variants = []
+        for canonical, variants in spec_map.items():
+            for v in variants:
+                all_variants.append((canonical, v.lower()))
+        all_variants.sort(key=lambda x: len(x[1]), reverse=True)
+
+        msg_work = f" {msg_lower} "
         matched_specs = []
-        if any(w in msg_lower for w in ["jyotish", "kundali", "kundli", "astrology", "horoscope", "grah", "rashifal", "milan"]):
-            matched_specs.append("Jyotish & Kundali")
-        if any(w in msg_lower for w in ["sanskar", "samskara", "shadi", "vivah", "namakaran", "janeu", "mundan", "ceremony"]):
-            matched_specs.append("Sanskar Ceremonies")
-        if any(w in msg_lower for w in ["katha", "pravachan", "bhagwat", "ramayan", "satyanarayan", "kirtan", "gita"]):
-            matched_specs.append("Katha & Pravachan")
-        if any(w in msg_lower for w in ["puja", "pujas", "pooja", "poojas", "havan", "hawan", "vedic", "karmakand", "karma kand", "anushthan", "anusthan", "purohit", "yagya", "yajna", "homam"]):
-            matched_specs.append("Vedic Pujas & Havan")
+        for canonical, v in all_variants:
+            pattern = rf'(?<!\w){re.escape(v)}(?!\w)'
+            if re.search(pattern, msg_work, flags=re.UNICODE):
+                if canonical not in matched_specs:
+                    matched_specs.append(canonical)
+                # Mask out the matched portion so sub-words don't double match generic categories
+                msg_work = re.sub(pattern, ' ', msg_work, flags=re.UNICODE)
+
         if matched_specs:
             result_specs = ", ".join(matched_specs)
             logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-spec: %s", result_specs)
@@ -1087,19 +1146,34 @@ async def extract_field_value(user_message: str, field: str, ai_service: AIServi
     # Deterministic Fast-Path for Languages (pandit-languages)
     if field in ["pandit-languages", "pandit-lang", "language", "languages"]:
         msg_lower = user_message_normalized.lower()
-        lang_catalog = [
-            'Hindi', 'Sanskrit', 'English', 'Tamil', 'Telugu', 'Bengali',
-            'Gujarati', 'Marathi', 'Kannada', 'Malayalam', 'Punjabi', 'Assamese', 'Odia'
-        ]
-        if any(w in msg_lower for w in ["sahi", "theek", "thik", "okay", "yes", "agreed", "continue", "default"]):
-            logger.info("[PANDIT-ONBOARDING] Deterministic match for pandit-lang: Hindi, Sanskrit")
+        if any(w in msg_lower for w in ["default", "defaults", "डिफ़ॉल्ट", "डिफॉल्ट"]):
+            logger.info("[PANDIT-ONBOARDING] User explicitly requested default languages: Hindi, Sanskrit")
             return "Hindi, Sanskrit"
         
+        # Devanagari transliterations + Latin aliases mapped to canonical languages
+        lang_map = {
+            'Hindi': ['hindi', 'हिन्दी', 'हिंदी'],
+            'Sanskrit': ['sanskrit', 'संस्कृत'],
+            'English': ['english', 'इंग्लिश', 'अंग्रेजी', 'अंग्रेज़ी', 'angrezi', 'angreji'],
+            'Tamil': ['tamil', 'तमिल', 'तामिल'],
+            'Telugu': ['telugu', 'तेलुगु', 'तेलगू', 'तेलुगू'],
+            'Bengali': ['bengali', 'bangla', 'बंगाली', 'बांग्ला'],
+            'Gujarati': ['gujarati', 'गुजराती'],
+            'Marathi': ['marathi', 'मराठी'],
+            'Kannada': ['kannada', 'कन्नड़', 'कन्नड'],
+            'Malayalam': ['malayalam', 'मलयालम'],
+            'Punjabi': ['punjabi', 'पंजाबी'],
+            'Assamese': ['assamese', 'असमीज़', 'असमीज', 'असमिया', 'असमियाज'],
+            'Odia': ['odia', 'oriya', 'ओडिया', 'उड़िया', 'उडिया'],
+        }
+        
         matched_langs = []
-        for l in lang_catalog:
-            l_lower = l.lower()
-            if l_lower in msg_lower or (l_lower == 'english' and 'angrezi' in msg_lower):
-                matched_langs.append(l)
+        for canonical, variants in lang_map.items():
+            for v in variants:
+                if re.search(rf'(?<!\w){re.escape(v)}(?!\w)', msg_lower, flags=re.UNICODE) or v in msg_lower:
+                    if canonical not in matched_langs:
+                        matched_langs.append(canonical)
+                    break
         if matched_langs:
             logger.info(f"[PANDIT-ONBOARDING] Deterministic match for pandit-languages: {matched_langs}")
             return ", ".join(matched_langs)
@@ -1113,10 +1187,11 @@ STRICT VALIDATION RULES:
 2. If the field is 'pandit-gender', you MUST extract and map to exactly 'Male', 'Female', or 'Other'. For example: 'female', 'mahila', 'aurat', 'stree', 'lady', 'girl', 'फीमेल', 'फिमेल', 'महिला', 'स्त्री' MUST map to 'Female'. 'male', 'purush', 'aadmi', 'man', 'पुरुष', 'आदमी' MUST map to 'Male'. If not valid or off-topic, return 'INVALID'.
 3. If the field is 'pandit-phone', extract a 10-digit phone number string (e.g. '9876543210'). Remove any spaces, hyphens, or non-digit characters.
 4. If the field is 'pandit-exp', you MUST extract the clean numeric integer string for years of experience (e.g. '8', '10', '12', '15', '20'). If they say "das saal" or "10 years", return '10'. If not clear or off-topic, return 'INVALID'.
-5. If the field is 'pandit-spec', you MUST map the user's spoken answer to one of these exact values: 'Vedic Pujas & Havan', 'Jyotish & Kundali', 'Sanskar Ceremonies', 'Katha & Pravachan'. For example, if they say "havan" or "pujas", map to 'Vedic Pujas & Havan'. If they say "jyotish" or "kundali", map to 'Jyotish & Kundali'. If not clear or off-topic, return 'INVALID'.
-6. If the field is 'pandit-lang':
-   - If the user agrees, says 'sahi hai', 'theek hai', 'okay', 'yes', 'agreed', 'continue', or approves defaults, return 'Hindi, Sanskrit'.
-   - If they mention additional or specific languages (e.g. 'Gujarati bhi add karo', 'sirf Hindi'), extract the final active comma-separated list from choices [Hindi, Sanskrit, English, Gujarati, Marathi, Bengali, Tamil, Telugu, Odia]. Default is 'Hindi, Sanskrit'.
+5. If the field is 'pandit-spec', you MUST map the user's spoken answer to one or more of these exact catalog values (comma-separated): 'वैदिक अनुष्ठान (Vedic Rituals)', 'ज्योतिष (Astrology)', 'विवाह संस्कार (Marriage Ceremonies)', 'गृह प्रवेश (House Warming)', 'नामकरण (Naming Ceremony)', 'अन्नप्राशन (First Feeding)', 'मुंडन (Hair Cutting)', 'यज्ञ (Yajna)', 'पूजा (Puja)', 'हवन (Havan)', 'संस्कार (Sanskar)', 'व्रत (Vrat)', 'Rudrabhishek & Mahamrityunjaya', 'Navgraha Shanti & Dosha Nivaran', 'Satyanarayan Katha & Path', 'Shodasha Sanskar Ceremonies', 'अन्य (Other)'. Return ONLY the clean comma-separated list of matched values. If not clear or off-topic, return 'INVALID'.
+6. If the field is 'pandit-languages' or 'pandit-lang':
+   - Extract ONLY the valid languages mentioned by the user from: [Hindi, Sanskrit, English, Tamil, Telugu, Bengali, Gujarati, Marathi, Kannada, Malayalam, Punjabi, Assamese, Odia] (handling Hindi/Devanagari transliterations, e.g. 'इंग्लिश'/'अंग्रेजी' -> English, 'तमिल' -> Tamil, 'पंजाबी' -> Punjabi, 'असमीज़'/'असमीज' -> Assamese, 'उड़िया'/'ओडिया' -> Odia). Return as a clean comma-separated list.
+   - ONLY if the user explicitly asks for defaults (e.g. 'default languages', 'default theek hai'), return 'Hindi, Sanskrit'.
+   - If the input does NOT mention any valid language from the list and does NOT explicitly ask for defaults, you MUST return 'INVALID'. Do NOT silently assume or default to 'Hindi, Sanskrit'.
 7. If the user asks a CLEAR, explicit question mid-onboarding (e.g. "puja booking kaise hoti hai?", "MantraSetu kya hai?"), you MUST briefly answer their question and prefix your response with exactly "QUESTION: ". For example: "QUESTION: Puja booking aap hamari app se kar sakte hain." DO NOT use this for gibberish or mumbled words.
 8. If the user's response is off-topic, ambiguous, completely unrelated, or says something like "cancel", "ruko", "mujhe nahi pata" etc. (and is NOT a clear question), you MUST return exactly the word 'INVALID'. Do not try to extract or make up a value.
 9. If the answer is completely gibberish or not valid for {field_desc}, return 'INVALID'.
@@ -1311,31 +1386,95 @@ def _make_multi_choice_validator(choices: list[str], label: str) -> Callable[[st
         return FieldValidationResult(False, error_message=f"Kripya valid {label} dobara bataiye.")
     return validator
 
-register_field_validator("pandit-languages", _make_multi_choice_validator(["Hindi", "Sanskrit", "English", "Gujarati", "Marathi", "Bengali", "Tamil", "Telugu", "Odia"], "languages"))
-register_field_validator("pandit-spec", _make_multi_choice_validator(["Vedic Pujas & Havan", "Jyotish & Kundali", "Sanskar Ceremonies", "Katha & Pravachan"], "specialization"))
+register_field_validator("pandit-languages", _make_multi_choice_validator([
+    "Hindi", "Sanskrit", "English", "Tamil", "Telugu", "Bengali",
+    "Gujarati", "Marathi", "Kannada", "Malayalam", "Punjabi", "Assamese", "Odia"
+], "languages"))
+register_field_validator("pandit-spec", _make_multi_choice_validator([
+    'वैदिक अनुष्ठान (Vedic Rituals)', 'ज्योतिष (Astrology)', 'विवाह संस्कार (Marriage Ceremonies)',
+    'गृह प्रवेश (House Warming)', 'नामकरण (Naming Ceremony)', 'अन्नप्राशन (First Feeding)',
+    'मुंडन (Hair Cutting)', 'यज्ञ (Yajna)', 'पूजा (Puja)', 'हवन (Havan)', 'संस्कार (Sanskar)',
+    'व्रत (Vrat)', 'Rudrabhishek & Mahamrityunjaya', 'Navgraha Shanti & Dosha Nivaran',
+    'Satyanarayan Katha & Path', 'Shodasha Sanskar Ceremonies', 'अन्य (Other)'
+], "specialization"))
 
 # 5. Confirmation and Password Validators
 def _make_confirmation_validator(label: str) -> Callable[[str, dict], FieldValidationResult]:
     def validator(val: str, params: dict) -> FieldValidationResult:
-        if val and val != "INVALID" and is_upload_confirmed(val):
-            # Check DOM state for file presence if it is a document file field
-            dom_data = params.get("dom_form_data", {}) if isinstance(params, dict) else {}
-            if "certificate" in label or "cert" in label:
-                has_file = params.get("certFile_attached") == "true" or dom_data.get("certFile") or dom_data.get("certFile_attached")
-                if not has_file:
-                    logger.warning("[TELEMETRY-ONBOARDING] FIELD_REJECTED: field=pandit-certFile | reason=missing_dom_file")
-                    return FieldValidationResult(False, error_message="Mujhe koi Shiksha Pramanpatra file nahi mili. Kripya screen par file upload button par click karke certificate select kijiye aur phir 'ho gaya' boliye.")
-            elif "ID proof" in label or "aadhaar" in label:
-                has_file = params.get("aadhaarFile_attached") == "true" or dom_data.get("aadhaarFile") or dom_data.get("aadhaarFile_attached")
-                if not has_file:
-                    logger.warning("[TELEMETRY-ONBOARDING] FIELD_REJECTED: field=pandit-aadhaarFile | reason=missing_dom_file")
-                    return FieldValidationResult(False, error_message="Mujhe koi ID proof file nahi mili. Kripya screen par file upload button par click karke Aadhaar ya ID proof select kijiye aur phir 'ho gaya' boliye.")
-            elif "gallery" in label:
-                has_file = params.get("galleryFiles_attached") == "true" or dom_data.get("galleryFiles") or dom_data.get("galleryFiles_attached")
-                if not has_file:
-                    logger.warning("[TELEMETRY-ONBOARDING] FIELD_REJECTED: field=pandit-galleryFiles | reason=missing_dom_file")
-                    return FieldValidationResult(False, error_message="Mujhe koi gallery file nahi mili. Kripya screen par upload button par click karke photos select kijiye aur phir 'ho gaya' boliye.")
+        dom_data = params.get("dom_form_data", {}) if isinstance(params, dict) else {}
+        is_manual = isinstance(params, dict) and params.get("source") == "manual_input"
 
+        # Check DOM state for file presence if it is a document file field
+        if "certificate" in label or "cert" in label:
+            has_file = (
+                params.get("cert_attached") == "true" or params.get("certFile_attached") == "true"
+                or dom_data.get("cert_attached") == "true" or dom_data.get("certFile_attached") == "true"
+                or bool(dom_data.get("certFile")) or bool(dom_data.get("pandit-certFile"))
+            )
+            if has_file:
+                return FieldValidationResult(True, cleaned_value="Done")
+            if is_manual or (val and val != "INVALID" and is_upload_confirmed(val)):
+                logger.warning("[TELEMETRY-ONBOARDING] FIELD_REJECTED: field=pandit-certFile | reason=missing_dom_file")
+                return FieldValidationResult(False, error_message="Mujhe koi Shiksha Pramanpatra file nahi mili. Kripya screen par file upload button par click karke certificate select kijiye aur phir 'ho gaya' boliye.")
+            return FieldValidationResult(False, error_message="Kripya screen par certificate upload complete kijiye aur mujhe 'ho gaya' boliye.")
+
+        elif "ID proof" in label or "aadhaar" in label:
+            has_file = (
+                params.get("aadhaar_attached") == "true" or params.get("aadhaarFile_attached") == "true"
+                or dom_data.get("aadhaar_attached") == "true" or dom_data.get("aadhaarFile_attached") == "true"
+                or bool(dom_data.get("aadhaarFile")) or bool(dom_data.get("pandit-aadhaarFile"))
+            )
+            if has_file:
+                return FieldValidationResult(True, cleaned_value="Done")
+            if is_manual or (val and val != "INVALID" and is_upload_confirmed(val)):
+                logger.warning("[TELEMETRY-ONBOARDING] FIELD_REJECTED: field=pandit-aadhaarFile | reason=missing_dom_file")
+                return FieldValidationResult(False, error_message="Mujhe koi ID proof file nahi mili. Kripya screen par file upload button par click karke Aadhaar ya ID proof select kijiye aur phir 'ho gaya' boliye.")
+            return FieldValidationResult(False, error_message="Kripya screen par ID proof upload complete kijiye aur mujhe 'ho gaya' boliye.")
+
+        elif "gallery" in label:
+            gallery_files_meta_raw = dom_data.get("gallery_files_meta") or params.get("gallery_files_meta")
+            gallery_files_list = []
+            if gallery_files_meta_raw:
+                try:
+                    gallery_files_list = json.loads(gallery_files_meta_raw) if isinstance(gallery_files_meta_raw, str) else gallery_files_meta_raw
+                except Exception:
+                    pass
+
+            gallery_count_from_dom = 0
+            try:
+                gallery_count_from_dom = int(dom_data.get("gallery_file_count") or params.get("gallery_file_count") or 0)
+            except (ValueError, TypeError):
+                gallery_count_from_dom = 0
+            file_count = max(len(gallery_files_list), gallery_count_from_dom)
+
+            has_file = (
+                file_count > 0
+                or params.get("gallery_attached") == "true" or params.get("galleryFiles_attached") == "true"
+                or dom_data.get("gallery_attached") == "true" or dom_data.get("galleryFiles_attached") == "true"
+                or bool(dom_data.get("galleryFiles")) or bool(dom_data.get("pandit-galleryFiles"))
+            )
+            if has_file:
+                # Limit Check 1: Max 7 files total
+                if file_count > 7:
+                    return FieldValidationResult(False, error_message="Kripya gallery mein zyada se zyada 7 files hi upload karein. Kripya kuch files hata kar dobara try karein.")
+                
+                # Limit Check 2: Per-file sizes: Videos <= 100MB, Images <= 10MB, PDFs <= 10MB
+                for f_info in gallery_files_list:
+                    f_name = (f_info.get("name") or "").lower()
+                    f_type = (f_info.get("type") or "").lower()
+                    f_size = f_info.get("size") or 0
+                    is_video = f_type.startswith("video/") or any(f_name.endswith(ext) for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"])
+                    max_size = 100 * 1024 * 1024 if is_video else 10 * 1024 * 1024
+                    if f_size > max_size:
+                        return FieldValidationResult(False, error_message="Yeh file limit se bada hai. Images 10MB, videos 100MB, aur PDFs 10MB se zyada nahi honi chahiye. Kripya sahi size ki file upload karein.")
+
+                return FieldValidationResult(True, cleaned_value="Done")
+            if is_manual or (val and val != "INVALID" and is_upload_confirmed(val)):
+                logger.warning("[TELEMETRY-ONBOARDING] FIELD_REJECTED: field=pandit-galleryFiles | reason=missing_dom_file")
+                return FieldValidationResult(False, error_message="Mujhe koi gallery file nahi mili. Kripya screen par upload button par click karke photos ya videos select kijiye, ya phir 'skip' boliye.")
+            return FieldValidationResult(False, error_message="Kya aap apni gallery mein photos ya videos jodna chahenge? Ye optional hai. Agar upload karna hai to 'Upload Gallery' button par click kijiye, nahi to 'skip' boliye.")
+
+        if (val and val != "INVALID" and is_upload_confirmed(val)) or is_manual:
             return FieldValidationResult(True, cleaned_value="Done")
         return FieldValidationResult(False, error_message=f"Kripya screen par {label} complete kijiye aur mujhe 'ho gaya' boliye.")
     return validator
@@ -1454,11 +1593,31 @@ async def process_onboarding_step(
         logger.warning("[PANDIT-ONBOARDING] process_onboarding_step called but no onboarding_state found.")
         return None
 
+    user_params = request.user_parameters if isinstance(request.user_parameters, dict) else {}
+    client_active_field = user_params.get("active_field") or user_params.get("field")
+    if client_active_field and not client_active_field.startswith("pandit-") and f"pandit-{client_active_field}" in PANDIT_ONBOARDING_FIELD_QUEUE:
+        client_active_field = f"pandit-{client_active_field}"
+
+    fields = list(PANDIT_ONBOARDING_FIELD_QUEUE)
+    idx = state.get("current_field_index", 0)
+    current_field_candidate = client_active_field or (fields[idx] if idx < len(fields) else None)
+    is_free_text_field = current_field_candidate in ["pandit-bio", "bio", "pandit-achievements", "achievements"]
+
     # Check if user is attempting to navigate away mid-onboarding
     from app.orchestrator.navigation_intent_detector import is_navigation_command, resolve_navigation_target
-    msg_lower = (request.user_message or "").lower()
+    msg_lower = (request.user_message or "").lower().strip()
     is_service_area_or_spec = any(sa in msg_lower for sa in ["online puja", "vedic puja", "puja area", "puja services"])
-    if is_navigation_command(request.user_message) and not is_service_area_or_spec:
+    
+    unambiguous_exit_cmds = {
+        "go back", "wapas jao", "wapas jao ji", "cancel", "cancel karo",
+        "exit", "quit", "stop", "chhod do", "form chhod do", "leave", "band karo"
+    }
+    is_explicit_exit = msg_lower in unambiguous_exit_cmds
+
+    # Free-text narrative fields must NOT trigger generic navigation commands on descriptive sentences
+    should_check_navigation = not is_service_area_or_spec and (is_explicit_exit if is_free_text_field else is_navigation_command(request.user_message))
+
+    if should_check_navigation:
         nav_res = resolve_navigation_target(request.user_message)
         target_route = nav_res.get("target") or "/dashboard"
         session.pending_nav_target = target_route
@@ -1473,11 +1632,6 @@ async def process_onboarding_step(
     ai_service = orchestrator._llm_intent_detector._ai
     status = state.get("status", "collecting")
     
-    user_params = request.user_parameters if isinstance(request.user_parameters, dict) else {}
-    client_active_field = user_params.get("active_field") or user_params.get("field")
-    if client_active_field and not client_active_field.startswith("pandit-") and f"pandit-{client_active_field}" in PANDIT_ONBOARDING_FIELD_QUEUE:
-        client_active_field = f"pandit-{client_active_field}"
-
     if user_params.get("source") == "manual_input" and status == "awaiting_field_confirmation":
         logger.info("[PANDIT-ONBOARDING] Manual input received while awaiting confirmation. Clearing confirmation state.")
         state["status"] = "collecting"
@@ -1512,9 +1666,12 @@ async def process_onboarding_step(
             if password_field in user_edited_fields or client_active_field in (password_field, password_field.replace("pandit-", "")):
                 if dom_snapshot.get(f"{password_field}_filled") == "true":
                     state.setdefault("collected_data", {})[password_field] = "confirmed"
-        for field, snapshot_key in (("pandit-certFile", "cert_attached"), ("pandit-aadhaarFile", "aadhaar_attached"), ("pandit-galleryFiles", "gallery_attached")):
-            if field in user_edited_fields or client_active_field in (field, field.replace("pandit-", "")):
-                if dom_snapshot.get(snapshot_key) == "true":
+        for field, snapshot_key in (("pandit-certFile", "cert_attached"), ("pandit-aadhaarFile", "aadhaar_attached")):
+            base_prefix = snapshot_key.split('_')[0]
+            alt_key = f"{base_prefix}File_attached"
+            alias_fields = (field, field.replace("pandit-", ""), f"pandit-{base_prefix}-input", f"{base_prefix}-input")
+            if field in user_edited_fields or any(af in user_edited_fields for af in alias_fields) or client_active_field in alias_fields:
+                if dom_snapshot.get(snapshot_key) == "true" or dom_snapshot.get(alt_key) == "true" or dom_snapshot.get(field):
                     state.setdefault("collected_data", {})[field] = "confirmed"
 
     idx = state.get("current_field_index", 0)
@@ -1875,7 +2032,13 @@ async def process_onboarding_step(
     # ── Active Field Tag & DOM Input Sync ──
     user_params = request.user_parameters if isinstance(request.user_parameters, dict) else {}
     client_active_field = user_params.get("active_field") or user_params.get("field")
-    if client_active_field and not client_active_field.startswith("pandit-") and f"pandit-{client_active_field}" in fields:
+    if client_active_field in ("pandit-aadhaar-input", "aadhaar-input", "aadhaar-file", "pandit-aadhaar"):
+        client_active_field = "pandit-aadhaarFile"
+    elif client_active_field in ("pandit-cert-input", "cert-input", "cert-file", "pandit-cert"):
+        client_active_field = "pandit-certFile"
+    elif client_active_field in ("pandit-gallery-input", "gallery-input", "gallery-files", "pandit-gallery"):
+        client_active_field = "pandit-galleryFiles"
+    elif client_active_field and not client_active_field.startswith("pandit-") and f"pandit-{client_active_field}" in fields:
         client_active_field = f"pandit-{client_active_field}"
     raw_msg = user_params.get("raw_user_message", request.user_message)
     dom_data = user_params.get("dom_form_data", {})
@@ -2068,6 +2231,149 @@ async def process_onboarding_step(
                 metadata=ResponseMetadata(fast_path=True, latency_ms=0.0)
             )
 
+    # ── Gallery Upload (pandit-galleryFiles) special handling ──
+    if current_field == "pandit-galleryFiles":
+        msg_lower = (request.user_message or "").lower().strip()
+        skip_kw = [
+            "skip", "aage", "badho", "badh", "aage badho", "next", "continue", "chhod", 
+            "baad", "bina", "rehne", "nahi", "no", "leave", "pass", "agla", "chalo", "aage chalo",
+            "move", "ahead", "badao", "badhao", "badhe", "badho ji", "badhiye", "aage badhiye",
+            "आगे", "बढ़ो", "बढो", "आगे बढ़ो", "आगे बढो", "स्किप", "छोड़ो", "नहीं", "नेक्स्ट", "आगे चलो",
+            "बाद", "बिना", "रहने", "अगला", "बढ़ाओ", "चलो", "पास", "आगे बढ़िए", "बढ़िए", "बढिए"
+        ]
+        is_skip = any(k in msg_lower for k in skip_kw)
+        logger.info("[PANDIT-GALLERY-DIAGNOSTIC] msg=%r | is_skip=%s", request.user_message, is_skip)
+
+        upload_kw = ["upload", "gallery", "photo", "photos", "video", "videos", "pdf", "ho gaya", "done", "kar diya", "selected", "file", "files", "अपलोड", "फोटो", "हो गया"]
+        is_upload_intent = any(k in msg_lower for k in upload_kw)
+
+        # Parse gallery files metadata from DOM
+        gallery_files_meta_raw = dom_data.get("gallery_files_meta")
+        gallery_files_list = []
+        if gallery_files_meta_raw:
+            try:
+                gallery_files_list = json.loads(gallery_files_meta_raw) if isinstance(gallery_files_meta_raw, str) else gallery_files_meta_raw
+            except Exception as e:
+                logger.warning("[PANDIT-GALLERY] Failed to parse gallery_files_meta: %s", e)
+
+        gallery_count_from_dom = 0
+        try:
+            gallery_count_from_dom = int(dom_data.get("gallery_file_count", 0))
+        except (ValueError, TypeError):
+            gallery_count_from_dom = 0
+        file_count = max(len(gallery_files_list), gallery_count_from_dom)
+
+        is_file_attached_in_dom = (
+            file_count > 0 or
+            dom_data.get("gallery_attached") == "true" or
+            dom_data.get("galleryFiles_attached") == "true" or
+            bool(dom_data.get("galleryFiles")) or
+            bool(dom_data.get("pandit-galleryFiles"))
+        )
+
+        if is_skip:
+            state["collected_data"]["pandit-galleryFiles"] = "skipped"
+            next_idx = sync_next_field_index(state)
+            next_field = fields[next_idx] if next_idx < len(fields) else "pandit-password"
+            question = "Bahut badhiya! Apne account ke liye ek surakshit password banayein."
+            nav_directive = {
+                "action": "FILL_FORM",
+                "target": next_field,
+                "query": None,
+                "active_field": next_field,
+                "intent": "PANDIT_ONBOARDING",
+                "fields": None
+            }
+            session.update_location(page="/signup?role=pandit", field=next_field)
+            orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+            return orchestrator._response_builder.build_response(
+                request_id=request.request_id,
+                text_override=question,
+                response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                navigation_directive=nav_directive,
+                metadata=ResponseMetadata(fast_path=True, latency_ms=0.0)
+            )
+        elif is_upload_intent or (user_params.get("source") == "manual_input" and is_file_attached_in_dom):
+            if is_file_attached_in_dom:
+                # Limit 1: Max 7 files
+                if file_count > 7:
+                    err_msg = "Kripya gallery mein zyada se zyada 7 files hi upload karein. Kripya kuch files hata kar dobara try karein."
+                    nav_directive = {"action": "FILL_FORM", "target": "pandit-galleryFiles", "query": None, "active_field": "pandit-galleryFiles", "intent": "PANDIT_ONBOARDING", "fields": None}
+                    return orchestrator._response_builder.build_response(
+                        request_id=request.request_id,
+                        text_override=err_msg,
+                        response_type=ResponseType.CHAT,
+                        navigation_directive=nav_directive,
+                        metadata=ResponseMetadata(fast_path=True, latency_ms=0.0)
+                    )
+
+                # Limit 2: Per-file sizes: Videos <= 100MB, Images <= 10MB, PDFs <= 10MB
+                for f_info in gallery_files_list:
+                    f_name = (f_info.get("name") or "").lower()
+                    f_type = (f_info.get("type") or "").lower()
+                    f_size = f_info.get("size") or 0
+                    is_video = f_type.startswith("video/") or any(f_name.endswith(ext) for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"])
+                    max_size = 100 * 1024 * 1024 if is_video else 10 * 1024 * 1024
+                    if f_size > max_size:
+                        err_msg = "Yeh file limit se bada hai. Images 10MB, videos 100MB, aur PDFs 10MB se zyada nahi honi chahiye. Kripya sahi size ki file upload karein."
+                        nav_directive = {"action": "FILL_FORM", "target": "pandit-galleryFiles", "query": None, "active_field": "pandit-galleryFiles", "intent": "PANDIT_ONBOARDING", "fields": None}
+                        return orchestrator._response_builder.build_response(
+                            request_id=request.request_id,
+                            text_override=err_msg,
+                            response_type=ResponseType.CHAT,
+                            navigation_directive=nav_directive,
+                            metadata=ResponseMetadata(fast_path=True, latency_ms=0.0)
+                        )
+
+                state["collected_data"]["pandit-galleryFiles"] = "uploaded"
+                next_idx = sync_next_field_index(state)
+                next_field = fields[next_idx] if next_idx < len(fields) else "pandit-password"
+                question = "Bahut badhiya! Apne account ke liye ek surakshit password banayein."
+                nav_directive = {
+                    "action": "FILL_FORM",
+                    "target": next_field,
+                    "query": None,
+                    "active_field": next_field,
+                    "intent": "PANDIT_ONBOARDING",
+                    "fields": None
+                }
+                session.update_location(page="/signup?role=pandit", field=next_field)
+                orchestrator._frontend_bridge.publish_navigation_event(request.session_id, nav_directive)
+                return orchestrator._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override=question,
+                    response_type=ResponseType.NAVIGATION_DIRECTIVE,
+                    navigation_directive=nav_directive,
+                    metadata=ResponseMetadata(fast_path=True, latency_ms=0.0)
+                )
+            else:
+                question = "Mujhe koi gallery file nahi mili. Kripya screen par upload button par click karke photos ya videos select kijiye, ya phir 'skip' boliye."
+                nav_directive = {
+                    "action": "FILL_FORM",
+                    "target": "pandit-galleryFiles",
+                    "query": None,
+                    "active_field": "pandit-galleryFiles",
+                    "intent": "PANDIT_ONBOARDING",
+                    "fields": None
+                }
+                return orchestrator._response_builder.build_response(
+                    request_id=request.request_id,
+                    text_override=question,
+                    response_type=ResponseType.CHAT,
+                    navigation_directive=nav_directive,
+                    metadata=ResponseMetadata(fast_path=True, latency_ms=0.0)
+                )
+        else:
+            question = "Kya aap apni gallery mein photos ya videos jodna chahenge? Ye optional hai. Agar upload karna hai to 'Upload Gallery' button par click kijiye, nahi to 'skip' boliye."
+            nav_directive = {"action": "FILL_FORM", "target": "pandit-galleryFiles", "query": None, "active_field": "pandit-galleryFiles", "intent": "PANDIT_ONBOARDING", "fields": None}
+            return orchestrator._response_builder.build_response(
+                request_id=request.request_id,
+                text_override=question,
+                response_type=ResponseType.CHAT,
+                navigation_directive=nav_directive,
+                metadata=ResponseMetadata(fast_path=True, latency_ms=0.0)
+            )
+
     # Multi-select fields should extract spoken values rather than being overridden by existing DOM data
     is_multiselect_field = current_field in ["pandit-languages", "pandit-service-areas", "pandit-spec"]
     
@@ -2124,7 +2430,8 @@ async def process_onboarding_step(
             logger.warning("[PANDIT-QUEUE] Manual entry required for %s; queue remains blocked until DOM confirms it.", current_field)
         # Check for navigation intent fallback ONLY after validation fails
         from app.orchestrator.navigation_intent_detector import is_navigation_command, resolve_navigation_target
-        if is_navigation_command(request.user_message):
+        is_free_text = current_field in ["pandit-bio", "bio", "pandit-achievements", "achievements"]
+        if not is_free_text and is_navigation_command(request.user_message):
             nav_result = resolve_navigation_target(request.user_message)
             if nav_result["needs_clarification"]:
                 return orchestrator._response_builder.build_response(
@@ -2267,15 +2574,16 @@ async def process_onboarding_step(
                 metadata=ResponseMetadata(fast_path=False, latency_ms=0.0)
             )
 
-    # Direct commit and advance for manual input (keyboard typing / pill click)
-    if user_params.get("source") == "manual_input":
+    # Direct commit and advance for manual input (keyboard typing / pill click / file upload)
+    # or confirmation-only fields (file uploads) or free-text narrative fields (pandit-bio)
+    if user_params.get("source") == "manual_input" or current_field in ["pandit-certFile", "pandit-aadhaarFile", "pandit-galleryFiles", "pandit-bio"]:
         state["collected_data"][current_field] = val
         state["status"] = "collecting"
         state["tentative_field"] = None
         state["tentative_value"] = None
         state.setdefault("field_rejection_count", {}).pop(current_field, None)
         state.setdefault("field_retry_count", {}).pop(current_field, None)
-        logger.info("[PANDIT-ONBOARDING] Direct-commit for manual input on field %s: %r", current_field, val)
+        logger.info("[PANDIT-ONBOARDING] Direct-commit on field %s: %r", current_field, val)
 
         next_idx = sync_next_field_index(state)
         if next_idx < len(fields):
@@ -2286,13 +2594,19 @@ async def process_onboarding_step(
                 f"Ab apna {PANDIT_FIELD_LABELS.get(next_field, next_field)} bataiye."
             )
             question = f"Bahut badhiya! {next_prompt}"
+            fields_payload = None
+            if current_field in ["pandit-bio", "bio"]:
+                fields_payload = [
+                    {"target": current_field, "query": val},
+                    {"target": next_field, "query": None}
+                ]
             nav_directive = {
                 "action": "FILL_FORM",
                 "target": next_field,
                 "query": None,
                 "active_field": next_field,
                 "intent": "PANDIT_ONBOARDING",
-                "fields": None,
+                "fields": fields_payload,
             }
         else:
             session.onboarding_state = None

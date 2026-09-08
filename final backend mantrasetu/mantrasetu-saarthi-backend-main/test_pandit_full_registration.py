@@ -20,6 +20,8 @@ Run from the backend root:
 import io
 import os
 import sys
+import uuid
+import json
 import socket
 import pytest
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -32,11 +34,16 @@ from app.main import app
 
 # ── MongoDB availability probe ─────────────────────────────────────────────────
 
-def _mongodb_available(host: str = "localhost", port: int = 27017, timeout: float = 1.0) -> bool:
+def _mongodb_available(timeout: float = 3.0) -> bool:
     try:
-        with socket.create_connection((host, port), timeout=timeout):
-            return True
-    except (OSError, ConnectionRefusedError):
+        from app.core.config import settings
+        from pymongo import MongoClient
+        client = MongoClient(settings.MONGODB_URI, serverSelectionTimeoutMS=int(timeout * 1000))
+        client.admin.command('ping')
+        client.close()
+        return True
+    except Exception as e:
+        print(f"MongoDB ping failed: {e}")
         return False
 
 
@@ -223,15 +230,86 @@ async def test_gallery_file_count_limit():
 
 @pytest.mark.anyio
 @pytest.mark.skipif(not MONGO_UP, reason="MongoDB not running — DB tests skipped")
-async def test_gallery_pdf_rejected():
-    """.pdf must be rejected in gallery (allowed only for aadhaar/cert)."""
+async def test_gallery_unsupported_extension_rejected():
+    """.exe or unknown binary files must be rejected in gallery."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        files = _base_data() + [("gallery_files", ("portfolio.pdf", b"%PDF-1.4 fake", "application/pdf"))]
+        files = _base_data() + [("gallery_files", ("exploit.exe", b"MZ...", "application/octet-stream"))]
         response = await client.post("/pandit/apply", files=files)
 
     assert response.status_code == 400, f"Got {response.status_code}: {response.text}"
-    assert ".pdf" in response.json()["detail"]
-    print("\nPASS: .pdf rejected for gallery -> 400")
+    assert "Unsupported file format for gallery" in response.json()["detail"]
+    print("\nPASS: Unsupported file extension rejected for gallery -> 400")
+
+
+@pytest.mark.anyio
+@pytest.mark.skipif(not MONGO_UP, reason="MongoDB not running — DB tests skipped")
+async def test_real_multipart_e2e_mixed_gallery_and_metadata():
+    """
+    Real HTTP POST /pandit/apply end-to-end with actual 2MB video + PDF + image gallery files + metadata.
+    Exercises the full multipart parsing pipeline.
+    """
+    from app.core.config import settings
+    mongo = AsyncIOMotorClient(settings.MONGODB_URI)
+    collection = mongo[settings.DATABASE_NAME]["pandit_applications"]
+    test_e2e_email = f"e2e_gallery_{uuid.uuid4().hex[:6]}@example.com"
+
+    try:
+        dummy_video_2mb = b"\x00" * (2 * 1024 * 1024) # 2MB video
+        dummy_pdf = b"%PDF-1.4 sample gallery pdf"
+        meta_json = json.dumps([
+            {"name": "video.mp4", "size": len(dummy_video_2mb), "type": "video/mp4"},
+            {"name": "portfolio.pdf", "size": len(dummy_pdf), "type": "application/pdf"},
+            {"name": "temple.png", "size": len(_SMALL_PNG), "type": "image/png"},
+        ])
+
+        payload = _base_data({"email": test_e2e_email, "phone": f"97{uuid.uuid4().hex[:8]}"}) + [
+            ("gallery_files", ("video.mp4", dummy_video_2mb, "video/mp4")),
+            ("gallery_files", ("portfolio.pdf", dummy_pdf, "application/pdf")),
+            ("gallery_files", ("temple.png", _SMALL_PNG, "image/png")),
+            ("gallery_files_meta", (None, meta_json, "text/plain")),
+        ]
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/pandit/apply", files=payload)
+
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        body = response.json()
+        assert body["status"] == "success"
+        assert body["application_id"]
+
+        # Check DB
+        doc = await collection.find_one({"email": test_e2e_email})
+        assert doc is not None
+        assert len(doc["gallery_files"]) == 3
+        assert doc["gallery_files_meta"] == meta_json
+        print("\nPASS: Real multipart E2E with 2MB video + PDF + image gallery + metadata -> 200")
+    finally:
+        await collection.delete_many({"email": test_e2e_email})
+        mongo.close()
+
+
+@pytest.mark.anyio
+@pytest.mark.skipif(not MONGO_UP, reason="MongoDB not running — DB tests skipped")
+async def test_real_multipart_e2e_zero_gallery_files():
+    """Real HTTP POST /pandit/apply with zero gallery files (skipped). Must succeed."""
+    from app.core.config import settings
+    mongo = AsyncIOMotorClient(settings.MONGODB_URI)
+    collection = mongo[settings.DATABASE_NAME]["pandit_applications"]
+    test_zero_email = f"e2e_zero_{uuid.uuid4().hex[:6]}@example.com"
+
+    try:
+        payload = _base_data({"email": test_zero_email, "phone": f"96{uuid.uuid4().hex[:8]}"})
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/pandit/apply", files=payload)
+
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        doc = await collection.find_one({"email": test_zero_email})
+        assert doc is not None
+        assert doc["gallery_files"] == []
+        print("\nPASS: Zero gallery files (skipped) -> 200")
+    finally:
+        await collection.delete_many({"email": test_zero_email})
+        mongo.close()
 
 
 @pytest.mark.anyio
@@ -243,3 +321,4 @@ async def test_password_mismatch_rejected():
 
     assert response.status_code == 400, f"Got {response.status_code}: {response.text}"
     print("\nPASS: Password mismatch -> 400")
+

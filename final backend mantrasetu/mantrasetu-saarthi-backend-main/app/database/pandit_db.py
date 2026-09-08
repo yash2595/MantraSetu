@@ -52,6 +52,7 @@ async def create_pandit_application(
     aadhaar_file: str | None = None,
     certificate_file: str | None = None,
     gallery_files: list | None = None,
+    gallery_files_meta: str | None = None,
 ) -> str:
     document = {
         "name": name,
@@ -73,6 +74,7 @@ async def create_pandit_application(
         "aadhaar_file": aadhaar_file,
         "certificate_file": certificate_file,
         "gallery_files": gallery_files or [],
+        "gallery_files_meta": gallery_files_meta,
         "status": "pending",
         "reviewed_at": None,
         "reviewed_by": None,

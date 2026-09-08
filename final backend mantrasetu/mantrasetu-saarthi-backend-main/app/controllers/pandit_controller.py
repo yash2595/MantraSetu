@@ -30,6 +30,7 @@ async def process_pandit_application(
     aadhaar_file: Optional[UploadFile] = None,
     certificate_file: Optional[UploadFile] = None,
     gallery_files: Optional[List[UploadFile]] = None,
+    gallery_files_meta: Optional[str] = None,
 ):
     return await execute_pandit_application(
         name=name,
@@ -52,4 +53,5 @@ async def process_pandit_application(
         aadhaar_file=aadhaar_file,
         certificate_file=certificate_file,
         gallery_files=gallery_files or [],
+        gallery_files_meta=gallery_files_meta,
     )

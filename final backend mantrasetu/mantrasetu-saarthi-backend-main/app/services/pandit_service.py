@@ -40,6 +40,7 @@ async def execute_pandit_application(
     aadhaar_file: Optional[UploadFile] = None,
     certificate_file: Optional[UploadFile] = None,
     gallery_files: Optional[List[UploadFile]] = None,
+    gallery_files_meta: Optional[str] = None,
 ) -> PanditApplicationResponse:
 
     if password != confirm_password:
@@ -112,6 +113,7 @@ async def execute_pandit_application(
             aadhaar_file=aadhaar_path,
             certificate_file=certificate_path,
             gallery_files=saved_gallery_paths,
+            gallery_files_meta=gallery_files_meta,
         )
         print(f"[BACKEND-PANDIT-APPLY] Pandit application persisted in MongoDB! Inserted ID: {application_id}")
     except pymongo.errors.DuplicateKeyError:

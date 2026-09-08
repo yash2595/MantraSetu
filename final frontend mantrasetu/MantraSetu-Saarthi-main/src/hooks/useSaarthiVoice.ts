@@ -171,8 +171,9 @@ export function getFormStateData(): Record<string, string> {
 
     const pwdEl = document.querySelector<HTMLInputElement>('#pandit-password, [data-testid="input-pandit-password"]');
     const cpwdEl = document.querySelector<HTMLInputElement>('#pandit-confirm, [data-testid="input-pandit-confirm"]');
-    const aadhaarInput = document.querySelector<HTMLInputElement>('#pandit-aadhaar-input, [data-testid="input-aadhaar-file"]');
-    const certInput = document.querySelector<HTMLInputElement>('#pandit-cert-input, [data-testid="input-cert-file"]');
+    const aadhaarInput = document.querySelector<HTMLInputElement>('#pandit-aadhaarFile, #pandit-aadhaar-input, [data-testid="input-pandit-aadhaarFile"], [data-testid="input-aadhaar-file"]');
+    const certInput = document.querySelector<HTMLInputElement>('#pandit-certFile, #pandit-cert-input, [data-testid="input-pandit-certFile"], [data-testid="input-cert-file"]');
+    const galleryInput = document.querySelector<HTMLInputElement>('#pandit-galleryFiles, [data-testid="input-pandit-galleryFiles"]');
     const termsEl = document.querySelector<HTMLInputElement>('#pandit-terms-accepted, [data-testid="checkbox-pandit-terms"]');
 
     const stepEl = document.querySelector('[data-testid="pandit-wizard-step"]');
@@ -231,8 +232,39 @@ export function getFormStateData(): Record<string, string> {
                           (avatarPreviewImg && avatarPreviewImg.getAttribute('src')?.startsWith('data:image'));
     data['avatar_attached'] = hasAvatarFile ? 'true' : 'false';
 
-    data['aadhaar_attached'] = (aadhaarInput && aadhaarInput.files && aadhaarInput.files.length > 0) ? 'true' : 'false';
-    data['cert_attached'] = (certInput && certInput.files && certInput.files.length > 0) ? 'true' : 'false';
+    const hasAadhaar = Boolean(aadhaarInput && aadhaarInput.files && aadhaarInput.files.length > 0);
+    data['aadhaar_attached'] = hasAadhaar ? 'true' : 'false';
+    data['aadhaarFile_attached'] = hasAadhaar ? 'true' : 'false';
+    if (hasAadhaar) {
+      data['pandit-aadhaarFile'] = aadhaarInput?.files?.[0]?.name || 'attached';
+    }
+
+    const hasCert = Boolean(certInput && certInput.files && certInput.files.length > 0);
+    data['cert_attached'] = hasCert ? 'true' : 'false';
+    data['certFile_attached'] = hasCert ? 'true' : 'false';
+    if (hasCert) {
+      data['pandit-certFile'] = certInput?.files?.[0]?.name || 'attached';
+    }
+
+    const windowGalleryFiles: File[] = Array.isArray((window as any)._panditGalleryFiles) ? (window as any)._panditGalleryFiles : [];
+    const inputGalleryFiles: File[] = galleryInput?.files ? Array.from(galleryInput.files) : [];
+    const galleryFilesList: File[] = windowGalleryFiles.length > 0 ? windowGalleryFiles : inputGalleryFiles;
+
+    const hasGallery = galleryFilesList.length > 0;
+    data['gallery_attached'] = hasGallery ? 'true' : 'false';
+    data['galleryFiles_attached'] = hasGallery ? 'true' : 'false';
+    data['gallery_file_count'] = String(galleryFilesList.length);
+    data['gallery_files_meta'] = JSON.stringify(
+      galleryFilesList.map((f) => ({
+        name: f.name,
+        size: f.size,
+        type: f.type,
+      }))
+    );
+    if (hasGallery) {
+      data['pandit-galleryFiles'] = galleryFilesList.map((f) => f.name).join(', ');
+    }
+
     data['terms_accepted'] = (termsEl && termsEl.checked) ? 'true' : 'false';
 
     if ((window as any)._lastSubmissionError) {
@@ -291,6 +323,7 @@ export function useSaarthiVoice() {
   const userHasSpokenRef = useRef<boolean>(false);
   const preRollFramesRef = useRef<{ data: string; bytes: number }[]>([]);
   const resetVadStateRef = useRef<(() => void) | null>(null);
+  const ttsCooldownTimerRef = useRef<any>(null);
 
   const isSessionReadyRef = useRef(false);
   const isConnectingRef = useRef(false);
@@ -1643,13 +1676,15 @@ export function useSaarthiVoice() {
                   const prevFocused = document.activeElement ? `${document.activeElement.tagName}#${document.activeElement.id}` : 'none';
                   console.log(`[TRACE-FOCUS-SHIFT] time=${now} activeField="${activeField}" currentlyFocused=${prevFocused}`);
                   document.querySelectorAll('.saarthi-highlight').forEach(el => el.classList.remove('saarthi-highlight'));
-                  const sel = `[data-testid="input-${activeField}"], #${activeField}, [data-testid="input-${activeField.replace('pandit-', '')}"]`;
+                  const sel = `[data-testid="upload-${activeField}"], [data-testid="input-${activeField}"], #${activeField}, [data-testid="input-${activeField.replace('pandit-', '')}"]`;
                   const el = document.querySelector<HTMLElement>(sel);
                   if (el) {
                     console.log(`[TRACE-FOCUS-SHIFT] time=${Date.now()} focusing element: tag=${el.tagName} id=${el.id} testId=${el.getAttribute('data-testid')}`);
                     el.classList.add('saarthi-highlight');
                     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    el.focus();
+                    if (typeof el.focus === 'function') {
+                      el.focus();
+                    }
                     console.log(`[TRACE-FOCUS-SHIFT-AFTER] time=${Date.now()} newActiveElement=${document.activeElement?.tagName}#${document.activeElement?.id}`);
                   } else {
                     console.log(`[TRACE-FOCUS-SHIFT] time=${Date.now()} no element matched for sel: ${sel}`);
@@ -1824,7 +1859,7 @@ export function useSaarthiVoice() {
                 else if (fTarget === 'pandit-service-areas' || fTarget.includes('service')) selector = '[data-testid="pill-group-pandit-service-areas"], [data-field="pandit-service-areas"]';
                 else if (fTarget.includes('lang')) selector = '[data-testid="pill-group-pandit-languages"], [data-field="pandit-languages"], [data-testid^="toggle-lang-"]';
                 else if (fTarget.includes('exp')) selector = '#pandit-exp, [data-testid="input-pandit-exp"], [data-testid="select-pandit-exp"]';
-                else if (fTarget.includes('spec')) selector = '[data-testid="select-pandit-spec"]';
+                else if (fTarget.includes('spec')) selector = '[data-testid^="toggle-spec-"]';
                 else if (fTarget.includes('bio')) selector = '#pandit-bio, [data-testid="textarea-pandit-bio"]';
                 else if (fTarget.includes('achieve')) selector = '#pandit-achievements, [data-testid^="input-pandit-achievements-"]';
                 else if (fTarget.includes('date')) selector = 'input[name="date"], input[type="date"], [data-testid="input-date"], #booking-date';
@@ -1879,7 +1914,7 @@ export function useSaarthiVoice() {
                       seq.push({ action: 'wait_for_selector', target: selector, delay: 150 });
                   }
 
-                  const isSelectDropdown = fTarget.includes('spec');
+                  const isSpecToggle = fTarget.includes('spec');
                   const isLangToggle = fTarget.includes('lang');
                   const isServiceAreaToggle = fTarget === 'pandit-service-areas' || fTarget.includes('service');
                   const isButtonGroup = (fTarget.includes('gender') || fTarget.includes('availability') || fTarget.includes('mode')) && !isServiceAreaToggle;
@@ -1946,10 +1981,65 @@ export function useSaarthiVoice() {
                       seq.push({ action: 'move', target: fallbackSel, delay: 450 });
                       seq.push({ action: 'click', target: fallbackSel, delay: 250 });
                     }
-                  } else if (isSelectDropdown) {
-                    seq.push({ action: 'move', target: selector, delay: 450 });
-                    seq.push({ action: 'open_dropdown', target: selector, delay: 250 });
-                    seq.push({ action: 'select_option', target: selector, text: Array.isArray(fQuery) ? fQuery.join(', ') : fQuery, delay: 350 });
+                  } else if (isSpecToggle) {
+                    const queryStr = Array.isArray(fQuery) ? fQuery.join(', ') : (fQuery || '');
+                    const queryLower = queryStr.toLowerCase();
+                    const specializationsCatalog = [
+                      'वैदिक अनुष्ठान (Vedic Rituals)',
+                      'ज्योतिष (Astrology)',
+                      'विवाह संस्कार (Marriage Ceremonies)',
+                      'गृह प्रवेश (House Warming)',
+                      'नामकरण (Naming Ceremony)',
+                      'अन्नप्राशन (First Feeding)',
+                      'मुंडन (Hair Cutting)',
+                      'यज्ञ (Yajna)',
+                      'पूजा (Puja)',
+                      'हवन (Havan)',
+                      'संस्कार (Sanskar)',
+                      'व्रत (Vrat)',
+                      'Rudrabhishek & Mahamrityunjaya',
+                      'Navgraha Shanti & Dosha Nivaran',
+                      'Satyanarayan Katha & Path',
+                      'Shodasha Sanskar Ceremonies',
+                      'अन्य (Other)'
+                    ];
+
+                    const queryParts = queryLower.split(/,| aur | and | & | \+ /i).map((p: string) => p.trim()).filter(Boolean);
+
+                    for (const spec of specializationsCatalog) {
+                      const specLower = spec.toLowerCase();
+                      const specSlug = specLower.replaceAll(' ', '-');
+                      const btnSelector = `[data-testid="toggle-spec-${specSlug}"]`;
+
+                      const englishPart = specLower.includes('(') ? specLower.split('(')[1].replace(')', '').trim() : '';
+                      const hindiPart = specLower.includes('(') ? specLower.split('(')[0].trim() : '';
+
+                      const isSpoken = queryParts.some((p: string) =>
+                        p === specLower || p.includes(specLower) || specLower.includes(p) ||
+                        (englishPart && (p.includes(englishPart) || englishPart.includes(p))) ||
+                        (hindiPart && (p.includes(hindiPart) || hindiPart.includes(p)))
+                      ) || queryLower.includes(specLower) || (englishPart && queryLower.includes(englishPart)) || (hindiPart && queryLower.includes(hindiPart));
+
+                      let btnEl = document.querySelector<HTMLElement>(btnSelector);
+                      if (!btnEl) {
+                        const allSpecBtns = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="toggle-spec-"]'));
+                        btnEl = allSpecBtns.find(b => {
+                          const txt = (b.textContent || '').toLowerCase();
+                          return txt.includes(specLower) || (englishPart && txt.includes(englishPart)) || (hindiPart && txt.includes(hindiPart));
+                        }) || null;
+                      }
+
+                      const isActive = btnEl ? (btnEl.textContent || '').includes('✓') : false;
+
+                      if (isSpoken && !isActive) {
+                        const effectiveSelector = btnEl && btnEl.getAttribute('data-testid')
+                          ? `[data-testid="${btnEl.getAttribute('data-testid')}"]`
+                          : btnSelector;
+                        console.log(`[SAARTHI-VOICE] Toggling Specialization pill: ${spec} (selector: ${effectiveSelector})`);
+                        seq.push({ action: 'move', target: effectiveSelector, delay: 450 });
+                        seq.push({ action: 'click', target: effectiveSelector, delay: 250 });
+                      }
+                    }
                   } else if (isLangToggle) {
                     const queryStr = Array.isArray(fQuery) ? fQuery.join(', ') : (fQuery || '');
                     const queryLower = queryStr.toLowerCase();
@@ -2167,6 +2257,10 @@ export function useSaarthiVoice() {
 
           // ----------- AUDIO_CHUNK handling -----------------------------------
           if (msg.type === 'AUDIO_CHUNK') {
+            if (ttsCooldownTimerRef.current) {
+              clearTimeout(ttsCooldownTimerRef.current);
+              ttsCooldownTimerRef.current = null;
+            }
             if (!isVoiceEnabledRef.current) {
               console.log('[Voice] Discarding AUDIO_CHUNK because voice is disabled');
               audioQueueRef.current = [];
@@ -2497,27 +2591,44 @@ export function useSaarthiVoice() {
           setSaarthiState('idle');
           return;
         }
-        console.log('[VERIFY-DIAGNOSTIC] (a) Audio playback complete (verification readout finished).');
-        console.log('[VERIFY-DIAGNOSTIC] (b) Mic re-armed. Transitioning state: speaking -> listening.');
-        isFinalChunkReceived.current = false;
-        userHasSpokenRef.current = false;
+
+        // Immediate buffer purge: drop any speaker audio captured by the microphone during playback
+        preRollFramesRef.current = [];
         userRecordedBytesRef.current = 0;
-        nextStartTimeRef.current = 0;
-        pcmChunkBufferRef.current = [];
-        pcmByteLeftoverRef.current = null;
-        stateRef.current = 'listening';
-        setSaarthiState('listening');
-        if (fallbackTimeoutRef.current) {
-          clearTimeout(fallbackTimeoutRef.current);
-          fallbackTimeoutRef.current = null;
+        userHasSpokenRef.current = false;
+
+        console.log('[VERIFY-DIAGNOSTIC] (a) Audio playback complete (verification readout finished). Starting 450ms acoustic cooldown.');
+
+        if (ttsCooldownTimerRef.current) {
+          clearTimeout(ttsCooldownTimerRef.current);
         }
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume().catch((e) => console.warn('[MIC] Resume error:', e));
-        }
-        console.log('[MIC-STATE]', stateRef.current);
-        console.log('[WS-STATE]', wsRef.current?.readyState);
-        console.log('[DIAGNOSTIC-1] TTS END -> stateRef:', stateRef.current, '| wsReadyState:', wsRef.current?.readyState, '| audioCtxState:', audioCtx.state);
-        console.log('[GREETING-DONE] State:', stateRef.current, 'WS:', wsRef.current?.readyState, 'SessionReady:', isSessionReadyRef.current);
+
+        ttsCooldownTimerRef.current = setTimeout(() => {
+          ttsCooldownTimerRef.current = null;
+          if (!isVoiceEnabledRef.current) return;
+
+          console.log('[VERIFY-DIAGNOSTIC] (b) Acoustic cooldown elapsed (450ms). Mic re-armed. Transitioning state: speaking -> listening.');
+          isFinalChunkReceived.current = false;
+          userHasSpokenRef.current = false;
+          userRecordedBytesRef.current = 0;
+          nextStartTimeRef.current = 0;
+          pcmChunkBufferRef.current = [];
+          pcmByteLeftoverRef.current = null;
+          preRollFramesRef.current = [];
+          stateRef.current = 'listening';
+          setSaarthiState('listening');
+          if (fallbackTimeoutRef.current) {
+            clearTimeout(fallbackTimeoutRef.current);
+            fallbackTimeoutRef.current = null;
+          }
+          if (audioCtx.state === 'suspended') {
+            audioCtx.resume().catch((e) => console.warn('[MIC] Resume error:', e));
+          }
+          console.log('[MIC-STATE]', stateRef.current);
+          console.log('[WS-STATE]', wsRef.current?.readyState);
+          console.log('[DIAGNOSTIC-1] TTS END -> stateRef:', stateRef.current, '| wsReadyState:', wsRef.current?.readyState, '| audioCtxState:', audioCtx.state);
+          console.log('[GREETING-DONE] State:', stateRef.current, 'WS:', wsRef.current?.readyState, 'SessionReady:', isSessionReadyRef.current);
+        }, 450);
       }
       return;
     }
@@ -2598,25 +2709,46 @@ export function useSaarthiVoice() {
           if (activeSourcesRef.current.size === 0 && audioQueueRef.current.length === 0) {
             if (isFinalChunkReceived.current) {
               console.log('[Voice-PCM] All scheduled buffers ended. Stream complete.');
-              console.log('[VERIFY-DIAGNOSTIC] (a) Audio playback complete (verification readout finished).');
-              console.log('[VERIFY-DIAGNOSTIC] (b) Mic re-armed. Transitioning state: speaking -> listening.');
               isPlayingRef.current = false;
-              isFinalChunkReceived.current = false;
-              nextStartTimeRef.current = 0;
-              pcmChunkBufferRef.current = [];
-              pcmByteLeftoverRef.current = null;
-              userHasSpokenRef.current = false;
-              userRecordedBytesRef.current = 0;
-              stateRef.current = 'listening';
-              setSaarthiState('listening');
 
-              if (fallbackTimeoutRef.current) {
-                clearTimeout(fallbackTimeoutRef.current);
-                fallbackTimeoutRef.current = null;
+              // Immediate buffer purge: drop any speaker audio captured by the microphone during playback
+              preRollFramesRef.current = [];
+              userRecordedBytesRef.current = 0;
+              userHasSpokenRef.current = false;
+
+              console.log('[VERIFY-DIAGNOSTIC] (a) Audio playback complete (readout finished). Starting 450ms acoustic cooldown.');
+
+              if (ttsCooldownTimerRef.current) {
+                clearTimeout(ttsCooldownTimerRef.current);
               }
-              if (audioCtx.state === 'suspended') {
-                audioCtx.resume().catch((e) => console.warn('[MIC] Resume error:', e));
-              }
+
+              ttsCooldownTimerRef.current = setTimeout(() => {
+                ttsCooldownTimerRef.current = null;
+                if (!isVoiceEnabledRef.current) return;
+
+                console.log('[VERIFY-DIAGNOSTIC] (b) Acoustic cooldown elapsed (450ms). Mic re-armed. Transitioning state: speaking -> listening.');
+                isFinalChunkReceived.current = false;
+                userHasSpokenRef.current = false;
+                userRecordedBytesRef.current = 0;
+                nextStartTimeRef.current = 0;
+                pcmChunkBufferRef.current = [];
+                pcmByteLeftoverRef.current = null;
+                preRollFramesRef.current = [];
+                stateRef.current = 'listening';
+                setSaarthiState('listening');
+
+                if (fallbackTimeoutRef.current) {
+                  clearTimeout(fallbackTimeoutRef.current);
+                  fallbackTimeoutRef.current = null;
+                }
+                if (audioCtx.state === 'suspended') {
+                  audioCtx.resume().catch((e) => console.warn('[MIC] Resume error:', e));
+                }
+                console.log('[MIC-STATE]', stateRef.current);
+                console.log('[WS-STATE]', wsRef.current?.readyState);
+                console.log('[DIAGNOSTIC-1] TTS END -> stateRef:', stateRef.current, '| wsReadyState:', wsRef.current?.readyState, '| audioCtxState:', audioCtx.state);
+                console.log('[GREETING-DONE] State:', stateRef.current, 'WS:', wsRef.current?.readyState, 'SessionReady:', isSessionReadyRef.current);
+              }, 450);
             } else {
               console.log('[Voice-PCM] Active buffer pool drained, awaiting more streaming chunks...');
             }
@@ -2667,6 +2799,7 @@ export function useSaarthiVoice() {
       console.log('[Voice] Entered LISTENING state. Resetting user speech byte counters.');
       userRecordedBytesRef.current = 0;
       userHasSpokenRef.current = false;
+      preRollFramesRef.current = [];
     }
   }, [state]);
 
@@ -3028,6 +3161,11 @@ export function useSaarthiVoice() {
     nextStartTimeRef.current = 0;
     isPlayingRef.current = false;
     isFinalChunkReceived.current = false;
+    preRollFramesRef.current = [];
+    if (ttsCooldownTimerRef.current) {
+      clearTimeout(ttsCooldownTimerRef.current);
+      ttsCooldownTimerRef.current = null;
+    }
     if (fallbackTimeoutRef.current) {
       clearTimeout(fallbackTimeoutRef.current);
       fallbackTimeoutRef.current = null;

@@ -138,18 +138,18 @@ export default function SignUp() {
   const [panditEmail, setPanditEmail] = useState('');
   const [panditCity, setPanditCity] = useState('');
   const [panditState, setPanditState] = useState('');
-  const [panditAvailabilityMode, setPanditAvailabilityMode] = useState('Both');
-  const [selectedServiceAreas, setSelectedServiceAreas] = useState<string[]>(['Delhi NCR', 'Online Puja']);
+  const [panditAvailabilityMode, setPanditAvailabilityMode] = useState('');
+  const [selectedServiceAreas, setSelectedServiceAreas] = useState<string[]>([]);
   const [panditServiceAreas, setPanditServiceAreas] = useState('');
   const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(null);
 
   // Step 2: Vedic Qualifications, Experience & Achievements
-  const [panditExp, setPanditExp] = useState('5');
+  const [panditExp, setPanditExp] = useState('');
   const [panditEducation, setPanditEducation] = useState('');
   const [panditGurukul, setPanditGurukul] = useState('');
-  const [panditSpec, setPanditSpec] = useState('वैदिक अनुष्ठान (Vedic Rituals)');
-  const [selectedSpecs, setSelectedSpecs] = useState<string[]>(['वैदिक अनुष्ठान (Vedic Rituals)']);
-  const [panditLanguages, setPanditLanguages] = useState<string[]>(['Hindi', 'Sanskrit']);
+  const [panditSpec, setPanditSpec] = useState('');
+  const [selectedSpecs, setSelectedSpecs] = useState<string[]>([]);
+  const [panditLanguages, setPanditLanguages] = useState<string[]>([]);
   const [panditAchievements, setPanditAchievements] = useState<string[]>(['']);
   const [panditBio, setPanditBio] = useState('');
 
@@ -163,6 +163,10 @@ export default function SignUp() {
   const [showPanditPassword, setShowPanditPassword] = useState(false);
   const [showPanditConfirm, setShowPanditConfirm] = useState(false);
   const [panditCodeOfConduct, setPanditCodeOfConduct] = useState(false);
+
+  useEffect(() => {
+    (window as any)._panditGalleryFiles = galleryFiles;
+  }, [galleryFiles]);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -600,16 +604,16 @@ export default function SignUp() {
     setPanditEmail('');
     setPanditCity('');
     setPanditState('');
-    setPanditAvailabilityMode('Both');
-    setSelectedServiceAreas(['Delhi NCR', 'Online Puja']);
+    setPanditAvailabilityMode('');
+    setSelectedServiceAreas([]);
     setPanditServiceAreas('');
     setProfilePhotoPreview(null);
-    setPanditExp('5');
+    setPanditExp('');
     setPanditEducation('');
     setPanditGurukul('');
-    setPanditSpec('वैदिक अनुष्ठान (Vedic Rituals)');
-    setSelectedSpecs(['वैदिक अनुष्ठान (Vedic Rituals)']);
-    setPanditLanguages(['Hindi', 'Sanskrit']);
+    setPanditSpec('');
+    setSelectedSpecs([]);
+    setPanditLanguages([]);
     setPanditAchievements(['']);
     setPanditBio('');
     setAadhaarFile(null);
@@ -801,6 +805,12 @@ export default function SignUp() {
           galleryFiles.forEach((gf) => {
             formData.append('gallery_files', gf);
           });
+          const meta = galleryFiles.map((f) => ({
+            name: f.name,
+            size: f.size,
+            type: f.type,
+          }));
+          formData.append('gallery_files_meta', JSON.stringify(meta));
         }
 
         console.log('[FRONTEND-PANDIT-SIGNUP] Sending FormData for Pandit:', fullName, panditEmail);
@@ -1620,6 +1630,8 @@ export default function SignUp() {
                           <div className="field">
                             <label>शिक्षा प्रमाणपत्र (Shiksha Pramanpatra)</label>
                             <label
+                              data-testid="upload-pandit-certFile"
+                              tabIndex={0}
                               style={{
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -1646,8 +1658,8 @@ export default function SignUp() {
                                 )}
                               </span>
                               <input
-                                id="pandit-cert-input"
-                                data-testid="input-cert-file"
+                                id="pandit-certFile"
+                                data-testid="input-pandit-certFile"
                                 type="file"
                                 accept=".pdf,image/*"
                                 style={{ display: 'none' }}
@@ -1659,6 +1671,8 @@ export default function SignUp() {
                           <div className="field">
                             <label>पहचान प्रमाण (ID Proof) *</label>
                             <label
+                              data-testid="upload-pandit-aadhaarFile"
+                              tabIndex={0}
                               style={{
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -1685,8 +1699,8 @@ export default function SignUp() {
                                 )}
                               </span>
                               <input
-                                id="pandit-aadhaar-input"
-                                data-testid="input-aadhaar-file"
+                                id="pandit-aadhaarFile"
+                                data-testid="input-pandit-aadhaarFile"
                                 type="file"
                                 accept=".pdf,image/*"
                                 style={{ display: 'none' }}
@@ -1709,6 +1723,7 @@ export default function SignUp() {
                           >
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.6rem' }}>
                               <label
+                                data-testid="upload-pandit-galleryFiles"
                                 style={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
@@ -1724,6 +1739,8 @@ export default function SignUp() {
                               >
                                 <Upload size={14} /> Upload Gallery
                                 <input
+                                  id="pandit-galleryFiles"
+                                  data-testid="input-pandit-galleryFiles"
                                   type="file"
                                   multiple
                                   accept="image/*,video/*,.pdf"

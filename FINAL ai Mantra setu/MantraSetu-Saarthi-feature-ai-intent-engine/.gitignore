@@ -53,3 +53,8 @@ data/
 downloads/
 temp/
 tmp/
+
+# TTS Audio Cache (binary, generated at runtime)
+.cache/
+**/tts/.cache/
+*.mp3
