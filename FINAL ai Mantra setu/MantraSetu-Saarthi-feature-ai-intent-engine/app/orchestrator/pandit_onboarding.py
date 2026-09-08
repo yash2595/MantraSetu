@@ -617,10 +617,7 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
         text = re.sub(r'^(?:email|e-mail|mail|emel|ईमेल|ई-मेल|इमेल|मेल)\s*(?:id|idea|address|number|adres|adress|आईडी|आइडी|आइडिया|एड्रेस|पता|नंबर)?\s*(?:hai|is|hi|h|hoon|hun|है|हूँ|हूं|हे|हैं)?\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
         text = re.sub(r'^(?:id|idea|address|adres|adress|आईडी|आइडी|आइडिया|एड्रेस|पता)\s*(?:hai|is|hi|h|hoon|hun|है|हूँ|हूं|हे|हैं)?\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
 
-        # 0. Convert spoken numbers inside emails using shared normalizer
-        text = normalize_spoken_numbers(text)
-
-        # 1. Transliterate Devanagari Hindi phonetic letters to English ASCII
+        # 1. Transliterate Devanagari domain phrases & '@' symbol to ASCII before number conversion
         devanagari_phrases = [
             (r'(एट द रेट|ऍट द रेट|एट rate|एट-द-रेट|ऐट|एट)', '@'),
             (r'(जी\s*एम\s*ए\s*[एआई]\s*एल\s*सी\s*ओ\s*एम|जीएमएएएलसीओएम)', 'gmail.com'),
@@ -630,6 +627,9 @@ def normalize_spoken_input(user_message: str, field: str) -> str:
         ]
         for pattern, repl in devanagari_phrases:
             text = re.sub(pattern, repl, text, flags=re.IGNORECASE)
+
+        # 2. Convert spoken numbers inside emails using shared normalizer
+        text = normalize_spoken_numbers(text)
 
         devanagari_letters = [
             ("ए", "a"), ("बी", "b"), ("सी", "c"), ("डी", "d"), ("ई", "e"), ("एफ", "f"),
