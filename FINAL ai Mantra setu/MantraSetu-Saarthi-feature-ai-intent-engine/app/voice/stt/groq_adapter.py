@@ -21,7 +21,7 @@ class GroqSTTAdapter(ISpeechRecognizer):
     """[DEPRECATED] Barebones Groq Whisper STT adapter without prompt biasing.
     
     DEPRECATION NOTICE: Do not use GroqSTTAdapter directly in production.
-    Use WhisperAdapter (which includes Bug-12 prompt biasing) or RoutingSTTAdapter (hybrid mode).
+    Use InWorldSTTAdapter instead.
     """
 
     def __init__(
@@ -29,7 +29,7 @@ class GroqSTTAdapter(ISpeechRecognizer):
         api_key: str | None = None,
         model: str | None = None,
     ) -> None:
-        logger.warning("[DEPRECATION-WARNING] GroqSTTAdapter is deprecated. Use WhisperAdapter or RoutingSTTAdapter instead.")
+        logger.warning("[DEPRECATION-WARNING] GroqSTTAdapter is deprecated. Use InWorldSTTAdapter instead.")
         self._api_key = api_key or os.environ.get("GROQ_API_KEY", "")
         if not self._api_key:
             raise ValueError("GROQ_API_KEY environment variable is missing")

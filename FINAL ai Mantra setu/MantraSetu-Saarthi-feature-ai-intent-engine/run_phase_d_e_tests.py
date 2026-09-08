@@ -75,7 +75,7 @@ def test_d3_stt_low_confidence():
         # Actually it is easier to just patch the recognizer method
         pass
         
-    with patch("app.voice.stt.whisper_adapter.WhisperProvider.finish_session") as mock_stt:
+    with patch("app.voice.stt.inworld_stt_adapter.InWorldSTTAdapter.finish_session") as mock_stt:
         mock_stt.return_value = TranscriptResult(
             text="hello", confidence=0.30, duration_seconds=1.0, provider="mock"
         )

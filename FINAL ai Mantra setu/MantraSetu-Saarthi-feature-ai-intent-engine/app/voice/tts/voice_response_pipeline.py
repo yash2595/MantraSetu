@@ -78,8 +78,15 @@ def clean_text_for_tts(text: str) -> str:
     if not text:
         return "Namaste"
 
+    # 0. Format email addresses so numbers inside them are read digit-by-digit by TTS
+    def _format_email_digits(match: re.Match) -> str:
+        email = match.group(0)
+        return re.sub(r'(\d+)', lambda m: ' ' + ' '.join(m.group(1)) + ' ', email)
+
+    cleaned = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', _format_email_digits, text)
+
     # 1. Strip Markdown formatting symbols, technical non-speech characters, and Devanagari punctuation
-    cleaned = re.sub(r'[*_#`~>@$%^&+=/\\|<>{}\[\]\u0964\u0965]', '', text)
+    cleaned = re.sub(r'[*_#`~>@$%^&+=/\\|<>{}\[\]\u0964\u0965]', '', cleaned)
 
     # 2. Strip all emoji characters
     cleaned = EMOJI_PATTERN.sub('', cleaned)

@@ -117,7 +117,7 @@ class TTSCacheManager:
         provider = os.environ.get("DEFAULT_TTS_PROVIDER", "inworld").strip().lower()
         active_voice = os.environ.get("INWORLD_VOICE_ID", "Manoj").strip()
         model = os.environ.get("INWORLD_TTS_MODEL", "inworld-tts-2-flash").strip()
-        voices = {"pandit", "default", "saarthi", "meera", active_voice, active_voice.lower()}
+        voices = {"pandit", "default", "saarthi", "meera", "Aarav", "aarav", active_voice, active_voice.lower()}
 
         try:
             from app.voice.tts.voice_response_pipeline import clean_text_for_tts

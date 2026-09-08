@@ -655,8 +655,16 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                     active_processing_task = None
 
                 if not active_session_id:
-                    session = await voice_gateway.start_voice_session("ws-temp-conn")
+                    target_session_id = primary_session_id or frame.session_id or f"vsession_{uuid4().hex[:8]}"
+                    session = await voice_gateway.start_voice_session(
+                        connection_id=f"ws-conn-{uuid4().hex[:8]}",
+                        conversation_id=frame.conversation_id,
+                        language="hi",
+                        session_id=target_session_id,
+                    )
                     active_session_id = session.session_id
+                    if not primary_session_id:
+                        primary_session_id = active_session_id
                     if state_machine.current_state != ConnectionState.CONNECTED:
                         state_machine.transition_to(ConnectionState.CONNECTED, reason="implicit_text_session")
 
@@ -666,13 +674,30 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                 session = await voice_gateway.session_manager.get_session(active_session_id)
                 pujas = session.context_data.get("pujas", []) if session and hasattr(session, "context_data") else []
 
-                # Extract user_parameters if present in the raw text JSON
-                user_params = {"pujas": pujas, "event_timestamp_ms": getattr(frame, "timestamp_ms", int(time.time() * 1000))}
+                # Extract user_parameters, active_field, dom_form_data, user_edited_fields from frame payload
+                import json
+                user_params = {"pujas": pujas, "event_timestamp_ms": getattr(frame, "timestamp_ms", int(__import__('time').time() * 1000))}
+                if isinstance(frame.payload, dict):
+                    for key in ("active_field", "dom_form_data", "user_edited_fields"):
+                        if key in frame.payload:
+                            user_params[key] = frame.payload[key]
+                    nested_params = frame.payload.get("user_parameters")
+                    if isinstance(nested_params, dict):
+                        user_params.update(nested_params)
+                        if "field" in nested_params and "active_field" not in user_params:
+                            user_params["active_field"] = nested_params["field"]
                 try:
                     raw_dict = json.loads(raw_text)
-                    frame_params = raw_dict.get("user_parameters") or raw_dict.get("payload", {}).get("user_parameters")
-                    if isinstance(frame_params, dict):
-                        user_params.update(frame_params)
+                    raw_payload = raw_dict.get("payload", {})
+                    if isinstance(raw_payload, dict):
+                        for key in ("active_field", "dom_form_data", "user_edited_fields"):
+                            if key in raw_payload and key not in user_params:
+                                user_params[key] = raw_payload[key]
+                        raw_user_params = raw_payload.get("user_parameters") or raw_dict.get("user_parameters")
+                        if isinstance(raw_user_params, dict):
+                            user_params.update(raw_user_params)
+                            if "field" in raw_user_params and "active_field" not in user_params:
+                                user_params["active_field"] = raw_user_params["field"]
                 except Exception:
                     pass
 

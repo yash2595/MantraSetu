@@ -10,19 +10,19 @@ from app.session.service import SessionService
 from app.session.store import SessionStore
 from app.speech.factory import speech_to_text_factory
 from app.speech.providers.sarvam import SarvamProvider
-from app.speech.providers.whisper import WhisperProvider
+from app.speech.providers.inworld import InWorldSTTProvider
 from app.tts.factory import text_to_speech_factory
-from app.tts.providers.elevenlabs_provider import ElevenLabsProvider
+from app.tts.providers.inworld import InWorldTTSProvider
 from app.tts.providers.cosyvoice import CosyVoiceProvider
 # from app.tts.providers.fish_speech import FishSpeechProvider  # Disabled: unused legacy provider
 
 # Concrete provider instances
 _gemini_provider = GeminiProvider()
-_whisper_provider = WhisperProvider()
+_inworld_stt_provider = InWorldSTTProvider()
 _sarvam_provider = SarvamProvider()
 # _fish_speech_provider = FishSpeechProvider()
 _cosyvoice_provider = CosyVoiceProvider()
-_elevenlabs_provider = ElevenLabsProvider()
+_inworld_tts_provider = InWorldTTSProvider()
 
 # LLM Factory registration
 _llm_factory = LLMProviderFactory()
@@ -30,13 +30,13 @@ if not _llm_factory.is_registered("gemini"):
     _llm_factory.register("gemini", GeminiProvider)
 
 # Speech-to-Text Factory registration
-speech_to_text_factory.register(_whisper_provider, overwrite=False)
+speech_to_text_factory.register(_inworld_stt_provider, overwrite=False)
 speech_to_text_factory.register(_sarvam_provider, overwrite=False)
 
 # Text-to-Speech Factory registration
 # text_to_speech_factory.register(_fish_speech_provider, overwrite=False)
 text_to_speech_factory.register(_cosyvoice_provider, overwrite=False)
-text_to_speech_factory.register(_elevenlabs_provider, overwrite=False)
+text_to_speech_factory.register(_inworld_tts_provider, overwrite=False)
 
 import os
 
@@ -46,8 +46,8 @@ if not _llm_provider_env:
     raise ValueError("LLM_PROVIDER environment variable is missing")
 _default_provider = _llm_provider_env.lower()
 _ai_service = AIService(factory=_llm_factory, default_provider_name=_default_provider)
-_speech_service = SpeechToTextService(provider=_whisper_provider)
-_tts_service = TextToSpeechService(provider=_elevenlabs_provider)
+_speech_service = SpeechToTextService(provider=_inworld_stt_provider)
+_tts_service = TextToSpeechService(provider=_inworld_tts_provider)
 _session_store = SessionStore()
 _session_service = SessionService(store=_session_store)
 
@@ -56,6 +56,11 @@ _conversation_service = ConversationService(
     ai_service=_ai_service,
     tts_service=_tts_service,
 )
+
+
+def get_gemini_provider() -> GeminiProvider:
+    """Return the application singleton GeminiProvider instance."""
+    return _gemini_provider
 
 
 def get_conversation_service() -> ConversationService:

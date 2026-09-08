@@ -79,7 +79,7 @@ _MIN_MARGIN = 0.10
 def normalize_transcript(text: str) -> str:
     value = unicodedata.normalize("NFKC", text or "").lower()
     for source, replacement in _DEVANAGARI.items():
-        value = value.replace(source, replacement)
+        value = re.sub(r'(?<![^\s,।!?.])' + re.escape(source) + r'(?![^\s,।!?.])', replacement, value)
     value = re.sub(r"[^a-z0-9\s]", " ", value)
     tokens = [_TOKEN_ALIASES.get(token, token) for token in value.split()]
     return " ".join(tokens)
