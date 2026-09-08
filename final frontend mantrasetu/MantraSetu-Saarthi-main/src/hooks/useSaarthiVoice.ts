@@ -54,6 +54,92 @@ function float32ToPCM16(buffer: Float32Array): Uint8Array {
 
 
 
+/** Strip any RIFF/WAVE container headers from incoming LINEAR16 PCM chunks to prevent loud impulse spikes/clicks */
+function stripWavHeaders(bytes: Uint8Array): Uint8Array {
+  if (bytes.length < 44) return bytes;
+  // Fast check: if no 'RIFF' anywhere in chunk, it is already pure PCM
+  let hasRiff = false;
+  for (let i = 0; i <= bytes.length - 4; i++) {
+    if (bytes[i] === 0x52 && bytes[i + 1] === 0x49 && bytes[i + 2] === 0x46 && bytes[i + 3] === 0x46) {
+      hasRiff = true;
+      break;
+    }
+  }
+  if (!hasRiff) return bytes;
+
+  const pcmParts: Uint8Array[] = [];
+  let idx = 0;
+  while (idx < bytes.length) {
+    if (
+      idx + 4 <= bytes.length &&
+      bytes[idx] === 0x52 &&
+      bytes[idx + 1] === 0x49 &&
+      bytes[idx + 2] === 0x46 &&
+      bytes[idx + 3] === 0x46
+    ) {
+      // Find 'data' marker (0x64, 0x61, 0x74, 0x61) within next 100 bytes
+      let dataPos = -1;
+      const searchLimit = Math.min(idx + 100, bytes.length - 8);
+      for (let j = idx + 12; j <= searchLimit; j++) {
+        if (
+          bytes[j] === 0x64 &&
+          bytes[j + 1] === 0x61 &&
+          bytes[j + 2] === 0x74 &&
+          bytes[j + 3] === 0x61
+        ) {
+          dataPos = j;
+          break;
+        }
+      }
+
+      if (dataPos !== -1) {
+        const dataLen =
+          bytes[dataPos + 4] |
+          (bytes[dataPos + 5] << 8) |
+          (bytes[dataPos + 6] << 16) |
+          (bytes[dataPos + 7] << 24);
+        const pcmStart = dataPos + 8;
+        const pcmEnd = Math.min(pcmStart + dataLen, bytes.length);
+        if (pcmEnd > pcmStart) {
+          pcmParts.push(bytes.subarray(pcmStart, pcmEnd));
+        }
+        idx = pcmEnd;
+      } else {
+        idx += 44;
+      }
+    } else {
+      let nextRiff = -1;
+      for (let j = idx; j <= bytes.length - 4; j++) {
+        if (
+          bytes[j] === 0x52 &&
+          bytes[j + 1] === 0x49 &&
+          bytes[j + 2] === 0x46 &&
+          bytes[j + 3] === 0x46
+        ) {
+          nextRiff = j;
+          break;
+        }
+      }
+      if (nextRiff !== -1) {
+        pcmParts.push(bytes.subarray(idx, nextRiff));
+        idx = nextRiff;
+      } else {
+        pcmParts.push(bytes.subarray(idx));
+        break;
+      }
+    }
+  }
+
+  const totalLen = pcmParts.reduce((acc, p) => acc + p.length, 0);
+  const out = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const p of pcmParts) {
+    out.set(p, offset);
+    offset += p.length;
+  }
+  return out;
+}
+
 /** Encode Uint8Array (PCM16) to base64 string */
 function uint8ArrayToBase64(u8: Uint8Array): string {
   let binary = '';
@@ -235,8 +321,18 @@ export function useSaarthiVoice() {
       (window as any)._audioPlayClickListenerAdded = false;
     }
 
-    // 2. Purge queued audio & stop active audio source
+    // 2. Purge queued audio & stop all active/scheduled audio sources
+    activeSourcesRef.current.forEach((source) => {
+      try {
+        source.stop();
+        source.disconnect();
+      } catch (e) {}
+    });
+    activeSourcesRef.current.clear();
     audioQueueRef.current = [];
+    pcmChunkBufferRef.current = [];
+    pcmByteLeftoverRef.current = null;
+    nextStartTimeRef.current = 0;
     isPlayingRef.current = false;
     isFinalChunkReceived.current = false;
     if (currentAudioSourceRef.current) {
@@ -377,6 +473,13 @@ export function useSaarthiVoice() {
   const activeFieldRef = useRef<string | null>(null);
   const audioBytesAccumulatorRef = useRef<Uint8Array[]>([]);
 
+  // ── FIX: Gapless Sequential Scheduler & Byte-Alignment Refs ──
+  const nextStartTimeRef = useRef<number>(0);
+  const activeSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
+  const pcmByteLeftoverRef = useRef<Uint8Array | null>(null);
+  const pcmChunkBufferRef = useRef<Uint8Array[]>([]);
+  const isSchedulingRef = useRef(false);
+
   // Sync activeFieldRef on page change: reset to null on non-signup pages
   useEffect(() => {
     const isSignupPage = window.location.pathname.includes('/signup');
@@ -433,6 +536,17 @@ export function useSaarthiVoice() {
       clearInterval(streamIntervalRef.current as any);
       streamIntervalRef.current = null;
     }
+    // Stop and disconnect all actively playing and future-scheduled buffer source nodes
+    activeSourcesRef.current.forEach((source) => {
+      try {
+        source.stop();
+        source.disconnect();
+      } catch (e) {
+        console.warn('[BARGE-IN] Error stopping scheduled audio source:', e);
+      }
+    });
+    activeSourcesRef.current.clear();
+
     if (currentAudioSourceRef.current) {
 
       try {
@@ -444,7 +558,10 @@ export function useSaarthiVoice() {
       currentAudioSourceRef.current = null;
     }
     audioQueueRef.current = [];
+    pcmChunkBufferRef.current = [];
+    pcmByteLeftoverRef.current = null;
     audioBytesAccumulatorRef.current = [];
+    nextStartTimeRef.current = 0;
     isPlayingRef.current = false;
     isFinalChunkReceived.current = false;
 
@@ -1024,6 +1141,13 @@ export function useSaarthiVoice() {
           console.log(`[Voice] Received message type: ${msg.type}`);
           if (msg.type === 'ERROR') {
              console.error('[Voice] [ERROR-PAYLOAD] Received ERROR envelope from backend:', JSON.stringify(msg.payload || msg));
+          }
+
+          // FIX 2: Handle explicit PLAYBACK_STOP / INTERRUPT frame from backend on barge-in
+          if (msg.type === 'PLAYBACK_STOP' || msg.type === 'INTERRUPT') {
+             console.log('[Voice] Received PLAYBACK_STOP/INTERRUPT frame from backend. Halting audio and purging local queues.');
+             stopAudioPlayback();
+             return;
           }
 
           // Check if this response belongs to an abandoned request
@@ -1799,8 +1923,13 @@ export function useSaarthiVoice() {
                 isFinalChunkReceived.current = true;
             }
             if (!audioContextRef.current) {
-              audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+              try {
+                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+              } catch (e) {
+                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+              }
               (window as any)._saarthiAudioContext = audioContextRef.current;
+              console.log(`[Voice-PCM] Initialized AudioContext. sampleRate: ${audioContextRef.current.sampleRate}Hz`);
             }
             if (audioContextRef.current.state === 'suspended') {
               console.log(`[Voice] AudioContext is suspended. Attempting resume()...`);
@@ -1836,38 +1965,108 @@ export function useSaarthiVoice() {
                 }
               }
             }
+            const chunkSampleRate = Number(msg.payload.sample_rate) || 24000;
+            const chunkEncoding = (msg.payload.encoding || 'LINEAR16').toUpperCase();
+
+            // 3. SAMPLE RATE VERIFICATION
+            if (audioContextRef.current) {
+              console.log(`[Voice-PCM] Sample rate verify: backendChunk=${chunkSampleRate}Hz, audioContext=${audioContextRef.current.sampleRate}Hz`);
+            }
+
             const audioData = msg.payload.data || msg.payload.audio_b64;
             if (audioData) {
               const binaryString = atob(audioData);
-              const bytes = new Uint8Array(binaryString.length);
-              for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-              console.log(`[Voice] Decoded audioData bytes length: ${bytes.length}`);
-              
-              // Accumulate chunk bytes to form complete MP3 frame stream
-              audioBytesAccumulatorRef.current.push(bytes);
-              const totalLength = audioBytesAccumulatorRef.current.reduce((acc, curr) => acc + curr.length, 0);
-              const mergedBytes = new Uint8Array(totalLength);
-              let offset = 0;
-              for (const chunk of audioBytesAccumulatorRef.current) {
-                mergedBytes.set(chunk, offset);
-                offset += chunk.length;
-              }
+              const byteLen = binaryString.length;
 
-              try {
-                // Slice buffer copy to prevent detaching original bytes.buffer
-                const decoded = await audioContextRef.current.decodeAudioData(mergedBytes.buffer.slice(0));
-                console.log(`[Voice] Successfully decoded full audio buffer (duration: ${decoded.duration}s, size: ${totalLength}b)`);
-                audioQueueRef.current.push(decoded);
-                audioBytesAccumulatorRef.current = []; // reset after clean decode
-                playNextAudioRef.current?.();
-              } catch (e) {
-                // Incomplete MP3 chunk received; if final, log and recover
+              if (chunkEncoding === 'MP3') {
+                // Fallback for any legacy cached MP3 prompts: buffer-till-final to prevent repeats
+                const bytes = new Uint8Array(byteLen);
+                for (let i = 0; i < byteLen; i++) bytes[i] = binaryString.charCodeAt(i);
+                audioBytesAccumulatorRef.current.push(bytes);
                 if (isFinal) {
-                  console.warn('[Voice] Final chunk arrived but audio decode failed, clearing buffer', e);
+                  const totalLength = audioBytesAccumulatorRef.current.reduce((acc, curr) => acc + curr.length, 0);
+                  const mergedBytes = new Uint8Array(totalLength);
+                  let offset = 0;
+                  for (const chunk of audioBytesAccumulatorRef.current) {
+                    mergedBytes.set(chunk, offset);
+                    offset += chunk.length;
+                  }
                   audioBytesAccumulatorRef.current = [];
-                  playNextAudioRef.current?.();
+                  try {
+                    const decoded = await audioContextRef.current.decodeAudioData(mergedBytes.buffer.slice(0));
+                    audioQueueRef.current.push(decoded);
+                    playNextAudioRef.current?.();
+                  } catch (e) {
+                    console.warn('[Voice] MP3 fallback decode error on final chunk:', e);
+                    playNextAudioRef.current?.();
+                  }
+                }
+              } else {
+                // 2. BYTE ALIGNMENT & WAV HEADER STRIPPING
+                const rawBytes = new Uint8Array(byteLen);
+                for (let i = 0; i < byteLen; i++) rawBytes[i] = binaryString.charCodeAt(i);
+
+                // Strip any embedded WAV (RIFF...WAVEfmt...data) container headers
+                const strippedBytes = stripWavHeaders(rawBytes);
+
+                let combinedBytes: Uint8Array;
+                if (pcmByteLeftoverRef.current && pcmByteLeftoverRef.current.length > 0) {
+                  const leftover = pcmByteLeftoverRef.current;
+                  combinedBytes = new Uint8Array(leftover.length + strippedBytes.length);
+                  combinedBytes.set(leftover, 0);
+                  combinedBytes.set(strippedBytes, leftover.length);
+                  pcmByteLeftoverRef.current = null;
                 } else {
-                  console.log(`[Voice] Accumulating audio chunks (current total: ${totalLength}b)...`);
+                  combinedBytes = strippedBytes;
+                }
+
+                // If odd byte count, hold the trailing byte to maintain strict 16-bit (2-byte) sample alignment
+                let alignedBytes: Uint8Array;
+                if (combinedBytes.length % 2 !== 0) {
+                  pcmByteLeftoverRef.current = combinedBytes.slice(combinedBytes.length - 1);
+                  alignedBytes = combinedBytes.slice(0, combinedBytes.length - 1);
+                  console.log(`[Voice-PCM] Odd byte count (${combinedBytes.length}). Carrying forward 1 trailing byte.`);
+                } else {
+                  alignedBytes = combinedBytes;
+                }
+
+                // 4. SMALL CHUNK SIZE CHECK & CLIENT-SIDE BUFFERING
+                const chunkDurMs = (alignedBytes.length / (chunkSampleRate * 2)) * 1000;
+                console.log(`[Voice-PCM] Ingest chunk: size=${alignedBytes.length} bytes, dur=${chunkDurMs.toFixed(1)}ms, isFinal=${isFinal}`);
+
+                if (alignedBytes.length > 0) {
+                  pcmChunkBufferRef.current.push(alignedBytes);
+                }
+
+                // Accumulate to at least 2400 bytes (~50ms @ 24kHz) to avoid scheduling overhead and buffer underruns, or flush immediately if isFinal
+                const MIN_BATCH_BYTES = 2400;
+                const totalBuffered = pcmChunkBufferRef.current.reduce((acc, b) => acc + b.length, 0);
+
+                if (totalBuffered >= MIN_BATCH_BYTES || (isFinal && totalBuffered > 0)) {
+                  const merged = new Uint8Array(totalBuffered);
+                  let offset = 0;
+                  for (const b of pcmChunkBufferRef.current) {
+                    merged.set(b, offset);
+                    offset += b.length;
+                  }
+                  pcmChunkBufferRef.current = [];
+
+                  const numSamples = merged.length / 2;
+                  if (numSamples > 0 && audioContextRef.current) {
+                    const int16 = new Int16Array(merged.buffer, merged.byteOffset, numSamples);
+                    const float32 = new Float32Array(numSamples);
+                    for (let i = 0; i < numSamples; i++) {
+                      float32[i] = int16[i] / 32768.0;
+                    }
+
+                    const audioBuffer = audioContextRef.current.createBuffer(1, numSamples, chunkSampleRate);
+                    audioBuffer.copyToChannel(float32, 0);
+
+                    audioQueueRef.current.push(audioBuffer);
+                    playNextAudioRef.current?.();
+                  }
+                } else if (isFinal) {
+                  playNextAudioRef.current?.();
                 }
               }
             } else {
@@ -1877,6 +2076,8 @@ export function useSaarthiVoice() {
               if (isFinal && isFinalChunkReceived.current) {
                 console.warn('[FREEZE-RECOVERY] Final AUDIO_CHUNK had no data — calling playNextAudio to prevent speaking-state freeze');
                 audioBytesAccumulatorRef.current = [];
+                pcmChunkBufferRef.current = [];
+                pcmByteLeftoverRef.current = null;
                 playNextAudioRef.current?.();
               }
             }
@@ -1994,115 +2195,165 @@ export function useSaarthiVoice() {
     if (!isVoiceEnabledRef.current) {
       console.log('[Voice] Discarding playNextAudio because voice is disabled');
       audioQueueRef.current = [];
+      pcmChunkBufferRef.current = [];
+      pcmByteLeftoverRef.current = null;
       isPlayingRef.current = false;
       return;
     }
 
-    if (isPlayingRef.current || audioQueueRef.current.length === 0 || !audioContextRef.current) {
-      if (audioQueueRef.current.length === 0 && !isPlayingRef.current) {
-         if (!isVoiceEnabledRef.current) {
-           console.log('[Voice] Suppressing state transition because voice is disabled');
-           stateRef.current = 'idle';
-           setSaarthiState('idle');
-           return;
-         }
-         console.log('[VERIFY-DIAGNOSTIC] (a) Audio playback complete (verification readout finished).');
-         console.log('[VERIFY-DIAGNOSTIC] (b) Mic re-armed. Transitioning state: speaking -> listening.');
-         isFinalChunkReceived.current = false;
-         userHasSpokenRef.current = false;
-         userRecordedBytesRef.current = 0;
-         stateRef.current = 'listening';
-         setSaarthiState('listening');
-         if (fallbackTimeoutRef.current) {
-             clearTimeout(fallbackTimeoutRef.current);
-             fallbackTimeoutRef.current = null;
-         }
-         if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-             audioContextRef.current.resume().catch(e => console.warn('[MIC] Resume error:', e));
-         }
-         console.log('[MIC-STATE]', stateRef.current);
-         console.log('[WS-STATE]', wsRef.current?.readyState);
-         console.log('[DIAGNOSTIC-1] TTS END -> stateRef:', stateRef.current, '| wsReadyState:', wsRef.current?.readyState, '| audioCtxState:', audioContextRef.current?.state);
-         console.log('[GREETING-DONE] State:', stateRef.current, 'WS:', wsRef.current?.readyState, 'SessionReady:', isSessionReadyRef.current);
+    const audioCtx = audioContextRef.current;
+    if (!audioCtx) {
+      return;
+    }
 
-         // STEP 3 removed: We no longer auto-force AUDIO_END when greeting finishes. User must tap to speak.
+    // If queue is empty and no active sources are playing, check if speech is done
+    if (audioQueueRef.current.length === 0 && activeSourcesRef.current.size === 0) {
+      if (isFinalChunkReceived.current && !isPlayingRef.current) {
+        if (!isVoiceEnabledRef.current) {
+          console.log('[Voice] Suppressing state transition because voice is disabled');
+          stateRef.current = 'idle';
+          setSaarthiState('idle');
+          return;
+        }
+        console.log('[VERIFY-DIAGNOSTIC] (a) Audio playback complete (verification readout finished).');
+        console.log('[VERIFY-DIAGNOSTIC] (b) Mic re-armed. Transitioning state: speaking -> listening.');
+        isFinalChunkReceived.current = false;
+        userHasSpokenRef.current = false;
+        userRecordedBytesRef.current = 0;
+        nextStartTimeRef.current = 0;
+        pcmChunkBufferRef.current = [];
+        pcmByteLeftoverRef.current = null;
+        stateRef.current = 'listening';
+        setSaarthiState('listening');
+        if (fallbackTimeoutRef.current) {
+          clearTimeout(fallbackTimeoutRef.current);
+          fallbackTimeoutRef.current = null;
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume().catch((e) => console.warn('[MIC] Resume error:', e));
+        }
+        console.log('[MIC-STATE]', stateRef.current);
+        console.log('[WS-STATE]', wsRef.current?.readyState);
+        console.log('[DIAGNOSTIC-1] TTS END -> stateRef:', stateRef.current, '| wsReadyState:', wsRef.current?.readyState, '| audioCtxState:', audioCtx.state);
+        console.log('[GREETING-DONE] State:', stateRef.current, 'WS:', wsRef.current?.readyState, 'SessionReady:', isSessionReadyRef.current);
       }
       return;
     }
 
-
-
-    
-    const tryPlay = async () => {
-
-        const audioCtx = audioContextRef.current;
-        if (!audioCtx) return;
-
-        console.log(`[Voice] Attempting to play greeting audio before playing chunk. Current AudioContext state: ${audioCtx.state}`);
-        if (audioCtx.state === 'suspended') {
+    // Handle suspended AudioContext (browser autoplay policy)
+    if (audioCtx.state === 'suspended') {
+      console.warn('[Voice] AudioContext is suspended. Holding audio queue for user interaction.');
+      if (!(window as any)._audioPlayClickListenerAdded) {
+        (window as any)._audioPlayClickListenerAdded = true;
+        const resumeAudio = async () => {
+          console.log('[Voice] User interaction detected, attempting to resume AudioContext...');
+          if (audioContextRef.current?.state === 'suspended') {
             try {
-                await audioCtx.resume();
-            } catch (err: any) {
-                console.error('[Voice] Failed to resume AudioContext. FULL error object:', err);
+              await audioContextRef.current.resume();
+              console.log('[Voice] AudioContext resumed successfully via user interaction.');
+              playNextAudio();
+            } catch (err) {
+              console.error('[Voice] Failed to resume on user interaction:', err);
             }
-        }
-        
-        if (audioCtx.state === 'suspended') {
-             console.warn('[Voice] AudioContext is still suspended (autoplay policy block). Holding audio queue for user interaction.');
-             if (!(window as any)._audioPlayClickListenerAdded) {
-                  (window as any)._audioPlayClickListenerAdded = true;
-                  const resumeAudio = async () => {
-                    console.log('[Voice] User interaction detected, attempting to resume AudioContext...');
-                    if (audioContextRef.current?.state === 'suspended') {
-                      try {
-                        await audioContextRef.current.resume();
-                        console.log('[Voice] AudioContext resumed successfully via user interaction.');
-                        playNextAudio();
-                      } catch (err) {
-                        console.error('[Voice] Failed to resume on user interaction:', err);
-                      }
-                    } else {
-                        playNextAudio();
-                    }
-                    window.removeEventListener('click', resumeAudio, true);
-                    window.removeEventListener('keydown', resumeAudio, true);
-                    window.removeEventListener('touchstart', resumeAudio, true);
-                    (window as any)._audioPlayClickListenerAdded = false;
-                  };
-                  window.addEventListener('click', resumeAudio, true);
-                  window.addEventListener('keydown', resumeAudio, true);
-                  window.addEventListener('touchstart', resumeAudio, true);
-             }
-             return; // abort playNextAudio for now, wait for click!
-        }
-        
-        console.log('[Voice] Playing next audio chunk from queue');
-        isPlayingRef.current = true;
+          } else {
+            playNextAudio();
+          }
+          window.removeEventListener('click', resumeAudio, true);
+          window.removeEventListener('keydown', resumeAudio, true);
+          window.removeEventListener('touchstart', resumeAudio, true);
+          (window as any)._audioPlayClickListenerAdded = false;
+        };
+        window.addEventListener('click', resumeAudio, true);
+        window.addEventListener('keydown', resumeAudio, true);
+        window.addEventListener('touchstart', resumeAudio, true);
+      }
+      return;
+    }
+
+    // Prevent concurrent scheduling re-entrancy
+    if (isSchedulingRef.current) {
+      return;
+    }
+    isSchedulingRef.current = true;
+
+    try {
+      isPlayingRef.current = true;
+      if (stateRef.current !== 'speaking') {
+        stateRef.current = 'speaking';
+        setSaarthiState('speaking');
+      }
+
+      // 1. GAPLESS SCHEDULING: Drain all ready buffers from audioQueueRef and schedule sequentially
+      while (audioQueueRef.current.length > 0) {
         const buffer = audioQueueRef.current.shift()!;
         const source = audioCtx.createBufferSource();
         source.buffer = buffer;
         source.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+        // If nextStartTimeRef is in the past (e.g. initial buffer or buffer underrun),
+        // give a tiny 25ms lead-time to avoid hardware crackle on stream start.
+        // Otherwise, schedule seamlessly at nextStartTimeRef.current.
+        const isFirstOrUnderrun = nextStartTimeRef.current < now;
+        const startTime = isFirstOrUnderrun ? now + 0.025 : Math.max(now, nextStartTimeRef.current);
+        const duration = buffer.duration;
+        nextStartTimeRef.current = startTime + duration;
+
+        console.log(
+          `[Voice-PCM] Scheduled buffer: start=${startTime.toFixed(4)}s, dur=${duration.toFixed(4)}s, ctxTime=${now.toFixed(4)}s, leadTime=${(startTime - now).toFixed(4)}s, activeSources=${activeSourcesRef.current.size + 1}`
+        );
+
+        activeSourcesRef.current.add(source);
         currentAudioSourceRef.current = source;
-        
+
         source.onended = () => {
-          console.log('[Voice] Audio chunk playback ended');
-          currentAudioSourceRef.current = null;
-          isPlayingRef.current = false;
-          playNextAudio();
+          activeSourcesRef.current.delete(source);
+          try {
+            source.disconnect();
+          } catch (_) {}
+
+          // Check if all scheduled buffers have finished AND queue is empty
+          if (activeSourcesRef.current.size === 0 && audioQueueRef.current.length === 0) {
+            if (isFinalChunkReceived.current) {
+              console.log('[Voice-PCM] All scheduled buffers ended. Stream complete.');
+              console.log('[VERIFY-DIAGNOSTIC] (a) Audio playback complete (verification readout finished).');
+              console.log('[VERIFY-DIAGNOSTIC] (b) Mic re-armed. Transitioning state: speaking -> listening.');
+              isPlayingRef.current = false;
+              isFinalChunkReceived.current = false;
+              nextStartTimeRef.current = 0;
+              pcmChunkBufferRef.current = [];
+              pcmByteLeftoverRef.current = null;
+              userHasSpokenRef.current = false;
+              userRecordedBytesRef.current = 0;
+              stateRef.current = 'listening';
+              setSaarthiState('listening');
+
+              if (fallbackTimeoutRef.current) {
+                clearTimeout(fallbackTimeoutRef.current);
+                fallbackTimeoutRef.current = null;
+              }
+              if (audioCtx.state === 'suspended') {
+                audioCtx.resume().catch((e) => console.warn('[MIC] Resume error:', e));
+              }
+            } else {
+              console.log('[Voice-PCM] Active buffer pool drained, awaiting more streaming chunks...');
+            }
+          }
         };
-        
+
         try {
-            console.log(`[Voice] Calling source.start(). AudioContext state is: ${audioCtx.state}`);
-            source.start(0);
+          source.start(startTime);
         } catch (err: any) {
-            console.error('[Voice] source.start(0) threw an error! FULL error object:', err);
-            currentAudioSourceRef.current = null;
-            isPlayingRef.current = false;
-            playNextAudio();
+          console.error('[Voice-PCM] source.start threw error:', err);
+          activeSourcesRef.current.delete(source);
+          try {
+            source.disconnect();
+          } catch (_) {}
         }
-    };
-    
-    tryPlay();
+      }
+    } finally {
+      isSchedulingRef.current = false;
+    }
   }, [setSaarthiState]);
 
   useEffect(() => {
@@ -2154,7 +2405,11 @@ export function useSaarthiVoice() {
         console.log('[Voice] Persistent Microphone permission granted & stream active');
 
         if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+          try {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+          } catch (e) {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+          }
         }
         const audioCtx = audioContextRef.current;
         if (audioCtx.state === 'suspended') {
@@ -2467,6 +2722,13 @@ export function useSaarthiVoice() {
 
   const stopSpeaking = useCallback(() => {
     console.log('[Voice] Barge-in / Stop requested. Halting speech.');
+    activeSourcesRef.current.forEach((source) => {
+      try {
+        source.stop();
+        source.disconnect();
+      } catch (e) {}
+    });
+    activeSourcesRef.current.clear();
     if (currentAudioSourceRef.current) {
       try {
         currentAudioSourceRef.current.stop();
@@ -2475,11 +2737,14 @@ export function useSaarthiVoice() {
       currentAudioSourceRef.current = null;
     }
     audioQueueRef.current = [];
+    pcmChunkBufferRef.current = [];
+    pcmByteLeftoverRef.current = null;
+    nextStartTimeRef.current = 0;
     isPlayingRef.current = false;
     isFinalChunkReceived.current = false;
     if (fallbackTimeoutRef.current) {
       clearTimeout(fallbackTimeoutRef.current);
-    fallbackTimeoutRef.current = null;
+      fallbackTimeoutRef.current = null;
     }
     setSaarthiState('listening');
   }, [setSaarthiState]);

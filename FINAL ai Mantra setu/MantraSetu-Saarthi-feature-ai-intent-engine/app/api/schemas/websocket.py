@@ -23,6 +23,7 @@ class ProtocolMessageType(StrEnum):
     AI_RESPONSE = "AI_RESPONSE"
     AUDIO_CHUNK = "AUDIO_CHUNK"
     AUDIO_END = "AUDIO_END"
+    PLAYBACK_STOP = "PLAYBACK_STOP"
     PING = "PING"
     PONG = "PONG"
     PAGE_CHANGE = "PAGE_CHANGE"
