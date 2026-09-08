@@ -82,19 +82,42 @@ class TTSCacheManager:
         self._memory_cache: dict[str, bytes] = {}
         self._load_disk_cache()
 
-    def get_cache_key(self, cleaned_text: str, voice: str, language: str, provider: str) -> str:
-        """Compute SHA256 hash cache key from text, voice, language, and provider name."""
-        content = f"{provider}:{voice}:{language}:{cleaned_text.strip()}"
+    @staticmethod
+    def resolve_physical_voice(provider: str, voice: str) -> str:
+        """Resolve logical voice aliases (e.g. 'pandit', 'saarthi') to active physical voice ID."""
+        prov = (provider or "").strip().lower()
+        if prov == "inworld":
+            logical_aliases = {"meera", "pandit", "default", "saarthi", "arav", "aarav"}
+            if not voice or voice.lower() in logical_aliases:
+                return os.environ.get("INWORLD_VOICE_ID", "Manoj").strip()
+            return voice
+        elif prov == "elevenlabs":
+            return os.environ.get("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL").strip()
+        return voice or "default"
+
+    def get_cache_key(
+        self,
+        cleaned_text: str,
+        voice: str,
+        language: str,
+        provider: str,
+        model: str | None = None,
+    ) -> str:
+        """Compute SHA256 hash cache key from text, provider, model, resolved physical voice, and language."""
+        resolved_voice = self.resolve_physical_voice(provider, voice)
+        model_str = (model or os.environ.get("INWORLD_TTS_MODEL", "inworld-tts-2-flash")).strip()
+        content = f"{provider}:{model_str}:{resolved_voice}:{language}:{cleaned_text.strip()}"
         key = hashlib.sha256(content.encode("utf-8")).hexdigest()
-        logger.debug("[CACHE-KEY-TRACE] key=%s | raw_string=%r", key[:8], content[:60])
+        logger.debug("[CACHE-KEY-TRACE] key=%s | raw_string=%r", key[:8], content[:80])
         return key
 
     def _get_active_keys(self) -> set[str]:
-        """Compute the set of expected cache keys for current provider and voice."""
+        """Compute the set of expected cache keys for current provider, model, and physical voice."""
         active_keys: set[str] = set()
         provider = os.environ.get("DEFAULT_TTS_PROVIDER", "inworld").strip().lower()
-        active_voice = os.environ.get("INWORLD_VOICE_ID", "Aarav").strip()
-        voices = {"pandit", "default", "saarthi", active_voice, active_voice.lower()}
+        active_voice = os.environ.get("INWORLD_VOICE_ID", "Manoj").strip()
+        model = os.environ.get("INWORLD_TTS_MODEL", "inworld-tts-2-flash").strip()
+        voices = {"pandit", "default", "saarthi", "meera", "Aarav", "aarav", active_voice, active_voice.lower()}
 
         try:
             from app.voice.tts.voice_response_pipeline import clean_text_for_tts
@@ -103,51 +126,86 @@ class TTSCacheManager:
                 cleaned = clean_text_for_tts(raw_text)
                 for v in voices:
                     for lang in ("hi", "hi-IN", "en", "en-IN"):
-                        active_keys.add(self.get_cache_key(cleaned, v, lang, provider))
+                        active_keys.add(self.get_cache_key(cleaned, v, lang, provider, model=model))
         except Exception as e:
             logger.warning("Could not compute active cache keys: %s", e)
         return active_keys
 
-    def _load_disk_cache(self) -> None:
-        """Load pre-generated .mp3 files from disk into memory on startup.
+    @staticmethod
+    def strip_wav_headers(data: bytes) -> bytes:
+        """Extract raw PCM bytes from WAV container or concatenated WAV chunks."""
+        if b"RIFF" not in data:
+            return data
+        import struct
+        pcm_chunks: list[bytes] = []
+        idx = 0
+        while idx < len(data):
+            if data[idx:idx+4] == b"RIFF":
+                data_pos = data.find(b"data", idx)
+                if data_pos != -1 and data_pos + 8 <= len(data):
+                    data_len = struct.unpack("<I", data[data_pos+4:data_pos+8])[0]
+                    pcm_start = data_pos + 8
+                    pcm_end = min(pcm_start + data_len, len(data))
+                    pcm_chunks.append(data[pcm_start:pcm_end])
+                    idx = pcm_end
+                else:
+                    idx += 44
+            else:
+                next_riff = data.find(b"RIFF", idx)
+                if next_riff != -1:
+                    pcm_chunks.append(data[idx:next_riff])
+                    idx = next_riff
+                else:
+                    pcm_chunks.append(data[idx:])
+                    break
+        return b"".join(pcm_chunks)
 
-        Validates against active TTS provider and voice aliases to avoid loading
+    def _load_disk_cache(self) -> None:
+        """Load pre-generated cache files from disk into memory on startup.
+
+        Validates against active TTS provider, model, and physical voice to avoid loading
         stale audio files generated under previous providers/voices.
         """
         count = 0
         active_keys = self._get_active_keys()
 
         try:
-            for file_path in self.cache_dir.glob("*.mp3"):
-                key = file_path.stem
-                # Skip loading stale cache files from disk that don't match active provider/voice keys
-                if active_keys and key not in active_keys:
-                    continue
-                try:
-                    data = file_path.read_bytes()
-                    if data:
-                        self._memory_cache[key] = data
-                        count += 1
-                except Exception as err:
-                    logger.warning("Failed to read cached file %s: %s", file_path, err)
+            for ext in ("*.bin", "*.pcm", "*.mp3"):
+                for file_path in self.cache_dir.glob(ext):
+                    key = file_path.stem
+                    # Skip loading stale cache files from disk that don't match active provider/voice keys
+                    if active_keys and key not in active_keys:
+                        continue
+                    try:
+                        data = file_path.read_bytes()
+                        if data:
+                            if b"RIFF" in data:
+                                data = self.strip_wav_headers(data)
+                            self._memory_cache[key] = data
+                            count += 1
+                    except Exception as err:
+                        logger.warning("Failed to read cached file %s: %s", file_path, err)
             logger.info("TTSCacheManager loaded %d active cached audio prompts into memory.", count)
         except Exception as e:
             logger.error("Error loading disk cache: %s", e)
 
     def get(self, key: str) -> bytes | None:
-        """Retrieve cached audio bytes by key from memory or disk."""
+        """Retrieve cached audio bytes by key from memory or disk (.bin, .pcm, .mp3)."""
         if key in self._memory_cache:
             return self._memory_cache[key]
         
-        file_path = self.cache_dir / f"{key}.mp3"
-        if file_path.exists():
-            try:
-                data = file_path.read_bytes()
-                if data:
-                    self._memory_cache[key] = data
-                    return data
-            except Exception as e:
-                logger.warning("Failed to read audio from disk cache key %s: %s", key, e)
+        for ext in (".bin", ".pcm", ".mp3"):
+            file_path = self.cache_dir / f"{key}{ext}"
+            if file_path.exists():
+                try:
+                    data = file_path.read_bytes()
+                    if data:
+                        if b"RIFF" in data:
+                            data = self.strip_wav_headers(data)
+                        self._memory_cache[key] = data
+                        return data
+                except Exception as e:
+                    logger.warning("Failed to read audio from disk cache file %s: %s", file_path, e)
         return None
 
     def put(self, key: str, data: bytes) -> None:
@@ -155,8 +213,11 @@ class TTSCacheManager:
         if not data or not key:
             return
         
+        if b"RIFF" in data:
+            data = self.strip_wav_headers(data)
+
         self._memory_cache[key] = data
-        file_path = self.cache_dir / f"{key}.mp3"
+        file_path = self.cache_dir / f"{key}.bin"
         try:
             file_path.write_bytes(data)
             logger.debug("Saved TTS audio cache key %s (%d bytes) to disk.", key[:8], len(data))
@@ -181,9 +242,11 @@ class TTSCacheManager:
         generated_count = 0
         t0 = time.time()
 
+        model_id = getattr(tts_provider, "_model", os.environ.get("INWORLD_TTS_MODEL", "inworld-tts-2-flash"))
+
         for raw_text in target_prompts:
             cleaned_text = clean_text_for_tts(raw_text)
-            key = self.get_cache_key(cleaned_text, voice, language, provider_name)
+            key = self.get_cache_key(cleaned_text, voice, language, provider_name, model=model_id)
             
             if self.get(key) is not None:
                 cached_count += 1
@@ -194,10 +257,10 @@ class TTSCacheManager:
                 request_id=uuid.uuid4(),
                 session_id="pregen_sess",
                 conversation_id=uuid.uuid4(),
-                text=cleaned_text,
+                text=cleaned_prompt if "cleaned_prompt" in locals() else cleaned_text,
                 language=language,
                 voice=voice,
-                encoding=AudioEncoding.MP3,
+                encoding=AudioEncoding.PCM_16,
             )
 
             audio_data = b""

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import json
 import logging
+import time
 from uuid import uuid4
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -62,6 +65,19 @@ async def safe_enqueue_outbound(
                 except Exception:
                     pass
             return False
+
+
+def drain_outbound_queue(queue: asyncio.Queue) -> int:
+    """Empty all pending envelopes from outbound queue to prevent stale frame leak on barge-in."""
+    drained = 0
+    while not queue.empty():
+        try:
+            queue.get_nowait()
+            queue.task_done()
+            drained += 1
+        except (asyncio.QueueEmpty, ValueError):
+            break
+    return drained
 
 
 @ws_router.websocket("/ws/voice")
@@ -146,7 +162,7 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
         """Send background PING every 30 seconds to maintain open WebSocket connection."""
         try:
             while True:
-                await asyncio.sleep(30)
+                await asyncio.sleep(15)
                 ping_frame = WebSocketEnvelope(type="PING", payload={})
                 await outbound_queue.put(ping_frame)
         except asyncio.CancelledError:
@@ -165,7 +181,7 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
         # belong to the next turn and must not inflate this turn's diagnostics.
         turn_audio_bytes = audio_bytes_received
         audio_bytes_received = 0
-        print(f"DEBUG: _handle_audio_end task started for session {active_session_id}", flush=True)
+        logger.debug("[WS-ROUTER] _handle_audio_end task started for session %s", active_session_id)
         if not active_session_id:
             active_session_id = primary_session_id or end_frame.session_id
         if active_session_id:
@@ -173,7 +189,7 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
             logger.info(f"[AUDIO-END-RECEIVED] request_id={turn_request_id} session_id={active_session_id} captured_bytes={turn_audio_bytes} current_page={current_page_from_frame!r}")
             try:
                 user_params = end_frame.payload if isinstance(end_frame.payload, dict) else {}
-                user_params["event_timestamp_ms"] = getattr(end_frame, "timestamp_ms", int(__import__('time').time() * 1000))
+                user_params["event_timestamp_ms"] = getattr(end_frame, "timestamp_ms", int(time.time() * 1000))
                 logger.info(f"[STT-CALLING] Calling finish_voice_session for {active_session_id}")
                 resp, final_text = await voice_gateway.finish_voice_session(
                     active_session_id,
@@ -260,7 +276,9 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                                 "sequence_number": chunk.sequence_number,
                                 "is_final": chunk.is_final,
                                 "data_length": len(chunk.data),
-                                "data": __import__('base64').b64encode(chunk.data).decode('utf-8')
+                                "data": base64.b64encode(chunk.data).decode('utf-8'),
+                                "sample_rate": (chunk.metadata or {}).get("sample_rate", 24000),
+                                "encoding": (chunk.metadata or {}).get("encoding", "LINEAR16"),
                             },
                         )
                         await safe_enqueue_outbound(outbound_queue, audio_reply, "AUDIO_CHUNK")
@@ -325,7 +343,9 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                             "sequence_number": chunk.sequence_number,
                             "is_final": chunk.is_final,
                             "data_length": len(chunk.data),
-                            "data": __import__('base64').b64encode(chunk.data).decode('utf-8')
+                            "data": base64.b64encode(chunk.data).decode('utf-8'),
+                            "sample_rate": (chunk.metadata or {}).get("sample_rate", 24000),
+                            "encoding": (chunk.metadata or {}).get("encoding", "LINEAR16"),
                         },
                     )
                     await safe_enqueue_outbound(outbound_queue, audio_reply, "AUDIO_CHUNK")
@@ -415,7 +435,7 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                     continue
 
             if frame.type == ProtocolMessageType.CONNECT:
-                print("DEBUG: Entered CONNECT block", flush=True)
+                logger.debug("[WS-ROUTER] CONNECT block entered")
                 try:
                     state_machine.transition_to(ConnectionState.CONNECTED, reason="connect_frame_received")
                 except InvalidStateTransition as st_err:
@@ -430,19 +450,19 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                         transport_metrics.record_dropped_frame()
                     continue
                 
-                print("DEBUG: Transitioned state", flush=True)
+                logger.debug("[WS-ROUTER] State transitioned to CONNECTED")
                 session_id_from_client = frame.payload.get("session_id")
                 try:
-                    print("DEBUG: Calling start_voice_session", flush=True)
+                    logger.debug("[WS-ROUTER] Calling start_voice_session")
                     session = await voice_gateway.start_voice_session(
                         connection_id=f"ws-conn-{uuid4().hex[:8]}",
                         conversation_id=frame.conversation_id,
                         language=frame.payload.get("language", "hi"),
                         session_id=session_id_from_client,
                     )
-                    print("DEBUG: Returned from start_voice_session", flush=True)
+                    logger.debug("[WS-ROUTER] start_voice_session returned")
                 except Exception as e:
-                    print(f"DEBUG: Exception in start_voice_session: {e}", flush=True)
+                    logger.error("[WS-ROUTER] Exception in start_voice_session: %s", e)
                     raise
                 active_session_id = session.session_id
                 primary_session_id = session.session_id
@@ -521,7 +541,9 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                                     "sequence_number": chunk.sequence_number,
                                     "is_final": chunk.is_final,
                                     "data_length": len(chunk.data),
-                                    "data": __import__('base64').b64encode(chunk.data).decode('utf-8')
+                                    "data": base64.b64encode(chunk.data).decode('utf-8'),
+                                    "sample_rate": (chunk.metadata or {}).get("sample_rate", 24000),
+                                    "encoding": (chunk.metadata or {}).get("encoding", "LINEAR16"),
                                 },
                             )
                             try:
@@ -550,7 +572,6 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                     session.context_data["client_ip"] = client_ip
                     active_session_id = session.session_id
                 
-                import base64
                 audio_b64 = frame.payload.get("data", "")
                 if audio_b64:
                     try:
@@ -573,23 +594,60 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                             # Handle AUDIO_END processing in a background task
                             if active_processing_task and not active_processing_task.done():
                                 active_processing_task.cancel()
+                                drained_count = drain_outbound_queue(outbound_queue)
+                                logger.info(f"[WS-ROUTER] Drained {drained_count} stale envelopes from outbound_queue on SafetyCapExceeded barge-in.")
+                                stop_signal = WebSocketEnvelope(
+                                    request_id=frame.request_id,
+                                    session_id=active_session_id,
+                                    conversation_id=frame.conversation_id,
+                                    type=ProtocolMessageType.PLAYBACK_STOP,
+                                    payload={"reason": "safety_cap_exceeded_barge_in"},
+                                )
+                                outbound_queue.put_nowait(stop_signal)
                             active_processing_task = asyncio.create_task(_handle_audio_end(mock_end_frame))
                         else:
                             logger.error(f"Failed to process AUDIO_FRAME: {e}")
 
             elif frame.type == ProtocolMessageType.AUDIO_END:
                 if active_processing_task and not active_processing_task.done():
+                    if audio_bytes_received < 1600:
+                        logger.warning(
+                            "[WS-ROUTER] Ignoring trailing/duplicate AUDIO_END frame for session %s (captured_bytes=%d < 1600) while STT task is in-flight.",
+                            active_session_id, audio_bytes_received
+                        )
+                        continue
                     logger.warning(
                         f"[WS-ROUTER] WARNING: Received a new AUDIO_END while an existing STT/LLM task is still processing for session {active_session_id}! "
                         "The previous task is being CANCELLED (this could be a race condition, double-click, or barge-in)."
                     )
                     active_processing_task.cancel()
+                    # FIX 2: Drain stale queue packets before creating new task
+                    drained_count = drain_outbound_queue(outbound_queue)
+                    logger.info(f"[WS-ROUTER] Drained {drained_count} stale envelopes from outbound_queue on AUDIO_END barge-in.")
+                    stop_signal = WebSocketEnvelope(
+                        request_id=frame.request_id,
+                        session_id=active_session_id,
+                        conversation_id=frame.conversation_id,
+                        type=ProtocolMessageType.PLAYBACK_STOP,
+                        payload={"reason": "barge_in_audio_end"},
+                    )
+                    outbound_queue.put_nowait(stop_signal)
                 active_processing_task = asyncio.create_task(_handle_audio_end(frame))
 
             elif frame.type == ProtocolMessageType.TEXT:
                 # Cancel active processing task if user types a text query (barge-in)
                 if active_processing_task and not active_processing_task.done():
                     active_processing_task.cancel()
+                    drained_count = drain_outbound_queue(outbound_queue)
+                    logger.info(f"[WS-ROUTER] Drained {drained_count} stale envelopes from outbound_queue on TEXT query barge-in.")
+                    stop_signal = WebSocketEnvelope(
+                        request_id=frame.request_id,
+                        session_id=active_session_id,
+                        conversation_id=frame.conversation_id,
+                        type=ProtocolMessageType.PLAYBACK_STOP,
+                        payload={"reason": "barge_in_text_query"},
+                    )
+                    outbound_queue.put_nowait(stop_signal)
                     try:
                         await active_processing_task
                     except asyncio.CancelledError:
@@ -686,7 +744,9 @@ async def voice_websocket_endpoint(websocket: WebSocket) -> None:
                             "sequence_number": chunk.sequence_number,
                             "is_final": chunk.is_final,
                             "data_length": len(chunk.data),
-                            "data": __import__('base64').b64encode(chunk.data).decode('utf-8')
+                            "data": base64.b64encode(chunk.data).decode('utf-8'),
+                            "sample_rate": (chunk.metadata or {}).get("sample_rate", 24000),
+                            "encoding": (chunk.metadata or {}).get("encoding", "LINEAR16"),
                         },
                     )
                     try:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import time
 import uuid
@@ -63,8 +64,8 @@ HINGLISH_PHONETIC_REPLACEMENTS = [
     (r'\bState\b', 'राज्य'),
     (r'\bForm\b', 'फॉर्म'),
     (r'\bRecord\b', 'रिकॉर्ड'),
-    (r'\bMale\b', 'मेल'),
-    (r'\bFemale\b', 'फीमेल'),
+    (r'\bMale\b', 'पुरुष'),
+    (r'\bFemale\b', 'महिला'),
 ]
 
 
@@ -84,8 +85,8 @@ def clean_text_for_tts(text: str) -> str:
 
     cleaned = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', _format_email_digits, text)
 
-    # 1. Strip Markdown formatting symbols and technical non-speech characters
-    cleaned = re.sub(r'[*_#`~>@$%^&+=/\\|<>{}\[\]]', '', cleaned)
+    # 1. Strip Markdown formatting symbols, technical non-speech characters, and Devanagari punctuation
+    cleaned = re.sub(r'[*_#`~>@$%^&+=/\\|<>{}\[\]\u0964\u0965]', '', cleaned)
 
     # 2. Strip all emoji characters
     cleaned = EMOJI_PATTERN.sub('', cleaned)
@@ -165,11 +166,20 @@ class VoiceResponsePipeline:
 
         # ── Check TTS Cache First (0-2ms latency for static prompts) ──
         cache_start_time = time.time()
-        cache_key = self._cache_manager.get_cache_key(text_content, resolved_voice, resolved_language, provider_name)
+        current_model = getattr(self._tts_provider, "_model", os.environ.get("INWORLD_TTS_MODEL", "inworld-tts-2-flash"))
+        cache_key = self._cache_manager.get_cache_key(
+            cleaned_text=text_content,
+            voice=resolved_voice,
+            language=resolved_language,
+            provider=provider_name,
+            model=current_model,
+        )
         cached_audio = self._cache_manager.get(cache_key)
 
         if cached_audio is not None and len(cached_audio) > 0:
             cache_elapsed_ms = int((time.time() - cache_start_time) * 1000)
+            sample_rate = int(os.environ.get("INWORLD_SAMPLE_RATE", "24000"))
+            audio_encoding = os.environ.get("INWORLD_AUDIO_ENCODING", "LINEAR16")
             logger.info(
                 f"[TIMING-TTS] TTS Cache HIT for key={cache_key[:8]} | text='{text_content[:35]}...' | Served in {cache_elapsed_ms}ms | size={len(cached_audio)} bytes"
             )
@@ -181,7 +191,13 @@ class VoiceResponsePipeline:
                 data=cached_audio,
                 is_final=True,
                 timestamp_ms=int(time.time() * 1000),
-                metadata={"provider": provider_name, "cached": True, "cache_key": cache_key},
+                metadata={
+                    "provider": provider_name,
+                    "cached": True,
+                    "cache_key": cache_key,
+                    "sample_rate": sample_rate,
+                    "encoding": audio_encoding,
+                },
             )
             return
 

@@ -190,15 +190,16 @@ class InWorldTTSAdapter(ITTSProvider):
         voice_id = self._resolve_voice_id(request.voice)
         synthesize_text = self._build_request_text(request.text)
 
+        audio_encoding = os.environ.get("INWORLD_AUDIO_ENCODING", "LINEAR16")
+        sample_rate_hertz = int(os.environ.get("INWORLD_SAMPLE_RATE", "24000"))
+
         payload = {
             "text": synthesize_text,
             "voiceId": voice_id,
             "modelId": self._model,
-            # MP3 44100Hz matches existing ElevenLabs output format expected by frontend.
-            # Configurable via INWORLD_AUDIO_ENCODING / INWORLD_SAMPLE_RATE if needed.
             "audioConfig": {
-                "audioEncoding": os.environ.get("INWORLD_AUDIO_ENCODING", "MP3"),
-                "sampleRateHertz": int(os.environ.get("INWORLD_SAMPLE_RATE", "44100")),
+                "audioEncoding": audio_encoding,
+                "sampleRateHertz": sample_rate_hertz,
                 "speakingRate": self._speed,
             },
         }
@@ -303,6 +304,17 @@ class InWorldTTSAdapter(ITTSProvider):
                         if not chunk_bytes:
                             continue
 
+                        # Strip WAV header (RIFF....WAVEfmt....data) if Inworld emitted containerized PCM
+                        if audio_encoding == "LINEAR16" and chunk_bytes.startswith(b"RIFF"):
+                            data_pos = chunk_bytes.find(b"data")
+                            if data_pos != -1 and data_pos + 8 <= len(chunk_bytes):
+                                chunk_bytes = chunk_bytes[data_pos + 8:]
+                            elif len(chunk_bytes) > 44:
+                                chunk_bytes = chunk_bytes[44:]
+
+                        if not chunk_bytes:
+                            continue
+
                         # §TTS-6: Record first-chunk timing
                         if first_chunk_ts is None:
                             first_chunk_ts = time.perf_counter()
@@ -324,7 +336,11 @@ class InWorldTTSAdapter(ITTSProvider):
                             data=chunk_bytes,
                             is_final=False,
                             timestamp_ms=int(time.time() * 1000),
-                            metadata={"provider": self.provider_name},
+                            metadata={
+                                "provider": self.provider_name,
+                                "sample_rate": sample_rate_hertz,
+                                "encoding": audio_encoding,
+                            },
                         )
                         sequence_number += 1
 
@@ -361,6 +377,8 @@ class InWorldTTSAdapter(ITTSProvider):
                         "status": "complete",
                         "total_chunks": str(sequence_number),
                         "total_ms": str(total_ms),
+                        "sample_rate": sample_rate_hertz,
+                        "encoding": audio_encoding,
                     },
                 )
 
