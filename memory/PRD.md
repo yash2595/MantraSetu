@@ -46,6 +46,21 @@ pre-existing STT accuracy + audio echo concerns. Upstream provider: Inworld.
   Test 1 = proxy oversized-frame / reconnect loop (backend), Test 2 = speaker echo (frontend).
   Verified green: "SUITE RESULT: 2 passed, 0 failed". Wire this into CI.
 
+## Pandit onboarding — hardened & verified end-to-end (2026-09-10)
+- CRITICAL fix: `/pandit/apply` used `Optional[List[str]] = Form(None)` for `service_areas` and
+  `achievements` → FastAPI/pydantic v2 returned 422 "Input should be a valid list" whenever the
+  frontend sent those fields, blocking EVERY real pandit submission. Changed to `List[str] = Form([])`.
+  File: mantrasetu-saarthi-backend-main/app/api/routes/pandit.py.
+- Frontend polish: pydantic 422 arrays now surface a friendly Hindi message (src/api/api.ts);
+  password helper softened to "Minimum 8 characters" to match validation (src/pages/sign-up.tsx).
+- Verified (testing agent iteration_5 + iteration_6, real backend + Mongo, no keys): happy path
+  Step1→2→3 → success screen; duplicate email → friendly 409; all validation edge cases enforced
+  (empty step1 = 6 errors, invalid email/phone, empty step2, password mismatch, missing Aadhaar,
+  ToS unchecked); back-nav preserves data.
+- Local run: backend `uvicorn app.main:app` :8000 (.env present), Vite :3000
+  (.env.local VITE_API_BASE_URL=http://localhost:8000), Mongo DATABASE_NAME=mantrasetu_local.
+
+
 ## STT low-confidence cue (feature, 2026-09-10)
 - When the backend reports empty/low-confidence recognition (intent `REPEAT_PROMPT` or
   `recognition_status` in {no_speech, stt_error}), Saarthi's speech bubble now shows a distinct

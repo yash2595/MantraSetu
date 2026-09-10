@@ -40,7 +40,8 @@ apiClient.interceptors.response.use(
       if (typeof data.detail === 'string') {
         errorMessage = data.detail;
       } else if (Array.isArray(data.detail) && data.detail.length > 0) {
-        errorMessage = data.detail.map((item) => item.msg || JSON.stringify(item)).join(', ');
+        // Pydantic 422 validation errors: show a friendly message instead of raw internals.
+        errorMessage = 'Kuch jaankari sahi nahi hai. Kripya highlighted fields check karke dobara try karein.';
       } else if (data.message) {
         errorMessage = data.message;
       }

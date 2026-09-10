@@ -1,0 +1,39 @@
+{
+  "summary": "Frontend-only test of pandit onboarding wizard on /signup?role=pandit. All 3 wizard steps, validation edge cases, back-nav data preservation, and API error surfacing WORK correctly. HOWEVER the happy-path SUBMIT is blocked by a backend bug (FastAPI+pydantic v2 with Optional[List[str]] = Form(None) rejects even valid list values), so no legitimate pandit can currently complete onboarding.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /pandit/apply", "issue": "Returns 422 'Input should be a valid list' for field service_areas even when the frontend correctly appends the value(s) via multipart FormData (verified by direct curl with 1 AND with 2 -F service_areas=... values). Root cause: FastAPI/pydantic v2 treats `Optional[List[str]] = Form(None)` as receiving a single string. Same signature is used for `achievements` and `gallery_files`, so those will break too. Fix: change to `List[str] = Form(default=[])` (non-Optional) OR use `Annotated[List[str], Form()] = []`.", "priority": "CRITICAL"}
+    ],
+    "minor": [
+      {"endpoint": "POST /pandit/apply", "issue": "422 detail is passed through to the user verbatim ('Input should be a valid list'). Should be translated to a friendly message on the frontend or backend should return a normalized error."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Pandit onboarding final submit", "issue": "Blocked by backend 422 on service_areas — user sees raw pydantic message in the errors.api banner. Frontend correctly displays the banner (good), but message is not user-friendly.", "affected_selectors": ["[data-testid=\"button-submit-pandit-signup\"]", "[role=\"alert\"] in form-signup"]}
+    ],
+    "design_issues": [
+      {"screen": "Pandit step 3 password helper", "issues": ["Helper text says 'Min 8 characters with uppercase, lowercase, number, and special character' but the JS validation only enforces length >=8 — mismatch between the shown policy and the enforced rule."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "CRITICAL: Fix /app/final backend mantrasetu/mantrasetu-saarthi-backend-main/app/api/routes/pandit.py — change `service_areas: Optional[List[str]] = Form(None)` to `service_areas: List[str] = Form(default=[])` (also do the same for `achievements` and `gallery_files`). This alone unblocks pandit onboarding end-to-end.",
+    "Consider translating backend 422 pydantic messages to user-friendly copy in the errors.api banner (or normalize on backend).",
+    "Align password strength enforcement with helper text (currently only length is checked; helper claims complexity rules)."
+  ],
+  "critical_code_review_comments": [
+    "pandit.py apply route: Optional[List[str]] = Form(None) is a known-broken FastAPI/pydantic v2 pattern — always use List[str] = Form([]).",
+    "sign-up.tsx (~2246 lines) is far above the 700-line guideline; split wizard steps, validation, and submit into modules.",
+    "Frontend surfaces raw pydantic error strings — wrap in a user-friendly translator.",
+    "Password policy string in UI does not match validator (only length is enforced)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only)", "frontend": "6/7 scenarios passed (86%) — only the happy-path submit fails and it is due to a backend defect, not frontend."},
+  "seed_data_creation": "None (each run used a unique email pandit+<ts>@test.com; nothing was persisted successfully due to the 422).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All wizard step validation is correct: empty step1 blocked with 6 field errors; invalid email/phone blocked; empty step2 blocked with 5 errors; empty step3 shows errors; short/mismatched passwords show inline errors; aadhaar required check works; ToS required check works; back-nav preserves entered fields (verified first-name & city). Continue Manually popup works. Only blocker is backend 422 on service_areas — fix that and rerun the happy path only. Reproduce: `curl -X POST http://localhost:8000/pandit/apply -F 'service_areas=Delhi NCR' ... other required fields` returns 422 'Input should be a valid list'.",
+  "rca of the issue": "FastAPI parameter `service_areas: Optional[List[str]] = Form(None)` in /app/final backend .../app/api/routes/pandit.py:81 fails under pydantic v2 with error `list_type: Input should be a valid list, input='Delhi NCR'` even though multipart formdata sends the field. Repro confirmed via curl with both single and multiple -F values. Also affects `achievements` (line ~84) and `gallery_files` (~88 uses UploadFile list but similar shape). Fix: use `List[str] = Form(default=[])` (non-Optional). This is why the frontend happy-path submit — which correctly appends `service_areas` twice via FormData.append — still fails with 422."
+}

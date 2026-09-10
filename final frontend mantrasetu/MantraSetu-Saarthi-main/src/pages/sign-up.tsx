@@ -1842,7 +1842,7 @@ export default function SignUp() {
                               </button>
                             </div>
                             <span style={{ fontSize: '0.71rem', color: '#8c7b6c', display: 'block', marginTop: '0.2rem' }}>
-                              Min 8 characters with uppercase, lowercase, number, and special character (@$!%*?&#)
+                              Minimum 8 characters
                             </span>
                             {errors.panditPassword && (
                               <span id="pandit-password-error" className="field-error" role="alert">

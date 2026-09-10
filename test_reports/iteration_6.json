@@ -1,0 +1,34 @@
+{
+  "summary": "RETEST after backend fix for List[str] = Form([]) on /pandit/apply. HAPPY PATH now PASSES end-to-end: pandit onboarding wizard (Step 1 -> 2 -> 3) submits successfully and shows data-testid=status-signup-success ('Panditji Application Received!'). Duplicate-email path now PASSES with a friendly Hindi banner ('Is email address se pehle se ek application maujood hai.') from backend 409 - no raw pydantic text. The critical blocker from iteration_5 is confirmed resolved.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "AI Voice service :8002", "issue": "Console repeatedly logs 'UPSTREAM_ERROR AI Service connection failed 127.0.0.1:8002' on every /signup page load. Expected in this env (no Inworld keys) but the client should suppress/backoff error logs; currently spams the console."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Pandit Step 3 password helper", "issues": ["Helper text now correctly reads 'Minimum 8 characters' - matches validator. GOOD."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optional) Rate-limit / silence the AI Voice upstream error log spam when :8002 is unreachable.",
+    "(Optional) Consider clearing pandit onboarding draft from localStorage after successful submit AND on explicit navigation back to /signup so users don't unintentionally resume mid-wizard on a fresh visit."
+  ],
+  "critical_code_review_comments": [
+    "sign-up.tsx is still ~2246 lines - well above the 700-line guideline. Split wizard steps, validation, and submit into modules for maintainability.",
+    "Backend fix for service_areas/achievements is correct (List[str] = Form([])). gallery_files uses Optional[List[UploadFile]] = File(None) which is the correct pattern for UploadFile lists.",
+    "React key-spread warning in console: 'A props object containing a \"key\" prop is being spread into JSX' from a Link/anchor component - fix by passing key directly instead of via spread."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only retest)", "frontend": "Happy path PASS, Duplicate-email PASS (2/2 critical scenarios verified). Validation edge cases already confirmed in iteration_5 (6/7)."},
+  "test_credentials": "none required; uses unique pandit+<ts>@test.com per submit",
+  "seed_data_creation": "One pandit application persisted with email pandit+1789071756@test.com (used for duplicate-email dedup verification).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Pandit onboarding is fully working end-to-end. Backend /pandit/apply accepts multipart form with service_areas (List[str]=Form([])), achievements same. Duplicate email returns 409 with a Hindi user-friendly message that the frontend surfaces in the api errors banner. Success screen selector: data-testid=status-signup-success. When retesting Step 1 validation on a browser where localStorage has a saved pandit draft, the wizard resumes at the last saved step - clear localStorage or use a fresh incognito context before asserting 'Step 1 empty -> blocked'. Validation edge cases (empty step1, invalid email/phone, password mismatch, missing Aadhaar, ToS unchecked) were all confirmed passing in iteration_5 and no relevant code was changed since.",
+  "rca of the issue": "Root cause of iteration_5 blocker was FastAPI/pydantic v2 rejecting `Optional[List[str]] = Form(None)`. Fix in /app/final backend mantrasetu/.../app/api/routes/pandit.py lines 81, 84 changed to `List[str] = Form([])` for service_areas and achievements. Retest confirms POST /pandit/apply now returns 200 with application_id and the frontend success screen renders correctly."
+}
