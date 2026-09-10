@@ -24,6 +24,7 @@ export const SaarthiController: React.FC = () => {
     state,
     onboardingPhase,
     dialogueText,
+    needsRepeat,
     isMinimized,
     showChoicePopup,
     showSpeechBubble,
@@ -77,7 +78,7 @@ export const SaarthiController: React.FC = () => {
               {/* Spoken Dialogue Text Bubble */}
               <AnimatePresence>
                 {showSpeechBubble && dialogueText && (
-                  <SaarthiSpeechBubble text={dialogueText} />
+                  <SaarthiSpeechBubble text={dialogueText} needsRepeat={needsRepeat} />
                 )}
               </AnimatePresence>
 
@@ -103,7 +104,7 @@ export const SaarthiController: React.FC = () => {
           <AnimatePresence>
             {showSpeechBubble && dialogueText && (
               <div className="absolute bottom-full left-4 mb-4 origin-bottom-left w-[300px] sm:w-[340px] max-w-[calc(100vw-3rem)]">
-                <SaarthiSpeechBubble text={dialogueText} />
+                <SaarthiSpeechBubble text={dialogueText} needsRepeat={needsRepeat} />
               </div>
             )}
           </AnimatePresence>

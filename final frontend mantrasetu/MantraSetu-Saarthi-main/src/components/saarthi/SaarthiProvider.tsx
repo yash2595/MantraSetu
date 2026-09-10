@@ -15,6 +15,8 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
   const [state, setState] = useState<SaarthiState>('idle');
   const [onboardingPhase, setOnboardingPhase] = useState<OnboardingPhase>('saarthi_listening');
   const [dialogueText, setDialogueText] = useState<string>('');
+  const [needsRepeat, setNeedsRepeatState] = useState<boolean>(false);
+  const repeatClearTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
   const [showChoicePopup, setShowChoicePopup] = useState<boolean>(true);
   const [showSpeechBubble, setShowSpeechBubble] = useState<boolean>(true);
@@ -156,8 +158,24 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
     setState(newState);
   }, []);
 
+  // ── STT low-confidence "didn't catch that" cue ──
+  // Shows a distinct amber cue when the backend reports empty/low-confidence
+  // recognition (intent REPEAT_PROMPT / recognition_status no_speech|stt_error).
+  // Auto-clears so it never lingers past the next real exchange.
+  const setNeedsRepeat = useCallback((value: boolean) => {
+    if (repeatClearTimerRef.current) {
+      clearTimeout(repeatClearTimerRef.current);
+      repeatClearTimerRef.current = null;
+    }
+    setNeedsRepeatState(value);
+    if (value) {
+      repeatClearTimerRef.current = setTimeout(() => setNeedsRepeatState(false), 7000);
+    }
+  }, []);
+
   const announceMessage = useCallback((text: string, isSuccess: boolean = true) => {
     console.log('[Saarthi] Announce message:', text, 'isSuccess:', isSuccess);
+    setNeedsRepeatState(false);
     setDialogueText(text);
     setShowSpeechBubble(true);
     
@@ -181,6 +199,7 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
         state,
         onboardingPhase,
         dialogueText,
+        needsRepeat,
         isMinimized,
         showChoicePopup,
         showSpeechBubble,
@@ -192,6 +211,7 @@ export const SaarthiProvider: React.FC<SaarthiProviderProps> = ({ children }) =>
         reopenSaarthi,
         setSaarthiState,
         setDialogueText,
+        setNeedsRepeat,
         toggleMinimized,
         announceMessage,
         disableVoice,

@@ -1,8 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { EarOff } from 'lucide-react';
 
 export interface SaarthiSpeechBubbleProps {
   text: string;
+  needsRepeat?: boolean;
 }
 
 export const speechBubbleVariants = {
@@ -30,8 +32,12 @@ export const speechBubbleVariants = {
   },
 };
 
-export const SaarthiSpeechBubble: React.FC<SaarthiSpeechBubbleProps> = React.memo(({ text }) => {
+export const SaarthiSpeechBubble: React.FC<SaarthiSpeechBubbleProps> = React.memo(({ text, needsRepeat = false }) => {
   if (!text) return null;
+
+  const bubbleClass = needsRepeat
+    ? 'relative w-full max-w-sm sm:max-w-md bg-[#fff8ec]/95 backdrop-blur-md border border-[#f0c473] rounded-2xl p-3 sm:p-4 shadow-xl text-center max-h-[160px] overflow-y-auto overflow-x-hidden custom-scrollbar ring-1 ring-[#f0c473]/60'
+    : 'relative w-full max-w-sm sm:max-w-md bg-[#fffdf9]/95 backdrop-blur-md border border-[#eadbc9] rounded-2xl p-3 sm:p-4 shadow-xl text-center max-h-[140px] overflow-y-auto overflow-x-hidden custom-scrollbar';
 
   return (
     <motion.div
@@ -39,9 +45,18 @@ export const SaarthiSpeechBubble: React.FC<SaarthiSpeechBubbleProps> = React.mem
       initial="hidden"
       animate="enter"
       exit="exit"
-      className="relative w-full max-w-sm sm:max-w-md bg-[#fffdf9]/95 backdrop-blur-md border border-[#eadbc9] rounded-2xl p-3 sm:p-4 shadow-xl text-center max-h-[140px] overflow-y-auto overflow-x-hidden custom-scrollbar"
+      className={bubbleClass}
       data-testid="saarthi-speech-bubble"
     >
+      {needsRepeat && (
+        <div
+          className="flex items-center justify-center gap-1.5 mb-1.5 text-[#b45309]"
+          data-testid="saarthi-repeat-cue"
+        >
+          <EarOff size={14} className="shrink-0" />
+          <span className="text-xs font-semibold tracking-wide">Main sun nahi paya — dobara boliye</span>
+        </div>
+      )}
       <p className="text-sm sm:text-base font-serif text-[#24272d] leading-snug whitespace-pre-line font-medium transition-all duration-100 ease-out">
         {text}
       </p>

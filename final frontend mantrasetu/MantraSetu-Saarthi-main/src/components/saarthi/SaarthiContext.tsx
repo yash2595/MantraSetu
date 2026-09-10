@@ -25,6 +25,7 @@ export interface SaarthiContextType {
   state: SaarthiState;
   onboardingPhase: OnboardingPhase;
   dialogueText: string;
+  needsRepeat: boolean;
   isMinimized: boolean;
   showChoicePopup: boolean;
   showSpeechBubble: boolean;
@@ -37,6 +38,7 @@ export interface SaarthiContextType {
   reopenSaarthi: () => void;
   setSaarthiState: (state: SaarthiState) => void;
   setDialogueText: (text: string) => void;
+  setNeedsRepeat: (value: boolean) => void;
   toggleMinimized: () => void;
   announceMessage: (text: string, isSuccess?: boolean) => void;
   disableVoice: () => void;

@@ -293,7 +293,7 @@ function generateUUID(): string {
 }
 
 export function useSaarthiVoice() {
-  const { state, setDialogueText, setSaarthiState, forceMinimize, announceMessage } = useSaarthi();
+  const { state, setDialogueText, setSaarthiState, forceMinimize, announceMessage, setNeedsRepeat } = useSaarthi();
   
   // Track request IDs to drop late responses from abandoned requests
   const currentRequestIdRef = useRef<string>('');
@@ -2232,6 +2232,15 @@ export function useSaarthiVoice() {
             // 🚨 REAL-TIME WORD-BY-WORD PROGRESSIVE STREAMING FOR ASSISTANT RESPONSE
             if (streamIntervalRef.current) clearInterval(streamIntervalRef.current as any);
 
+            // ── STT low-confidence cue: flag when the backend could not understand ──
+            const recognitionStatus = msg.payload.recognition_status
+              || (msg.payload.navigation_directive && msg.payload.navigation_directive.recognition_status)
+              || null;
+            const isRepeatPrompt = intent === 'REPEAT_PROMPT'
+              || recognitionStatus === 'no_speech'
+              || recognitionStatus === 'stt_error';
+            setNeedsRepeat(isRepeatPrompt);
+
             const fullText = contentStr;
             const words = fullText.split(' ');
             if (words.length > 1) {
@@ -2559,7 +2568,7 @@ export function useSaarthiVoice() {
     };
 
     wsRef.current = ws;
-  }, [updateSessionReady, sendWsMessage, setDialogueText, setSaarthiState, forceMinimize, announceMessage, stopAudioPlayback, runSequence, navigate]);
+  }, [updateSessionReady, sendWsMessage, setDialogueText, setSaarthiState, forceMinimize, announceMessage, setNeedsRepeat, stopAudioPlayback, runSequence, navigate]);
 
   const connectWebSocketRef = useRef(connectWebSocket);
   useEffect(() => {

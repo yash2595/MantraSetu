@@ -46,6 +46,15 @@ pre-existing STT accuracy + audio echo concerns. Upstream provider: Inworld.
   Test 1 = proxy oversized-frame / reconnect loop (backend), Test 2 = speaker echo (frontend).
   Verified green: "SUITE RESULT: 2 passed, 0 failed". Wire this into CI.
 
+## STT low-confidence cue (feature, 2026-09-10)
+- When the backend reports empty/low-confidence recognition (intent `REPEAT_PROMPT` or
+  `recognition_status` in {no_speech, stt_error}), Saarthi's speech bubble now shows a distinct
+  amber cue with an ear-off icon: "Main sun nahi paya — dobara boliye". Auto-clears after 7s and
+  on the next normal message. Files: SaarthiContext/Provider/SpeechBubble/Controller + hook
+  (useSaarthiVoice.ts sets `needsRepeat`). data-testid: `saarthi-repeat-cue`.
+- Verified via screenshots: positive (desktop+mobile, no overflow) and negative (normal response
+  shows no cue).
+
 ## Backlog / next
 - P1: Validate STT accuracy + echo end-to-end on the user's local env (needs Inworld keys).
 - P1: Add `test_voice_proxy_bigframe.py` to CI to guard the max_size regression.
