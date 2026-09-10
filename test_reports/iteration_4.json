@@ -1,0 +1,39 @@
+{
+  "summary": "Independently reproduced the speaker-echo harness against CURRENT useSaarthiVoice.ts hook. All PASS criteria met: ECHO_DETECTED=false, ECHO_BUFFERS=0, frames_streamed_during_silent_greeting_phase=0, frames_arriving_while_tts_streaming=0, MIC_ALIVE=true (CLEAN_USER_BUFFERS=1). Saarthi does NOT transcribe her own greeting; real user speech still streams to STT.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "harness_output": {
+    "label": "verify",
+    "tts_turns_sent": 2,
+    "total_frames_streamed_to_stt": 15,
+    "frames_arriving_while_tts_streaming": 0,
+    "frames_streamed_during_silent_greeting_phase": 0,
+    "ECHO_BUFFERS": 0,
+    "ECHO_DETECTED": false,
+    "CLEAN_USER_BUFFERS": 1,
+    "MIC_ALIVE": true,
+    "clean_buffer_sample": {
+      "duration_sec": 3.84,
+      "rms": 0.1245,
+      "saarthi_band": 0.000044,
+      "user_band": 0.116558,
+      "verdict": "user speech only (clean)"
+    }
+  },
+  "test_report_links": ["/app/echo_harness/speaker_echo_test.mjs", "/app/echo_harness/mock_voice_server2.py", "/app/echo_harness/room_sim2.js"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Echo guards in useSaarthiVoice.ts (state==='listening' && !isPlayingRef.current gate, muted mic sink, cleared pre-roll buffer unless listening, 450ms acoustic cooldown before re-arming mic) are working as designed. No changes needed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100%"},
+  "seed_data_creation": "None (fully mocked harness).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "To re-run: ensure uvicorn mock_voice_server2 on :8000 and vite on :3000, then cd /app/echo_harness && PLAYWRIGHT_BROWSERS_PATH=/pw-browsers LABEL=verify node speaker_echo_test.mjs. Do NOT invoke run_echo_test.sh (it overwrites the hook with a snapshot).",
+  "rca of the issue": "Original echo bug caused by mic capture remaining active during Saarthi TTS playback + simulated loudspeaker->mic bleed. Fix in useSaarthiVoice.ts gates AUDIO_FRAME emission on stateRef==='listening' && !isPlayingRef.current, mutes the mic sink during speaking, clears pre-roll unless listening, and applies a 450ms acoustic cooldown after TTS end before re-arming mic. Verified: 0 frames streamed during silent greeting phase; 0 frames while TTS was streaming; user speech (post-cooldown) still reaches STT cleanly."
+}

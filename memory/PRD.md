@@ -24,11 +24,22 @@ pre-existing STT accuracy + audio echo concerns. Upstream provider: Inworld.
   - Verified via `test_voice_proxy_bigframe.py` (mock upstream, no keys). Without fix →
     reproduces exact UPSTREAM_ERROR; with fix → forwards 1,280,000-byte frame, PASS.
 
-## Notes on echo/STT (already present in code, NOT E2E-verified here)
-- Frontend already gates mic streaming to `state==='listening' && !isPlayingRef` and uses a
-  muted mic sink + pre-roll guard (recent "Echo Fix" commits) so Saarthi should not transcribe
-  her own TTS. Could not run the full Inworld pipeline in this pod (no keys), so accuracy/echo
-  were not exercised end-to-end.
+## Speaker echo — VERIFIED FIXED (2026-09-10) via echo_harness (no keys)
+- Ran `/app/echo_harness/speaker_echo_test.mjs` (Playwright: real frontend + mock backend
+  `mock_voice_server2.py` + simulated loudspeaker->mic room `room_sim2.js`) against the CURRENT
+  `useSaarthiVoice.ts`. Testing agent report: /app/test_reports/iteration_4.json.
+- Result: ECHO_DETECTED=false, ECHO_BUFFERS=0, frames_streamed_during_silent_greeting_phase=0,
+  frames_arriving_while_tts_streaming=0, MIC_ALIVE=true (clean user buffer streamed). Saarthi does
+  NOT transcribe her own greeting; real user speech still reaches STT.
+- Working guards in `useSaarthiVoice.ts`: AUDIO_FRAME gated on `state==='listening' && !isPlayingRef`,
+  muted mic sink during speaking, pre-roll cleared unless listening, ~450ms acoustic cooldown before re-arming mic.
+- To re-run: start `uvicorn mock_voice_server2:app` on :8000 and `npx vite` on :3000, then
+  `cd /app/echo_harness && PLAYWRIGHT_BROWSERS_PATH=/pw-browsers node speaker_echo_test.mjs`.
+  Do NOT use run_echo_test.sh (it overwrites the hook with a snapshot).
+
+## STT accuracy — still needs real Inworld keys
+- STT transcription accuracy uses live Inworld and cannot be exercised in this pod (no keys).
+  Retest on your local env.
 
 ## Backlog / next
 - P1: Validate STT accuracy + echo end-to-end on the user's local env (needs Inworld keys).
