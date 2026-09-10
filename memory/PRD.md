@@ -41,6 +41,11 @@ pre-existing STT accuracy + audio echo concerns. Upstream provider: Inworld.
 - STT transcription accuracy uses live Inworld and cannot be exercised in this pod (no keys).
   Retest on your local env.
 
+## Regression guard (2026-09-10)
+- `/app/run_voice_regression.sh` runs BOTH fixes' tests in one command (no keys):
+  Test 1 = proxy oversized-frame / reconnect loop (backend), Test 2 = speaker echo (frontend).
+  Verified green: "SUITE RESULT: 2 passed, 0 failed". Wire this into CI.
+
 ## Backlog / next
 - P1: Validate STT accuracy + echo end-to-end on the user's local env (needs Inworld keys).
 - P1: Add `test_voice_proxy_bigframe.py` to CI to guard the max_size regression.
