@@ -183,22 +183,33 @@ class VoiceResponsePipeline:
             logger.info(
                 f"[TIMING-TTS] TTS Cache HIT for key={cache_key[:8]} | text='{text_content[:35]}...' | Served in {cache_elapsed_ms}ms | size={len(cached_audio)} bytes"
             )
-            yield AudioChunk(
-                request_id=req_uuid,
-                session_id=sess_uuid,
-                conversation_id=conv_uuid,
-                sequence_number=0,
-                data=cached_audio,
-                is_final=True,
-                timestamp_ms=int(time.time() * 1000),
-                metadata={
-                    "provider": provider_name,
-                    "cached": True,
-                    "cache_key": cache_key,
-                    "sample_rate": sample_rate,
-                    "encoding": audio_encoding,
-                },
-            )
+            # Serve cached audio in bounded sub-chunks (~0.5s of 24kHz LINEAR16 audio each).
+            # A single giant frame (e.g. a 20s greeting ~= 1.3 MB base64) overflows the
+            # upstream websocket proxy frame cap and breaks the connection. Chunking keeps
+            # every frame small and lets playback start immediately.
+            CACHE_CHUNK_BYTES = 48_000
+            total = len(cached_audio)
+            seq = 0
+            for offset in range(0, total, CACHE_CHUNK_BYTES):
+                piece = cached_audio[offset:offset + CACHE_CHUNK_BYTES]
+                is_last = (offset + CACHE_CHUNK_BYTES) >= total
+                yield AudioChunk(
+                    request_id=req_uuid,
+                    session_id=sess_uuid,
+                    conversation_id=conv_uuid,
+                    sequence_number=seq,
+                    data=piece,
+                    is_final=is_last,
+                    timestamp_ms=int(time.time() * 1000),
+                    metadata={
+                        "provider": provider_name,
+                        "cached": True,
+                        "cache_key": cache_key,
+                        "sample_rate": sample_rate,
+                        "encoding": audio_encoding,
+                    },
+                )
+                seq += 1
             return
 
         # ── Cache Miss: Synthesize via TTS Provider ──

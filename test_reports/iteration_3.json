@@ -1,0 +1,21 @@
+{
+  "summary": "Verified root-cause fix for the Saarthi voice-assistant infinite reconnect loop. Ran the provided regression script test_voice_proxy_bigframe.py against the proxy backend with a local mock upstream emitting a ~1.28 MB AUDIO_CHUNK frame. With max_size=None on websockets.connect() in app/services/voice_service.py, the proxy forwarded the oversized frame intact (big_len=1280000, got_error=false) -> PASS. As a regression-guard sanity check, temporarily removed max_size=None and re-ran; the test failed exactly as the user reported with ERROR {code:UPSTREAM_ERROR, message:'Upstream closed connection'} and got_big=false, then restored the fix. Confirms the 1 MiB websockets default frame cap was the true root cause of the reconnect loop.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/final backend mantrasetu/mantrasetu-saarthi-backend-main/test_voice_proxy_bigframe.py"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix is minimal and correct: max_size=None on websockets.connect() lifts the 1 MiB client-side frame cap that was closing the upstream leg on the cached greeting audio.",
+    "Defense-in-depth chunking (~48 KB sub-chunks) added on the AI-engine cache-hit path in voice_response_pipeline.py is a good belt-and-braces measure so future clients/proxies with default caps also work.",
+    "Recommend adding this regression test to CI so any future removal of max_size=None (or upstream default change) is caught automatically.",
+    "STT accuracy and audio echo concerns raised by the user are out of scope for this fix and were not (and could not be) validated here without Inworld/Groq/Gemini keys."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "None required. Mock upstream used; no Inworld keys needed.",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Regression script at '/app/final backend mantrasetu/mantrasetu-saarthi-backend-main/test_voice_proxy_bigframe.py'. Run: cd '/app/final backend mantrasetu/mantrasetu-saarthi-backend-main' && /root/.venv/bin/python test_voice_proxy_bigframe.py . Expected: RESULT {got_big: true, got_error: false, big_len: 1280000} + PASS line. No API keys needed. Full 3-tier voice flow (real Inworld) cannot be exercised in this pod.",
+  "rca of the issue": "Proxy backend's outbound websockets.connect() to the AI intent-engine used python-websockets default max_size=1 MiB. AI engine emitted the cached greeting TTS as a single AUDIO_CHUNK with ~1.28 MB base64 audio, exceeding 1 MiB. websockets client aborted upstream with close 1009 ('message too big'). Proxy translated that to ERROR {code:UPSTREAM_ERROR, message:'Upstream closed connection'} and closed 1006. Client auto-reconnect hit the same cached greeting -> infinite loop. Fix: max_size=None on websockets.connect() in app/services/voice_service.py (+ ping_interval=20, ping_timeout=60). Defense-in-depth: AI engine now streams cached greeting as ~48KB sub-chunks. Verified in both directions (with fix -> PASS forwarding 1,280,000 byte frame; without fix -> exact UPSTREAM_ERROR reproduced)."
+}

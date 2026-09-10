@@ -26,7 +26,16 @@ async def handle_voice_proxy(websocket: WebSocket, query_str: str):
     close_reason = "Normal Closure"
 
     try:
-        async with websockets.connect(ai_ws_url) as ai_ws:
+        # max_size=None disables the websockets client 1 MiB frame cap. Cached greeting/
+        # TTS audio is delivered as a single large AUDIO_CHUNK (~1.3 MB base64) which would
+        # otherwise trip a 1009 "message too big" close on the upstream leg and manifest to
+        # the client as UPSTREAM_ERROR -> endless reconnect loop.
+        async with websockets.connect(
+            ai_ws_url,
+            max_size=None,
+            ping_interval=20,
+            ping_timeout=60,
+        ) as ai_ws:
             
             async def forward_to_ai():
                 try:
