@@ -1,0 +1,64 @@
+{
+  "summary": "Executed the Speaker Echo harness end-to-end against both the FIXED hook and the pre-fix positive control, and verified the MantraSetu UI regression. PRIMARY echo bug is FIXED and the positive control reproduces the bug, so the harness is valid. UI still renders without JS errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Homepage (dev-only React warning)", "issues": ["React dev warning: 'A props object containing a key prop is being spread into JSX' from Link components. Not a runtime error, will silence in prod build, but should be cleaned up: pass key={} explicitly instead of spreading."]}
+    ]
+  },
+  "harness_results": {
+    "fixed_run": {
+      "ECHO_DETECTED": false,
+      "ECHO_BUFFERS": 0,
+      "CLEAN_USER_BUFFERS": 1,
+      "MIC_ALIVE": true,
+      "frames_streamed_during_silent_greeting_phase": 0,
+      "total_frames_streamed_to_stt": 15,
+      "clean_buffer_user_band": 0.116382,
+      "clean_buffer_saarthi_band": 0.000016,
+      "mic_sample_rate_log": "[Voice] Mic capture AudioContext sampleRate: 16000Hz (target 16000Hz) — PRESENT",
+      "echo_tail_log": "[ECHO-TAIL] Released after level decayed to room floor (NOT hard cap) — PRESENT for both turns",
+      "acoustic_cooldown_ms": 450
+    },
+    "prefix_positive_control": {
+      "ECHO_DETECTED": true,
+      "ECHO_BUFFERS": 4,
+      "CLEAN_USER_BUFFERS": 0,
+      "MIC_ALIVE": false,
+      "frames_streamed_during_silent_greeting_phase": 13,
+      "mic_sample_rate_log": "NOT FOUND (expected — pre-fix ran mic at 24kHz)"
+    }
+  },
+  "ui_regression": {
+    "page_loaded": true,
+    "saarthi_visible": true,
+    "pageerror_count": 0,
+    "uncaught_exceptions": 0,
+    "benign_dev_warnings": ["React key-prop spread warnings on Link (2 occurrences)"]
+  },
+  "test_report_links": [
+    "/app/echo_harness/result_fixed.json",
+    "/app/echo_harness/result_prefix.json",
+    "/app/echo_harness/received_turn_0.wav",
+    "/app/echo_harness/received_turn_1.wav",
+    "/app/echo_harness/received_turn_2.wav"
+  ],
+  "action_items": [
+    "Optional cleanup: fix the React 'key prop being spread into JSX' warnings in Link usages (non-blocking, dev-only)."
+  ],
+  "critical_code_review_comments": [
+    "Fix scope is minimal and correct: only /app/final frontend mantrasetu/MantraSetu-Saarthi-main/src/hooks/useSaarthiVoice.ts was touched. Dedicated 16kHz mic AudioContext + zero-gain sink + adaptive echo-tail hold + AUDIO_FRAME gating on !isPlayingRef are the right architectural fixes.",
+    "useSaarthiVoice.ts is very large (~3000+ lines). Consider splitting into: (a) audio capture module, (b) TTS playback module, (c) VAD/echo-tail module, (d) WS transport. Would greatly improve maintainability and future debuggability of audio-path bugs.",
+    "MAX_ECHO_TAIL_MS=1500 hard cap is fine as a safety net but the current room-floor release fires well before that in tests. Log the actual release time distribution in production telemetry to catch tail regressions."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only per request)", "frontend": "100%"},
+  "test_credentials": "Not required (no auth in voice path)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Only speaker_echo_test.mjs + room_sim2.js + mock_voice_server2.py are valid harness files. Older echo_test*.mjs/room_sim.js/mock_voice_server.py are BLIND to the bug. Always finish with `bash /app/echo_harness/run_echo_test.sh restore` (already done in this run). Mock backend on :8000 and vite on :3000 are started by run_echo_test.sh; supervisor's frontend/backend units are permanently FATAL in this container and that is EXPECTED.",
+  "rca of the issue": "Original bug: single 24kHz shared AudioContext piped TTS playback into the same graph as the mic capture; mic processor was also connected to audioCtx.destination, so Saarthi's own voice looped back through the simulated loudspeaker into the mic and was streamed to STT (52 frames, 4 echo buffers, MIC dead). Fix: (1) dedicated 16kHz micAudioCtx separate from the 24kHz TTS ctx, eliminating in-graph coupling and the 24->16 decimation; (2) terminate the mic processor chain in a zero-gain node instead of destination, so no capture-side audible loopback; (3) gate AUDIO_FRAME emission on !isPlayingRef + listening state, so the pre-roll ring doesn't drain while Saarthi is talking; (4) adaptive echo-tail hold that keeps the mic gated until measured input decays back to the room noise floor (hard-capped at 1500ms), superseding the earlier fixed 600/700ms window that still leaked reverb tail. Verified: fixed=0 echo buffers, 1 clean user buffer (user_band 0.116 vs saarthi_band 0.000016), MIC_ALIVE=true, 16kHz log present, echo-tail released to floor (not hard cap), 450ms cooldown preserved."
+}

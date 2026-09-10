@@ -527,15 +527,10 @@ export function useSaarthiVoice() {
 
   // ── ECHO FIX: dedicated 16kHz capture context (never shares a graph with TTS playback) ──
   const micAudioCtxRef = useRef<AudioContext | null>(null);
-  // Adaptive echo-tail hold: after Saarthi stops speaking the mic stays gated until the
-  // measured input level actually decays back to the room noise floor (or the cap is hit),
-  // so loudspeaker reverb can never be mistaken for the user.
-  const echoTailActiveRef = useRef<boolean>(false);
-  const echoTailDeadlineRef = useRef<number>(0);
-  const echoTailQuietTicksRef = useRef<number>(0);
-  const ACOUSTIC_COOLDOWN_MS = 450;
-  const MAX_ECHO_TAIL_MS = 1500;
-  const ECHO_TAIL_QUIET_TICKS = 2;
+  // Timestamp until which the VAD must ignore low-amplitude input (acoustic tail of Saarthi's own reply)
+  const echoGuardUntilRef = useRef<number>(0);
+  const ACOUSTIC_COOLDOWN_MS = 700;
+  const ECHO_GUARD_MS = 600;
 
   // Sync activeFieldRef on page change: reset to null on non-signup pages
   useEffect(() => {
@@ -2637,9 +2632,7 @@ export function useSaarthiVoice() {
           pcmChunkBufferRef.current = [];
           pcmByteLeftoverRef.current = null;
           preRollFramesRef.current = [];
-          echoTailActiveRef.current = true;
-          echoTailDeadlineRef.current = Date.now() + MAX_ECHO_TAIL_MS;
-          echoTailQuietTicksRef.current = 0;
+          echoGuardUntilRef.current = Date.now() + ECHO_GUARD_MS;
           if (resetVadStateRef.current) resetVadStateRef.current();
           stateRef.current = 'listening';
           setSaarthiState('listening');
@@ -2760,9 +2753,7 @@ export function useSaarthiVoice() {
                 pcmChunkBufferRef.current = [];
                 pcmByteLeftoverRef.current = null;
                 preRollFramesRef.current = [];
-                echoTailActiveRef.current = true;
-                echoTailDeadlineRef.current = Date.now() + MAX_ECHO_TAIL_MS;
-                echoTailQuietTicksRef.current = 0;
+                echoGuardUntilRef.current = Date.now() + ECHO_GUARD_MS;
                 if (resetVadStateRef.current) resetVadStateRef.current();
                 stateRef.current = 'listening';
                 setSaarthiState('listening');
@@ -3076,36 +3067,6 @@ export function useSaarthiVoice() {
             return;
           }
 
-          // ── ECHO FIX: adaptive echo-tail hold ──────────────────────────────────
-          // Saarthi's reply keeps sounding in the room (loudspeaker latency + reverb) after
-          // playback ends. Rather than guessing a fixed delay, keep the mic gated until the
-          // input level has genuinely decayed back to the room noise floor. In a quiet room or
-          // on headphones this releases in ~200ms; it is hard-capped so a user who starts
-          // talking immediately is never locked out.
-          if (echoTailActiveRef.current) {
-            const quietLevel = Math.max(6.5, backgroundNoise + 3.0);
-            if (average < quietLevel) {
-              echoTailQuietTicksRef.current++;
-            } else {
-              echoTailQuietTicksRef.current = 0;
-            }
-            const decayed = echoTailQuietTicksRef.current >= ECHO_TAIL_QUIET_TICKS;
-            const capped = Date.now() > echoTailDeadlineRef.current;
-            if (decayed || capped) {
-              echoTailActiveRef.current = false;
-              console.log(`[ECHO-TAIL] Released after ${decayed ? 'level decayed to room floor' : 'hard cap'} | avg=${average.toFixed(2)} | floor=${backgroundNoise.toFixed(2)}`);
-            } else {
-              // Still hearing Saarthi's own tail — discard everything captured in this window
-              lastSpeechTime = Date.now();
-              speechConfidence = 0;
-              audioEndSent = false;
-              userHasSpokenRef.current = false;
-              userRecordedBytesRef.current = 0;
-              preRollFramesRef.current = [];
-              return;
-            }
-          }
-
           // BUG-11.3 FIX: Reduced to 3-tick (300ms) calibration so onboarding page VAD warms up faster
           if (initialCalibrationTicks < 3) {
             calibrationSum += average;
@@ -3120,8 +3081,16 @@ export function useSaarthiVoice() {
           }
 
           // Responsive Dynamic threshold with +2.2 SNR delta (minimum 6.5, clamped max baseline 14.0)
-          const DYNAMIC_THRESHOLD = Math.max(6.5, backgroundNoise + 2.2);
+          // ECHO FIX: for a short window right after Saarthi stops speaking, demand a much stronger
+          // signal so the decaying acoustic tail of her own reply cannot self-trigger the mic.
+          const inEchoGuard = Date.now() < echoGuardUntilRef.current;
+          const echoGuardDelta = inEchoGuard ? 8.0 : 0;
+          const DYNAMIC_THRESHOLD = Math.max(6.5, backgroundNoise + 2.2) + echoGuardDelta;
           const PEAK_THRESHOLD = DYNAMIC_THRESHOLD + 3.0;
+
+          if (inEchoGuard) {
+            lastSpeechTime = Date.now();
+          }
 
           // High-Sensitivity Leaky Integrator:
           // 1. Strong speech spike (>= PEAK_THRESHOLD) -> +2 confidence.
@@ -3287,9 +3256,7 @@ export function useSaarthiVoice() {
     }
     userHasSpokenRef.current = false;
     userRecordedBytesRef.current = 0;
-    echoTailActiveRef.current = true;
-    echoTailDeadlineRef.current = Date.now() + MAX_ECHO_TAIL_MS;
-    echoTailQuietTicksRef.current = 0;
+    echoGuardUntilRef.current = Date.now() + ECHO_GUARD_MS;
     if (resetVadStateRef.current) resetVadStateRef.current();
     stateRef.current = 'listening';
     setSaarthiState('listening');

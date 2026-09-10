@@ -1,0 +1,297 @@
+{
+  "out": {
+    "label": "stab1",
+    "room": {
+      "bridged_audio_contexts": 2,
+      "ctx_state": "running",
+      "errors": []
+    },
+    "tts_turns_sent": 2,
+    "total_frames_streamed_to_stt": 16,
+    "frames_arriving_while_tts_streaming": 0,
+    "frames_streamed_during_silent_greeting_phase": 0,
+    "buffers_sent_to_stt": [
+      {
+        "index": 0,
+        "duration_sec": 4.096,
+        "rms": 0.11719,
+        "saarthi_band": 0.000022,
+        "user_band": 0.109762,
+        "head1s_saarthi_band": 0.000105,
+        "head1s_user_band": 0.034246,
+        "verdict": "user speech only (clean)"
+      }
+    ],
+    "ECHO_BUFFERS": 0,
+    "ECHO_DETECTED": false,
+    "CLEAN_USER_BUFFERS": 1,
+    "MIC_ALIVE": true,
+    "mic_sample_rate_log": "[Voice] Mic capture AudioContext sampleRate: 16000Hz (target 16000Hz)",
+    "cooldown_log": "[VERIFY-DIAGNOSTIC] (b) Acoustic cooldown elapsed (450ms). Mic re-armed. Transitioning state: speaking -> listening."
+  },
+  "report": {
+    "events": [
+      {
+        "t": 365.9632,
+        "kind": "ws_open"
+      },
+      {
+        "t": 366.0824,
+        "kind": "connect_received"
+      },
+      {
+        "t": 366.0826,
+        "kind": "tts_send_start",
+        "turn": "greeting"
+      },
+      {
+        "t": 369.1098,
+        "kind": "tts_send_end",
+        "turn": "greeting"
+      },
+      {
+        "t": 375.9091,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 375.9141,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 375.9499,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 375.9549,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 376.1568,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 376.4104,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 376.6635,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 376.9257,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 377.1765,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 377.4567,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 377.699,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 377.9569,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 378.2099,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 378.4651,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 378.7206,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 378.9763,
+        "kind": "audio_frame",
+        "bytes": 8192,
+        "during_tts_send": false
+      },
+      {
+        "t": 379.0696,
+        "kind": "audio_end",
+        "during_tts_send": false
+      },
+      {
+        "t": 379.2777,
+        "kind": "tts_send_start",
+        "turn": "reply1"
+      },
+      {
+        "t": 382.2875,
+        "kind": "tts_send_end",
+        "turn": "reply1"
+      }
+    ],
+    "turns": [
+      {
+        "index": 0,
+        "started": 375.9039,
+        "ended": 379.0697,
+        "frame_count": 16,
+        "frames": [
+          {
+            "t": 375.9039,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000045,
+            "user_band": 0.00004
+          },
+          {
+            "t": 375.9092,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000051,
+            "user_band": 0.000046
+          },
+          {
+            "t": 375.9141,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000155,
+            "user_band": 0.100918
+          },
+          {
+            "t": 375.95,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000155,
+            "user_band": 0.100918
+          },
+          {
+            "t": 376.1519,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000235,
+            "user_band": 0.202683
+          },
+          {
+            "t": 376.4056,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000692,
+            "user_band": 0.204939
+          },
+          {
+            "t": 376.6588,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000574,
+            "user_band": 0.202847
+          },
+          {
+            "t": 376.9207,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000052,
+            "user_band": 0.202793
+          },
+          {
+            "t": 377.1716,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000235,
+            "user_band": 0.202479
+          },
+          {
+            "t": 377.4518,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000275,
+            "user_band": 0.205537
+          },
+          {
+            "t": 377.6942,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000061,
+            "user_band": 0.202686
+          },
+          {
+            "t": 377.9521,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000114,
+            "user_band": 0.082505
+          },
+          {
+            "t": 378.2051,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000057,
+            "user_band": 0.00005
+          },
+          {
+            "t": 378.4601,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000067,
+            "user_band": 0.000042
+          },
+          {
+            "t": 378.7158,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000044,
+            "user_band": 0.000052
+          },
+          {
+            "t": 378.9715,
+            "bytes": 8192,
+            "during_tts_send": false,
+            "saarthi_band": 0.000042,
+            "user_band": 0.000046
+          }
+        ],
+        "analysis": {
+          "samples": 65536,
+          "duration_sec": 4.096,
+          "rms": 0.11719,
+          "saarthi_band": 0.000022,
+          "user_band": 0.109762,
+          "head1s_saarthi_band": 0.000105,
+          "head1s_user_band": 0.034246
+        }
+      }
+    ],
+    "pending": null
+  }
+}

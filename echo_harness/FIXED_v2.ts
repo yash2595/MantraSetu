@@ -533,7 +533,7 @@ export function useSaarthiVoice() {
   const echoTailActiveRef = useRef<boolean>(false);
   const echoTailDeadlineRef = useRef<number>(0);
   const echoTailQuietTicksRef = useRef<number>(0);
-  const ACOUSTIC_COOLDOWN_MS = 450;
+  const ACOUSTIC_COOLDOWN_MS = 700;
   const MAX_ECHO_TAIL_MS = 1500;
   const ECHO_TAIL_QUIET_TICKS = 2;
 
