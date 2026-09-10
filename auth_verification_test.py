@@ -34,7 +34,7 @@ def post_json(path, data, token=None):
         body_text = e.read().decode("utf-8", errors="replace")
         try:
             body_json = json.loads(body_text)
-        except:
+        except json.JSONDecodeError:
             body_json = {"detail": body_text}
         return e.code, body_json
 
@@ -51,7 +51,7 @@ def get_json(path, token=None):
         body_text = e.read().decode("utf-8", errors="replace")
         try:
             body_json = json.loads(body_text)
-        except:
+        except json.JSONDecodeError:
             body_json = {"detail": body_text}
         return e.code, body_json
 
@@ -94,8 +94,9 @@ try:
     req = urllib.request.Request(FRONTEND)
     resp = urllib.request.urlopen(req)
     html = resp.read().decode("utf-8", errors="replace")
-    passed = resp.status == 200 and "MantraSetu" in html or "<div id=\"root\">" in html
-    log(3, "Frontend compiles without Vite errors", passed, f"Status={resp.status}, has root div={('<div id=\"root\">' in html)}")
+    root_div = '<div id="root">'
+    passed = resp.status == 200 and "MantraSetu" in html or root_div in html
+    log(3, "Frontend compiles without Vite errors", passed, f"Status={resp.status}, has root div={root_div in html}")
 except Exception as e:
     log(3, "Frontend compiles without Vite errors", False, str(e))
 

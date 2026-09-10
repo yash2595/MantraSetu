@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from threading import RLock
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from app.learning.skill_registry import SkillRegistry
 
 

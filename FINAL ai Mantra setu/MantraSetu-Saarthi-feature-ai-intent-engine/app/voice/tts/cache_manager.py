@@ -278,7 +278,7 @@ class TTSCacheManager:
                 request_id=uuid.uuid4(),
                 session_id="pregen_sess",
                 conversation_id=uuid.uuid4(),
-                text=cleaned_prompt if "cleaned_prompt" in locals() else cleaned_text,
+                text=cleaned_text,
                 language=language,
                 voice=voice,
                 encoding=AudioEncoding.PCM_16,

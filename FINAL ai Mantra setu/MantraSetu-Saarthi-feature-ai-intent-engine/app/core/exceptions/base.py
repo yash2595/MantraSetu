@@ -5,7 +5,7 @@ Provides the foundational ApplicationError exception class and domain error subc
 
 from __future__ import annotations
 
-from typing import Mapping
+from typing import Any, Mapping
 
 
 class ApplicationError(Exception):

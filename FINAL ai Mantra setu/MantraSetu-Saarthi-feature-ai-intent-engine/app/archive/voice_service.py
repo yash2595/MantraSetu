@@ -11,6 +11,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.core.exceptions.base import ValidationError
 
 from app.llm.models import LLMRequest
 from app.services.action_engine import ActionEngine, ExecutionPlan

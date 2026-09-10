@@ -5,6 +5,7 @@ async API for headless browser navigation, element interaction, and screenshot c
 """
 
 from __future__ import annotations
+from typing import Any
 
 import asyncio
 from uuid import uuid4

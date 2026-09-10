@@ -1,9 +1,10 @@
 import jwt
+import os
 import time
 import asyncio
 import websockets
 
-SECRET = "mantrasetu_voice_ticket_secret_shared_2026"
+SECRET = os.environ["VOICE_TICKET_SECRET"]
 ALGO = "HS256"
 
 payload = {

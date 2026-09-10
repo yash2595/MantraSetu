@@ -25,7 +25,7 @@ def post_json(path, data, token=None):
         body_text = e.read().decode("utf-8", errors="replace")
         try:
             body_json = json.loads(body_text)
-        except:
+        except json.JSONDecodeError:
             body_json = {"detail": body_text}
         return e.code, body_json
 
@@ -41,7 +41,7 @@ def get_json(path, token=None):
         body_text = e.read().decode("utf-8", errors="replace")
         try:
             body_json = json.loads(body_text)
-        except:
+        except json.JSONDecodeError:
             body_json = {"detail": body_text}
         return e.code, body_json
 
@@ -76,7 +76,8 @@ req = urllib.request.Request(FRONTEND + "/")
 resp = urllib.request.urlopen(req)
 print(f"  Home page status: {resp.status}")
 html = resp.read().decode("utf-8", errors="replace")
-print(f"  Home page has root div: {'<div id=\"root\">' in html}")
+root_div = '<div id="root">'
+print(f"  Home page has root div: {root_div in html}")
 
 # Step 4: Simulate AuthContext checkAuth on page refresh
 # AuthContext.tsx useEffect calls authService.getToken() then authService.getMe()

@@ -92,12 +92,57 @@ measures the worst case (full-gain coupling, no AEC) — harsher than any real d
 confirmation on a loudspeaker is still worth doing.
 
 ## Backlog
-- P1: Real-device confirmation on loudspeaker + headphones (needs the user's hardware).
+- P0 (BLOCKED on user): complexity refactor of `app/api/websocket/router.py`
+  `voice_websocket_endpoint()` — genuinely 738 lines, cyclomatic complexity 162, 79 locals,
+  11 nesting levels; `_handle_audio_end()` 218 lines / complexity 46. Deliberately NOT started:
+  this is the same voice path as the echo fix above and the backend cannot be executed in this
+  container, so a blind refactor would very likely silently reintroduce the echo bug. The user's
+  answer on whether to proceed was self-contradictory (selected both "do it" and "skip it") and
+  is being re-clarified. Also deferred with it: `apply_pandit()` (17 args → Pydantic model),
+  `conversation_chat()`, `health_check()`, `browser_executor.execute_action()` (8 nesting levels).
+- P1: Real-device confirmation of the echo fix on loudspeaker + headphones (needs user hardware).
 - P2: Backend passes `language: "hi"` to InWorld while the adapter expects `hi-IN` style codes
   (`inworld_stt_adapter.py`) — worth confirming against InWorld docs.
 - P2: `useSaarthiVoice.ts` is ~3280 lines; split into capture / playback / VAD / WS transport.
 - P2: Migrate deprecated `ScriptProcessorNode` to `AudioWorkletNode` (capture currently runs on
   the main thread, so React re-renders can jitter audio frames).
+- P2: `pydantic_settings` is not installed in this environment, so several `app/` modules cannot
+  be imported for runtime testing (only static analysis works).
 - P3: Pre-existing dev-only React warning: "props object containing a key prop is being spread
   into JSX" on `Link` components (2 occurrences). Not related to the voice path.
 - P3: Emit echo-tail release times as telemetry to catch tail regressions in the field.
+- P3: `/app/echo_harness/` is untracked and will be lost on pod restart. Move to
+  `tools/echo-harness/` inside the frontend repo if it should be preserved.
+
+## Changelog
+
+### 2026-06 — Code quality report remediation (verified, `iteration_2.json`, 100% both sides)
+Applied only the findings that survived verification. **7 of the report's "critical" items were
+scanner false positives** and were deliberately not "fixed":
+- The 7 claimed `eval()` code-injection vulnerabilities do not exist. There is zero raw `eval(`
+  in the codebase. `pandit_onboarding.py:377` is already `ast.literal_eval`; two test hits
+  matched the substring `eval` inside the word *retri**eval*** (`test_..._hybrid_retrieval`,
+  `test_semantic_ranking_and_retrieval`).
+- Several "hardcoded secrets" are mock literals (`api_key="mock_inworld_key"`), i.e. exactly the
+  mocking the report recommends. `user_service.py:169` `hashed_password="oauth2_google"` is an
+  OAuth shadow-user placeholder; `verify_password` uses `bcrypt.checkpw`, so a non-bcrypt hash
+  cannot authenticate.
+- "Insecure random" at `echo_harness/mock_voice_server2.py:51` is the test harness using
+  `random.seed(7)` to generate a deterministic test tone — non-security by design.
+
+Real fixes applied:
+| Fix | Detail |
+|---|---|
+| Deleted 3 null-byte-corrupted orphans | `old_ai_orchestrator.py` (7272), `old_pandit_onboarding.py` (26932), `test_asyncmock.py` (175); confirmed imported nowhere |
+| Stripped UTF-8 BOM | `final backend mantrasetu/.../app/database/verification_db.py` |
+| Fixed 2 real `SyntaxError`s | f-string backslashes in `auth_browser_verification.py:79`, `auth_verification_test.py:98` (extracted `root_div` var); also narrowed 4 bare `except:` to `json.JSONDecodeError` |
+| MD5 → SHA-256 | `app/tools/tool_cache.py` `_hash_key()` + docstring |
+| Undefined names: 48 → 0 | added missing `Any`/`Optional` imports across 10 files; added `ValidationError` import to `app/archive/voice_service.py` (3 real `NameError` raise sites) |
+| 3 methods missing `self` | `ConfigurationManager.reload_configuration`, `DashboardManager.get_dashboard_snapshot`, `SystemDiagnostics.generate_diagnostics_report` (now delegates to `generate_diagnostics`) |
+| Removed dead expression | `cache_manager.py:281` `text=cleaned_prompt if "cleaned_prompt" in locals() else cleaned_text` → `text=cleaned_text` (condition was always false) |
+| Real hardcoded secret | `test_rate_limiting.py:6` `VOICE_TICKET_SECRET` → `os.environ` |
+
+Verification: `compileall` exit 0 on both backends; `pyflakes app/` undefined names 0 (was 48);
+zero null-byte/BOM `.py` files remain; `app/api/websocket/router.py` byte-unchanged; echo-fix
+regression harness re-run clean (ECHO_DETECTED=false, MIC_ALIVE=true).
+

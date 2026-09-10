@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from threading import RLock
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from app.prompt_runtime.prompt_composer import AssembledPrompt
 
 

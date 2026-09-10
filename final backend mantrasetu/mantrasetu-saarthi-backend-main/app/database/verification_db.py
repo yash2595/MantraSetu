@@ -1,4 +1,4 @@
-﻿"""
+"""
 MongoDB operations for email verification tokens.
 Collection: email_verification_tokens
 """

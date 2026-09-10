@@ -22,8 +22,9 @@ class SystemDiagnostics:
         self.state_manager = SystemStateManager()
         self.event_bus = SystemEventBus()
 
-    def generate_diagnostics_report() -> SystemDiagnosticsReport:
-        pass  # method fixed below
+    def generate_diagnostics_report(self) -> SystemDiagnosticsReport:
+        """Backwards-compatible alias for generate_diagnostics()."""
+        return self.generate_diagnostics()
 
     def generate_diagnostics(self) -> SystemDiagnosticsReport:
         """Generate comprehensive system diagnostics report."""

@@ -34,7 +34,7 @@ class DashboardManager:
         self._lock = RLock()
         self._snapshots_count = 0
 
-    def get_dashboard_snapshot() -> DashboardSnapshot:
+    def get_dashboard_snapshot(self) -> DashboardSnapshot:
         """Assemble current executive operational dashboard snapshot."""
         with self._lock:
             self._snapshots_count += 1

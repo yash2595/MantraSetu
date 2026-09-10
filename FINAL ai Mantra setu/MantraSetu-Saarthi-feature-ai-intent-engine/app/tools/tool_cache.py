@@ -19,7 +19,7 @@ _COMPONENT_VERSION = "1.1.0"
 
 
 class ToolCache:
-    """Enterprise thread-safe TTL result cache using parameters MD5 hashing."""
+    """Enterprise thread-safe TTL result cache using parameters SHA-256 hashing."""
 
     def __init__(self, default_ttl_seconds: float = 300.0) -> None:
         self._default_ttl = default_ttl_seconds
@@ -33,7 +33,7 @@ class ToolCache:
         """Generate deterministic cache key hash from tool_name and parameter dictionary."""
         sorted_params = json.dumps(parameters or {}, sort_keys=True, default=str)
         raw_key = f"{tool_name}:{sorted_params}"
-        return hashlib.md5(raw_key.encode("utf-8")).hexdigest()
+        return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 
     def get(self, tool_name: str, parameters: dict[str, Any]) -> ToolResult | None:
         """Retrieve cached result if valid and unexpired."""

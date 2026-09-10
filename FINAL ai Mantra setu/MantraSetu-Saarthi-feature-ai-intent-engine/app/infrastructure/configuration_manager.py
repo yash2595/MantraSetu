@@ -51,7 +51,7 @@ class ConfigurationManager:
         with self._lock:
             self._config.settings[key] = value
 
-    def reload_configuration() -> bool:
+    def reload_configuration(self) -> bool:
         """Trigger live configuration reload."""
         with self._lock:
             self._reloads_count += 1

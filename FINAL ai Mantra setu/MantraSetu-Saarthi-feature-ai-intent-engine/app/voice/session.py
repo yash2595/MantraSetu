@@ -1,6 +1,7 @@
 """VoiceSession data model representing a live streaming microphone session."""
 
 from __future__ import annotations
+from typing import Any
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
