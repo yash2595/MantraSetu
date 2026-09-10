@@ -36,3 +36,9 @@ verify_names_to_roman.py
 verify_fixes.py
 **/verify_fixes.py
 saarthi_rate_limit_speech_bubble.png
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
