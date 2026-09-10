@@ -391,6 +391,10 @@ export function useSaarthiVoice() {
       } catch (e) {}
       processorRef.current = null;
     }
+    if (micAudioCtxRef.current && micAudioCtxRef.current.state !== 'closed') {
+      micAudioCtxRef.current.close().catch(() => {});
+    }
+    micAudioCtxRef.current = null;
     if (micStreamRef.current) {
       micStreamRef.current.getTracks().forEach((track) => {
         console.log('[Voice] Stopping mic track:', track.label);
@@ -520,6 +524,13 @@ export function useSaarthiVoice() {
   const pcmByteLeftoverRef = useRef<Uint8Array | null>(null);
   const pcmChunkBufferRef = useRef<Uint8Array[]>([]);
   const isSchedulingRef = useRef(false);
+
+  // ── ECHO FIX: dedicated 16kHz capture context (never shares a graph with TTS playback) ──
+  const micAudioCtxRef = useRef<AudioContext | null>(null);
+  // Timestamp until which the VAD must ignore low-amplitude input (acoustic tail of Saarthi's own reply)
+  const echoGuardUntilRef = useRef<number>(0);
+  const ACOUSTIC_COOLDOWN_MS = 700;
+  const ECHO_GUARD_MS = 600;
 
   // Sync activeFieldRef on page change: reset to null on non-signup pages
   useEffect(() => {
@@ -2248,6 +2259,12 @@ export function useSaarthiVoice() {
                   console.log('[STATE]', 'fallback timeout fired after 20s');
                   console.log('[STATE]', `speaking -> listening (abandoning late response for ${reqIdToAbandon})`);
                   abandonedRequestsRef.current.add(reqIdToAbandon);
+                  isFinalChunkReceived.current = false;
+                  preRollFramesRef.current = [];
+                  userHasSpokenRef.current = false;
+                  userRecordedBytesRef.current = 0;
+                  if (resetVadStateRef.current) resetVadStateRef.current();
+                  stateRef.current = 'listening';
                   setSaarthiState('listening');
                }
             }, 20000);
@@ -2597,7 +2614,7 @@ export function useSaarthiVoice() {
         userRecordedBytesRef.current = 0;
         userHasSpokenRef.current = false;
 
-        console.log('[VERIFY-DIAGNOSTIC] (a) Audio playback complete (verification readout finished). Starting 450ms acoustic cooldown.');
+        console.log(`[VERIFY-DIAGNOSTIC] (a) Audio playback complete (verification readout finished). Starting ${ACOUSTIC_COOLDOWN_MS}ms acoustic cooldown.`);
 
         if (ttsCooldownTimerRef.current) {
           clearTimeout(ttsCooldownTimerRef.current);
@@ -2607,7 +2624,7 @@ export function useSaarthiVoice() {
           ttsCooldownTimerRef.current = null;
           if (!isVoiceEnabledRef.current) return;
 
-          console.log('[VERIFY-DIAGNOSTIC] (b) Acoustic cooldown elapsed (450ms). Mic re-armed. Transitioning state: speaking -> listening.');
+          console.log(`[VERIFY-DIAGNOSTIC] (b) Acoustic cooldown elapsed (${ACOUSTIC_COOLDOWN_MS}ms). Mic re-armed. Transitioning state: speaking -> listening.`);
           isFinalChunkReceived.current = false;
           userHasSpokenRef.current = false;
           userRecordedBytesRef.current = 0;
@@ -2615,6 +2632,8 @@ export function useSaarthiVoice() {
           pcmChunkBufferRef.current = [];
           pcmByteLeftoverRef.current = null;
           preRollFramesRef.current = [];
+          echoGuardUntilRef.current = Date.now() + ECHO_GUARD_MS;
+          if (resetVadStateRef.current) resetVadStateRef.current();
           stateRef.current = 'listening';
           setSaarthiState('listening');
           if (fallbackTimeoutRef.current) {
@@ -2628,7 +2647,7 @@ export function useSaarthiVoice() {
           console.log('[WS-STATE]', wsRef.current?.readyState);
           console.log('[DIAGNOSTIC-1] TTS END -> stateRef:', stateRef.current, '| wsReadyState:', wsRef.current?.readyState, '| audioCtxState:', audioCtx.state);
           console.log('[GREETING-DONE] State:', stateRef.current, 'WS:', wsRef.current?.readyState, 'SessionReady:', isSessionReadyRef.current);
-        }, 450);
+        }, ACOUSTIC_COOLDOWN_MS);
       }
       return;
     }
@@ -2716,7 +2735,7 @@ export function useSaarthiVoice() {
               userRecordedBytesRef.current = 0;
               userHasSpokenRef.current = false;
 
-              console.log('[VERIFY-DIAGNOSTIC] (a) Audio playback complete (readout finished). Starting 450ms acoustic cooldown.');
+              console.log(`[VERIFY-DIAGNOSTIC] (a) Audio playback complete (readout finished). Starting ${ACOUSTIC_COOLDOWN_MS}ms acoustic cooldown.`);
 
               if (ttsCooldownTimerRef.current) {
                 clearTimeout(ttsCooldownTimerRef.current);
@@ -2726,7 +2745,7 @@ export function useSaarthiVoice() {
                 ttsCooldownTimerRef.current = null;
                 if (!isVoiceEnabledRef.current) return;
 
-                console.log('[VERIFY-DIAGNOSTIC] (b) Acoustic cooldown elapsed (450ms). Mic re-armed. Transitioning state: speaking -> listening.');
+                console.log(`[VERIFY-DIAGNOSTIC] (b) Acoustic cooldown elapsed (${ACOUSTIC_COOLDOWN_MS}ms). Mic re-armed. Transitioning state: speaking -> listening.`);
                 isFinalChunkReceived.current = false;
                 userHasSpokenRef.current = false;
                 userRecordedBytesRef.current = 0;
@@ -2734,6 +2753,8 @@ export function useSaarthiVoice() {
                 pcmChunkBufferRef.current = [];
                 pcmByteLeftoverRef.current = null;
                 preRollFramesRef.current = [];
+                echoGuardUntilRef.current = Date.now() + ECHO_GUARD_MS;
+                if (resetVadStateRef.current) resetVadStateRef.current();
                 stateRef.current = 'listening';
                 setSaarthiState('listening');
 
@@ -2748,7 +2769,7 @@ export function useSaarthiVoice() {
                 console.log('[WS-STATE]', wsRef.current?.readyState);
                 console.log('[DIAGNOSTIC-1] TTS END -> stateRef:', stateRef.current, '| wsReadyState:', wsRef.current?.readyState, '| audioCtxState:', audioCtx.state);
                 console.log('[GREETING-DONE] State:', stateRef.current, 'WS:', wsRef.current?.readyState, 'SessionReady:', isSessionReadyRef.current);
-              }, 450);
+              }, ACOUSTIC_COOLDOWN_MS);
             } else {
               console.log('[Voice-PCM] Active buffer pool drained, awaiting more streaming chunks...');
             }
@@ -2814,7 +2835,14 @@ export function useSaarthiVoice() {
 
     console.log('[Voice] Initializing PERSISTENT microphone stream for WebSocket session...');
 
-    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+    navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+      } as MediaTrackConstraints
+    })
       .then(stream => {
         micStreamRef.current = stream;
         console.log('[Voice] Persistent Microphone permission granted & stream active');
@@ -2826,10 +2854,25 @@ export function useSaarthiVoice() {
             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
           }
         }
-        const audioCtx = audioContextRef.current;
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume().then(() => console.log('[Voice] AudioContext resumed for persistent mic input'));
+        if (audioContextRef.current.state === 'suspended') {
+          audioContextRef.current.resume().catch(() => {});
         }
+
+        // ── ECHO FIX: capture runs in its OWN 16kHz context, fully isolated from the TTS
+        // playback context so microphone nodes can never reach the speaker graph. Requesting
+        // 16000Hz natively also lets the browser do high-quality resampling for us instead of
+        // our crude 24k -> 16k decimation, which was garbling transcriptions.
+        let micAudioCtx: AudioContext;
+        try {
+          micAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+        } catch (e) {
+          micAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        micAudioCtxRef.current = micAudioCtx;
+        if (micAudioCtx.state === 'suspended') {
+          micAudioCtx.resume().then(() => console.log('[Voice] Mic AudioContext resumed for persistent mic input')).catch(() => {});
+        }
+        console.log(`[Voice] Mic capture AudioContext sampleRate: ${micAudioCtx.sampleRate}Hz (target 16000Hz)`);
 
         // ── AUTOPLAY UNBLOCKER: Attach global user interaction listeners ──
         const resumeAllAudioContexts = () => {
@@ -2843,6 +2886,9 @@ export function useSaarthiVoice() {
               console.log('[Voice] vadAudioCtxRef resumed via user interaction! State:', vadAudioCtxRef.current?.state);
             }).catch(e => console.warn('[Voice] VAD AudioContext resume error:', e));
           }
+          if (micAudioCtxRef.current && micAudioCtxRef.current.state === 'suspended') {
+            micAudioCtxRef.current.resume().catch(e => console.warn('[Voice] Mic AudioContext resume error:', e));
+          }
         };
 
         window.addEventListener('click', resumeAllAudioContexts, true);
@@ -2850,29 +2896,36 @@ export function useSaarthiVoice() {
         window.addEventListener('touchstart', resumeAllAudioContexts, true);
         window.addEventListener('keydown', resumeAllAudioContexts, true);
 
-        const sourceNode = audioCtx.createMediaStreamSource(stream);
-        const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+        const sourceNode = micAudioCtx.createMediaStreamSource(stream);
+        const processor = micAudioCtx.createScriptProcessor(4096, 1, 1);
         processorRef.current = processor;
         let chunkCounter = 0;
 
         processor.onaudioprocess = (event) => {
           const inputData = event.inputBuffer.getChannelData(0);
-          const resampledData = downsampleTo16kHz(inputData, audioCtx.sampleRate || 16000);
+          const resampledData = downsampleTo16kHz(inputData, micAudioCtx.sampleRate || 16000);
           const pcm16 = float32ToPCM16(resampledData);
           const base64data = uint8ArrayToBase64(pcm16);
 
-          // Maintain rolling pre-roll buffer (3 chunks = ~350ms of audio) so opening syllables are never clipped
-          preRollFramesRef.current.push({ data: base64data, bytes: pcm16.byteLength });
-          if (preRollFramesRef.current.length > 3) {
-            preRollFramesRef.current.shift();
+          // Maintain rolling pre-roll buffer (3 chunks) so opening syllables are never clipped.
+          // ECHO FIX: never buffer audio captured while Saarthi is speaking or thinking, otherwise
+          // the pre-roll flush would ship the tail of Saarthi's own reply to the STT engine.
+          if (stateRef.current === 'listening') {
+            preRollFramesRef.current.push({ data: base64data, bytes: pcm16.byteLength });
+            if (preRollFramesRef.current.length > 3) {
+              preRollFramesRef.current.shift();
+            }
+          } else {
+            preRollFramesRef.current = [];
           }
 
           if (chunkCounter % 20 === 0) {
             console.log(`[AUDIO-PROCESS-DIAGNOSTIC] stateRef=${stateRef.current}, wsState=${wsRef.current?.readyState}, isSessionReady=${isSessionReadyRef.current}`);
           }
 
-          // Stream AUDIO_FRAMEs ONLY when listening for user speech and WebSocket is open
-          if (stateRef.current === 'listening' && wsRef.current?.readyState === WebSocket.OPEN && isSessionReadyRef.current) {
+          // Stream AUDIO_FRAMEs ONLY when listening for user speech and WebSocket is open.
+          // ECHO FIX: also require that no TTS playback is in flight.
+          if (stateRef.current === 'listening' && !isPlayingRef.current && wsRef.current?.readyState === WebSocket.OPEN && isSessionReadyRef.current) {
             // Only stream audio to server and accumulate bytes once real user speech has been detected by VAD
             if (userHasSpokenRef.current) {
               // Flush pre-roll buffer if starting a new utterance
@@ -2939,11 +2992,27 @@ export function useSaarthiVoice() {
           }
         };
 
-        sourceNode.connect(processor);
-        processor.connect(audioCtx.destination);
+        // ── ECHO FIX: terminate the capture chain in a MUTED sink. Previously the mic
+        // ScriptProcessor was connected to audioCtx.destination (the same graph that plays
+        // Saarthi's TTS), creating a live microphone -> speaker path.
+        const micSink = micAudioCtx.createGain();
+        micSink.gain.value = 0;
+        if (micAudioCtx.sampleRate > 16000) {
+          // Browser ignored our 16kHz request (Safari): low-pass below Nyquist before decimating
+          const antiAlias = micAudioCtx.createBiquadFilter();
+          antiAlias.type = 'lowpass';
+          antiAlias.frequency.value = 7000;
+          antiAlias.Q.value = 0.707;
+          sourceNode.connect(antiAlias);
+          antiAlias.connect(processor);
+        } else {
+          sourceNode.connect(processor);
+        }
+        processor.connect(micSink);
+        micSink.connect(micAudioCtx.destination);
 
-        // VAD Setup
-        const vadAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        // VAD Setup — reuses the isolated mic context so only ONE capture graph exists
+        const vadAudioCtx = micAudioCtx;
         vadAudioCtxRef.current = vadAudioCtx;
         if (vadAudioCtx.state === 'suspended') {
           vadAudioCtx.resume().catch(() => {});
@@ -2991,7 +3060,7 @@ export function useSaarthiVoice() {
           const average = sum / dataArray.length;
 
           // Fix 2 (VAD gating): Hold speech detection and keep state clean when Saarthi is speaking TTS or thinking
-          if ((stateRef.current as string) === 'speaking' || (stateRef.current as string) === 'thinking') {
+          if ((stateRef.current as string) === 'speaking' || (stateRef.current as string) === 'thinking' || isPlayingRef.current) {
             lastSpeechTime = Date.now();
             audioEndSent = false;
             speechConfidence = 0;
@@ -3012,8 +3081,16 @@ export function useSaarthiVoice() {
           }
 
           // Responsive Dynamic threshold with +2.2 SNR delta (minimum 6.5, clamped max baseline 14.0)
-          const DYNAMIC_THRESHOLD = Math.max(6.5, backgroundNoise + 2.2);
+          // ECHO FIX: for a short window right after Saarthi stops speaking, demand a much stronger
+          // signal so the decaying acoustic tail of her own reply cannot self-trigger the mic.
+          const inEchoGuard = Date.now() < echoGuardUntilRef.current;
+          const echoGuardDelta = inEchoGuard ? 8.0 : 0;
+          const DYNAMIC_THRESHOLD = Math.max(6.5, backgroundNoise + 2.2) + echoGuardDelta;
           const PEAK_THRESHOLD = DYNAMIC_THRESHOLD + 3.0;
+
+          if (inEchoGuard) {
+            lastSpeechTime = Date.now();
+          }
 
           // High-Sensitivity Leaky Integrator:
           // 1. Strong speech spike (>= PEAK_THRESHOLD) -> +2 confidence.
@@ -3128,7 +3205,14 @@ export function useSaarthiVoice() {
         }
         if (processorRef.current) {
           try { processorRef.current.disconnect(); } catch (e) {}
+          try { processorRef.current.onaudioprocess = null; } catch (e) {}
+          processorRef.current = null;
         }
+        if (micAudioCtxRef.current && micAudioCtxRef.current.state !== 'closed') {
+          micAudioCtxRef.current.close().catch(() => {});
+        }
+        micAudioCtxRef.current = null;
+        vadAudioCtxRef.current = null;
         if (micStreamRef.current) {
           micStreamRef.current.getTracks().forEach(track => track.stop());
           micStreamRef.current = null;
@@ -3170,6 +3254,11 @@ export function useSaarthiVoice() {
       clearTimeout(fallbackTimeoutRef.current);
       fallbackTimeoutRef.current = null;
     }
+    userHasSpokenRef.current = false;
+    userRecordedBytesRef.current = 0;
+    echoGuardUntilRef.current = Date.now() + ECHO_GUARD_MS;
+    if (resetVadStateRef.current) resetVadStateRef.current();
+    stateRef.current = 'listening';
     setSaarthiState('listening');
   }, [setSaarthiState]);
 
