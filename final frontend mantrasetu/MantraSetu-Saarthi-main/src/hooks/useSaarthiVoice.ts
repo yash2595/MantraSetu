@@ -854,7 +854,28 @@ export function useSaarthiVoice() {
     }
 
     if (step.action === 'REFRESH_PAGE') {
-      console.log('[NAV-DEBUG] Triggering browser reload for REFRESH_PAGE action');
+      console.log('[NAV-DEBUG] REFRESH_PAGE: Saving form state before reload to prevent data loss...');
+      // Synchronous save before reload: bypasses the 800ms debounce so latest values are never lost
+      try {
+        const existingSessionId = sessionStorage.getItem('saarthi_session_id') || ('manual_' + Date.now());
+        sessionStorage.setItem('saarthi_session_id', existingSessionId);
+        const existingDraftStr = sessionStorage.getItem('ms_saarthi_pandit_form_data');
+        const domFormData = getFormStateData();
+        if (domFormData && Object.keys(domFormData).length > 0) {
+          let existingData: any = {};
+          if (existingDraftStr) {
+            try { existingData = (JSON.parse(existingDraftStr).data) || {}; } catch (_) {}
+          }
+          const mergedData = { ...existingData, ...domFormData };
+          sessionStorage.setItem('ms_saarthi_pandit_form_data', JSON.stringify({
+            sessionId: existingSessionId,
+            data: mergedData,
+          }));
+          console.log('[REFRESH-SAVE] Saved', Object.keys(mergedData).length, 'fields before reload.');
+        }
+      } catch (saveErr) {
+        console.warn('[REFRESH-SAVE] Could not save form state before reload:', saveErr);
+      }
       window.location.reload();
       return;
     }
